@@ -159,7 +159,7 @@ type BasicWorkloadDriver struct {
 	getSchedulingPolicyCallback        func() (string, bool)                      // getSchedulingPolicyCallback is a callback to retrieve the configured scheduling policy of the cluster.
 	schedulingPolicy                   string                                     // Cached scheduling policy value
 	id                                 string                                     // Unique ID (relative to other drivers). The workload registered with this driver will be assigned this ID.
-	kernelManager                      jupyter.KernelSessionManager               // Simplified Go implementation of the Jupyter JavaScript API.
+	KernelManager                      jupyter.KernelSessionManager               // Simplified Go implementation of the Jupyter JavaScript API.
 	mu                                 sync.Mutex                                 // Synchronizes access to internal data structures. Can be locked externally using the Lock/Unlock API exposed by the WorkloadDriver.
 	opts                               *domain.Configuration                      // The system's configuration, read from a file.
 	performClockTicks                  bool                                       // If true, then we'll issue clock ticks. Otherwise, don't issue them. Mostly used for testing/debugging.
@@ -295,10 +295,10 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		driver.workloadPresets[preset.GetKey()] = preset
 	}
 
-	driver.kernelManager = jupyter.NewKernelSessionManager(jupyterAddress, true, atom, driver)
+	driver.KernelManager = jupyter.NewKernelSessionManager(jupyterAddress, true, atom, driver)
 
 	if driver.onNonCriticalErrorOccurred != nil {
-		driver.kernelManager.RegisterOnErrorHandler(func(sessionId string, kernelId string, err error) {
+		driver.KernelManager.RegisterOnErrorHandler(func(sessionId string, kernelId string, err error) {
 			err = fmt.Errorf("error occurred for kernel=%s,session=%s: %w", kernelId, sessionId, err)
 			driver.onNonCriticalErrorOccurred(driver.id, err)
 		})
@@ -700,8 +700,8 @@ func (d *BasicWorkloadDriver) RegisterWorkload(workloadRegistrationRequest *doma
 	}
 
 	d.workload = workload
-	d.kernelManager.AddMetadata(jupyter.WorkloadIdMetadataKey, d.workload.GetId())
-	d.kernelManager.AddMetadata(jupyter.RemoteStorageDefinitionMetadataKey, d.workload.GetRemoteStorageDefinition())
+	d.KernelManager.AddMetadata(jupyter.WorkloadIdMetadataKey, d.workload.GetId())
+	d.KernelManager.AddMetadata(jupyter.RemoteStorageDefinitionMetadataKey, d.workload.GetRemoteStorageDefinition())
 	return d.workload, nil
 }
 
@@ -994,9 +994,12 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 			zap.String("reason", err.Error()))
 		d.handleCriticalError(err)
 
-		d.outputFileMutex.Lock()
-		_ = d.outputFile.Close()
-		d.outputFileMutex.Unlock()
+		if !d.OutputCsvDisabled {
+			d.outputFileMutex.Lock()
+			_ = d.outputFile.Close()
+			d.outputFileMutex.Unlock()
+		}
+
 		return
 	}
 
@@ -1647,7 +1650,7 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) {
 				WithStartingTick(tick).
 				WithAtom(d.atom).
 				WithSchedulingPolicy(d.getSchedulingPolicy()).
-				WithKernelManager(d.kernelManager).
+				WithKernelManager(d.KernelManager).
 				WithTargetTickDurationSeconds(d.targetTickDurationSeconds).
 				WithErrorChan(d.errorChan).
 				WithWorkload(d.workload).
