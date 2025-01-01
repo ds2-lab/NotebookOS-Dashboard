@@ -201,7 +201,7 @@ type BasicWorkloadDriver struct {
 	workloadOutputInterval             time.Duration                              // workloadOutputInterval defines how often we should collect and write workload output statistics to the CSV file
 	timeCompressTrainingDurations      bool                                       // timeCompressTrainingDurations indicates whether the Workload's TimescaleAdjustmentFactor should be used to compress the duration of training events.
 	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
-	clients                            map[string]*Client
+	Clients                            map[string]*Client
 	clientsWaitGroup                   sync.WaitGroup
 
 	pauseMutex sync.Mutex
@@ -261,7 +261,7 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		refreshClusterStatistics:           callbackProvider.RefreshAndClearClusterStatistics,
 		getSchedulingPolicyCallback:        callbackProvider.GetSchedulingPolicy,
 		paused:                             false,
-		clients:                            make(map[string]*Client),
+		Clients:                            make(map[string]*Client),
 		workloadOutputInterval:             time.Second * time.Duration(opts.WorkloadOutputIntervalSec),
 		timeCompressTrainingDurations:      opts.TimeCompressTrainingDurations,
 	}
@@ -1531,7 +1531,7 @@ func (d *BasicWorkloadDriver) workloadComplete() {
 
 	d.sugaredLogger.Debugf("There is/are %d sessions.", len(d.sessionConnections))
 	for sessionId, sessionConnection := range d.sessionConnections {
-		kernel := sessionConnection.Kernel()
+		kernel := sessionConnection.Kernel
 		if kernel == nil {
 			continue
 		}
@@ -1643,6 +1643,13 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) {
 		sessionId := evt.SessionId
 
 		if evt.Name == domain.EventSessionReady {
+			d.logger.Debug("Creating new client.",
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.String("workload_id", d.workload.GetId()),
+				zap.String("session_id", sessionId),
+				zap.Time("starting_tick", tick),
+				zap.String("session_ready_event", evt.String()))
+
 			client := NewClientBuilder().
 				WithSessionId(sessionId).
 				WithWorkloadId(d.workload.GetId()).
@@ -1657,13 +1664,14 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) {
 				WithSession(d.workloadSessionsMap[sessionId]).
 				WithNotifyCallback(d.notifyCallback).
 				WithWaitGroup(&d.clientsWaitGroup).
+				WithTimescaleAdjustmentFactor(d.timescaleAdjustmentFactor).
 				Build()
 
-			d.clients[sessionId] = client
+			d.Clients[sessionId] = client
 			d.clientsWaitGroup.Add(1)
 			go client.Run()
 		} else {
-			client, loaded := d.clients[sessionId]
+			client, loaded := d.Clients[sessionId]
 			if !loaded {
 				d.logger.Error("Client not found.",
 					zap.String("workload_name", d.workload.WorkloadName()),

@@ -125,7 +125,7 @@ func (ed *MemoryUtilBuffer) Lookup(ts time.Time) (util *MemoryUtil) {
 	return
 }
 
-func (ed *MemoryUtilBuffer) Debug_Init(rec *Memory) *MemoryUtil {
+func (ed *MemoryUtilBuffer) DebugInit(rec *Memory) *MemoryUtil {
 	return ed.init(rec)
 }
 
@@ -155,7 +155,7 @@ func (ed *MemoryUtilBuffer) init(rec *Memory) *MemoryUtil {
 	return &nextUtil
 }
 
-func (ed *MemoryUtilBuffer) Debug_Commit(rec *MemoryUtil) *MemoryUtil {
+func (ed *MemoryUtilBuffer) DebugCommit(rec *MemoryUtil) *MemoryUtil {
 	return ed.commit(rec)
 }
 
@@ -171,10 +171,10 @@ func (ed *MemoryUtilBuffer) commit(rec *MemoryUtil) *MemoryUtil {
 	if ed.prototype != nil {
 		ed.prototype.NextUtil = rec
 		// Because only the status of current reading is touched by transit(),
-		// we move the Repeat intialization from init() to here.
+		// we move the Repeat initialization from init() to here.
 		ed.prototype.Repeat = 0
 		if ed.current != nil {
-			// Set field "Repeat", MemoryIdleDelay is equivalent to GPUIdel
+			// Set field "Repeat", MemoryIdleDelay is equivalent to GPUIdle.
 			eqStatus := ed.current.Status
 			if eqStatus == MemoryIdleDelay {
 				eqStatus = MemoryIdle

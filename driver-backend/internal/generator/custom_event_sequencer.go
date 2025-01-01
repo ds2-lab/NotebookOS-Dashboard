@@ -38,6 +38,10 @@ type CustomEventSequencer struct {
 	podMap              map[string]int           // Map from SessionID to PodID
 	waitingEvents       map[string]*domain.Event // The event that will be submitted/enqueued once the next commit happens.
 
+	// offset, in seconds, east of UTC of the current local timezone, multiplied by -1 so that we can add it
+	// to values passed to time.Unix such that time.Unix(offset) is equal to 12:00am, Jan 1, 1970.
+	offset int64
+
 	// sessionEventIndexes is a map from session ID to the current event localIndex for the session.
 	// See the localIndex field of domain.Event for a description of what the "event localIndex" is.
 	// The current entry for a particular session is the localIndex of the next event to be created.
@@ -67,6 +71,9 @@ func NewCustomEventSequencer(eventConsumer domain.EventConsumer, startingSeconds
 	customEventSequencer.sugarLog = customEventSequencer.log.Sugar()
 
 	customEventSequencer.sugarLog.Debugf("Created new CustomEventSequencer with startingSeconds=%d and tickDurationSeconds=%d.", startingSeconds, tickDurationSeconds)
+
+	_, offset := time.Now().Zone()
+	customEventSequencer.offset = int64(offset * -1)
 
 	return customEventSequencer
 }
@@ -110,7 +117,15 @@ func (s *CustomEventSequencer) RegisterSession(sessionId string, maxCPUs float64
 
 func (s *CustomEventSequencer) AddSessionStartedEvent(sessionId string, tickNumber int, cpuUtil float64, memUtil float64, gpuUtil float64, numGPUs int) {
 	sec := s.startingSeconds + (int64(tickNumber) * s.tickDurationSeconds)
-	timestamp := time.Unix(sec, 0)
+	timestamp := time.Unix(sec+s.offset, 0)
+
+	s.log.Debug("Creating 'session-started' event.",
+		zap.Int("tick_number", tickNumber),
+		zap.Int64("starting_seconds", s.startingSeconds),
+		zap.Int64("tick_duration_sec", s.tickDurationSeconds),
+		zap.Int64("sec", sec),
+		zap.Time("timestamp", timestamp))
+
 	session := s.getWrappedSession(sessionId)
 	podIdx, ok := s.podMap[sessionId]
 	if !ok {
@@ -165,8 +180,8 @@ func (s *CustomEventSequencer) AddSessionStartedEvent(sessionId string, tickNumb
 		Value:     memUtil,
 		PodIdx:    podIdx,
 	}
-	nextUtil := session.memBuffer.Debug_Init(memRecord)
-	session.memBuffer.Debug_Commit(nextUtil)
+	nextUtil := session.memBuffer.DebugInit(memRecord)
+	session.memBuffer.DebugCommit(nextUtil)
 
 	localIndex := s.sessionEventIndexes[sessionId]
 	s.sessionEventIndexes[sessionId] = localIndex + 1
@@ -196,7 +211,7 @@ func (s *CustomEventSequencer) AddSessionStartedEvent(sessionId string, tickNumb
 
 func (s *CustomEventSequencer) AddSessionTerminatedEvent(sessionId string, tickNumber int) {
 	sec := s.startingSeconds + (int64(tickNumber) * s.tickDurationSeconds)
-	timestamp := time.Unix(sec, 0)
+	timestamp := time.Unix(sec+s.offset, 0)
 	sessionMeta := s.getSessionMeta(sessionId)
 
 	s.stepCpu(sessionId, timestamp, 0)
@@ -248,7 +263,7 @@ func (s *CustomEventSequencer) AddSessionTerminatedEvent(sessionId string, tickN
 // - duration: The duration that the training should last.
 func (s *CustomEventSequencer) AddTrainingEvent(sessionId string, tickNumber int, durationInTicks int, cpuUtil float64, memUtil float64, gpuUtil []domain.GpuUtilization, vramUsageGB float64) {
 	startSec := s.startingSeconds + (int64(tickNumber) * s.tickDurationSeconds)
-	startTime := time.Unix(startSec, 0)
+	startTime := time.Unix(startSec+s.offset, 0)
 	sessionMeta := s.getSessionMeta(sessionId)
 
 	s.stepCpu(sessionId, startTime, cpuUtil)
@@ -263,7 +278,7 @@ func (s *CustomEventSequencer) AddTrainingEvent(sessionId string, tickNumber int
 	s.submitWaitingEvent(sessionMeta)
 
 	endSec := s.startingSeconds + (int64(tickNumber+durationInTicks) * s.tickDurationSeconds)
-	endTime := time.Unix(endSec, 0)
+	endTime := time.Unix(endSec+s.offset, 0)
 
 	s.stepCpu(sessionId, endTime, 0)
 	s.stepGpu(sessionId, endTime, gpuUtil, vramUsageGB)
@@ -424,8 +439,8 @@ func (s *CustomEventSequencer) stepMemory(sessionId string, timestamp time.Time,
 		PodIdx:    podIdx,
 		Value:     memUtil,
 	}
-	nextUtil := memBuffer.Debug_Init(record)
-	currentUtil := memBuffer.Debug_Commit(nextUtil)
+	nextUtil := memBuffer.DebugInit(record)
+	currentUtil := memBuffer.DebugCommit(nextUtil)
 	wrappedSession.session.Memory = currentUtil
 }
 

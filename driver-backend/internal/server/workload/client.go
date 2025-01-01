@@ -36,6 +36,7 @@ type ClientBuilder struct {
 	startingTick              time.Time
 	atom                      *zap.AtomicLevel
 	targetTickDurationSeconds int64
+	timescaleAdjustmentFactor float64
 	errorChan                 chan<- error
 	session                   *domain.WorkloadTemplateSession
 	workload                  internalWorkload
@@ -89,6 +90,11 @@ func (b *ClientBuilder) WithKernelManager(kernelSessionManager jupyter.KernelSes
 	return b
 }
 
+func (b *ClientBuilder) WithTimescaleAdjustmentFactor(timescaleAdjustmentFactor float64) *ClientBuilder {
+	b.timescaleAdjustmentFactor = timescaleAdjustmentFactor
+	return b
+}
+
 func (b *ClientBuilder) WithTargetTickDurationSeconds(seconds int64) *ClientBuilder {
 	b.targetTickDurationSeconds = seconds
 	return b
@@ -137,11 +143,12 @@ func (b *ClientBuilder) Build() *Client {
 		currentTick:               clock.NewSimulationClockFromTime(b.startingTick),
 		currentTime:               clock.NewSimulationClockFromTime(b.startingTick),
 		targetTickDurationSeconds: b.targetTickDurationSeconds,
+		timescaleAdjustmentFactor: b.timescaleAdjustmentFactor,
 		targetTickDuration:        time.Second * time.Duration(b.targetTickDurationSeconds),
 		clockTrigger:              clock.NewTrigger(),
 		errorChan:                 b.errorChan,
-		trainingStartedChannel:    make(chan interface{}, 1),
-		trainingStoppedChannel:    make(chan interface{}, 1),
+		TrainingStartedChannel:    make(chan interface{}, 1),
+		TrainingStoppedChannel:    make(chan interface{}, 1),
 		Session:                   b.session,
 		kernelSessionManager:      b.kernelSessionManager,
 		notifyCallback:            b.notifyCallback,
@@ -181,6 +188,7 @@ type Client struct {
 	maximumResourceSpec       *domain.ResourceRequest                // maximumResourceSpec is the maximum amount of resources this Client may use at any point in its lifetime.
 	targetTickDurationSeconds int64                                  // targetTickDurationSeconds is how long each tick was in the trace data used to generate this workload
 	targetTickDuration        time.Duration                          // targetTickDuration is how long each tick is supposed to last. This is the tick interval/step rate of the simulation.
+	timescaleAdjustmentFactor float64                                // timescaleAdjustmentFactor controls the amount/degree of time compression that is used/applied.
 	currentTick               domain.SimulationClock                 // currentTick maintains the time for this Client.
 	currentTime               domain.SimulationClock                 // currentTime contains the current clock time of the workload, which will be sometime between currentTick and currentTick + TickDuration.
 	ticker                    *clock.Ticker                          // ticker delivers ticks, which drives this Client's workload. Each time a tick is received, the Client will process events for that tick.
@@ -189,8 +197,8 @@ type Client struct {
 	running                   atomic.Int32                           // running indicates whether this Client is actively processing events.
 	ticksHandled              atomic.Int64                           // ticksHandled is the number of ticks handled by this Client.
 	lastTrainingSubmittedAt   time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
-	trainingStartedChannel    chan interface{}                       // trainingStartedChannel is used to notify that the last/current training has started.
-	trainingStoppedChannel    chan interface{}                       // trainingStoppedChannel is used to notify that the last/current training has ended.
+	TrainingStartedChannel    chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
+	TrainingStoppedChannel    chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
 	notifyCallback            func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
 	waitGroup                 *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
 }
@@ -411,6 +419,8 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 		zap.String("workload_id", c.WorkloadId))
 
 	for c.Workload.IsInProgress() {
+		tickStart := time.Now()
+
 		// Increment the clock.
 		tick, err := c.currentTick.IncrementClockBy(c.targetTickDuration)
 		if err != nil {
@@ -428,6 +438,12 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 			zap.String("workload_id", c.WorkloadId),
 			zap.Time("tick", tick))
 		c.clockTrigger.Trigger(tick)
+
+		tickElapsedBase := time.Since(tickStart)
+		tickRemaining := time.Duration(c.timescaleAdjustmentFactor * float64(c.targetTickDuration-tickElapsedBase))
+		if tickRemaining > 0 {
+			time.Sleep(tickRemaining)
+		}
 	}
 
 	c.logger.Debug("Client has finished issuing clock ticks.",
@@ -657,13 +673,17 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		zap.String("session_id", c.SessionId),
 		zap.Time("tick", tick))
 
-	err = c.waitForTrainingToStart(ctx, event, startedHandlingAt, sentRequestAt)
+	trainingStarted, err := c.waitForTrainingToStart(ctx, event, startedHandlingAt, sentRequestAt)
+	if !trainingStarted {
+		return nil
+	}
+
 	if err != nil {
 		c.logger.Error("Failed to wait for training to start.",
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
-			zap.String("event", event.StringJson()),
+			zap.String("event", event.String()),
 			zap.Error(err))
 		return err
 	}
@@ -690,7 +710,7 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 		zap.String("event_id", evt.ID),
 		zap.Float64("training_duration_sec", evt.Duration.Seconds()))
 
-	kernelConnection := c.sessionConnection.Kernel()
+	kernelConnection := c.sessionConnection.Kernel
 	if kernelConnection == nil {
 		c.logger.Error("No kernel connection found for session connection.",
 			zap.String("workload_id", c.Workload.GetId()),
@@ -774,7 +794,7 @@ func (c *Client) onReceiveExecuteReply(response jupyter.KernelMessage) {
 
 		// Notify the training started channel. There will not be a smr_lead_task sent at this point, since
 		// there was an error, so we'll send the notification to the training_started channel.
-		c.trainingStartedChannel <- fmt.Errorf("%s: %s", errorName, errorValue)
+		c.TrainingStartedChannel <- fmt.Errorf("%s: %s", errorName, errorValue)
 		return
 	}
 
@@ -783,7 +803,7 @@ func (c *Client) onReceiveExecuteReply(response jupyter.KernelMessage) {
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
 		zap.String("response", response.String()))
-	c.trainingStoppedChannel <- response
+	c.TrainingStoppedChannel <- response
 }
 
 // incurDelay is called when we experience some sort of delay and need to delay our future events accordingly.
@@ -804,7 +824,7 @@ func (c *Client) incurDelay(delayAmount time.Duration) {
 // waitForTrainingToStart waits for a training to begin being processed by a kernel replica.
 //
 // waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
-func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time, sentRequestAt time.Time) error {
+func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time, sentRequestAt time.Time) (bool, error) {
 
 	c.logger.Debug("Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
@@ -812,7 +832,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 		zap.String("session_id", c.SessionId))
 
 	select {
-	case v := <-c.trainingStartedChannel:
+	case v := <-c.TrainingStartedChannel:
 		{
 			switch v.(type) {
 			case error:
@@ -830,6 +850,8 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 
 					// Put the event back in the queue.
 					c.EventQueue.Push(evt)
+
+					return false, nil
 				}
 			default:
 				{
@@ -848,7 +870,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 // trainingStartTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
@@ -958,7 +980,7 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(conn jupyter.KernelConnection, ke
 
 	c.incurDelay(time.Millisecond * time.Duration(delayMilliseconds))
 
-	c.trainingStartedChannel <- struct{}{}
+	c.TrainingStartedChannel <- struct{}{}
 
 	return c.SessionId
 }
@@ -1138,7 +1160,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 // waitForTrainingToEnd waits until we receive an "execute_request" from the kernel.
 func (c *Client) waitForTrainingToEnd(ctx context.Context) error {
 	select {
-	case v := <-c.trainingStoppedChannel:
+	case v := <-c.TrainingStoppedChannel:
 		{
 			receivedResp := time.Now().UnixMilli()
 			e2eLatency := time.Since(time.UnixMilli(c.lastTrainingSubmittedAt.UnixMilli()))

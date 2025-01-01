@@ -1,6 +1,8 @@
 package workload_test
 
 import (
+	"fmt"
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/domain"
@@ -8,8 +10,11 @@ import (
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/api/proto"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/mock_workload"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/storage"
+	"github.com/scusemua/workload-driver-react/m/v2/pkg/jupyter"
+	mock_jupyter "github.com/scusemua/workload-driver-react/m/v2/pkg/jupyter/mock"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
+	"sync"
 	"time"
 
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/workload"
@@ -126,68 +131,186 @@ var (
 var _ = Describe("Driver", func() {
 	Context("Driving workloads", func() {
 		var (
-			controller                *gomock.Controller
-			mockWebsocket             *mock_domain.MockConcurrentWebSocket
-			mockCallbackProvider      *mock_workload.MockCallbackProvider
+			controller           *gomock.Controller
+			mockWebsocket        *mock_domain.MockConcurrentWebSocket
+			mockCallbackProvider *mock_workload.MockCallbackProvider
+			mockKernelManager    *mock_jupyter.MockKernelSessionManager
+
+			managerMetadata     map[string]interface{}
+			managerMetadataLock sync.Mutex
+
 			remoteStorageDefinition   *proto.RemoteStorageDefinition
+			workloadDriver            *workload.BasicWorkloadDriver
 			timescaleAdjustmentFactor float64
-			driver                    *workload.BasicWorkloadDriver
 			atom                      zap.AtomicLevel
 		)
 
-		BeforeEach(func() {
-			controller = gomock.NewController(GinkgoT())
-			mockWebsocket = mock_domain.NewMockConcurrentWebSocket(controller)
-			mockCallbackProvider = mock_workload.NewMockCallbackProvider(controller)
+		Context("Static scheduling", func() {
+			BeforeEach(func() {
+				managerMetadata = make(map[string]interface{})
 
-			timescaleAdjustmentFactor = 0.1
+				controller = gomock.NewController(GinkgoT())
+				mockWebsocket = mock_domain.NewMockConcurrentWebSocket(controller)
+				mockKernelManager = mock_jupyter.NewMockKernelSessionManager(controller)
 
-			atom = zap.NewAtomicLevelAt(zap.DebugLevel)
-			driver = workload.NewBasicWorkloadDriver(workloadDriverOpts, true, timescaleAdjustmentFactor,
-				mockWebsocket, &atom, mockCallbackProvider)
-			driver.OutputCsvDisabled = true
+				mockCallbackProvider = mock_workload.NewMockCallbackProvider(controller)
+				mockCallbackProvider.EXPECT().GetSchedulingPolicy().AnyTimes().Return("static", true)
+				mockCallbackProvider.EXPECT().HandleWorkloadError(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(workloadId string, err error) {
+					fmt.Printf("[ERROR] Workload '%s' encountered error: %v\n", workloadId, err)
+				})
 
-			remoteStorageDefinition = storage.NewRemoteStorageBuilder().
-				WithName("AWS S3").
-				WithDownloadRate(200_000_000).
-				WithUploadRate(50_000_000).
-				WithDownloadVariancePercent(0).
-				WithUploadVariancePercent(0).
-				WithWriteFailureChancePercentage(0).
-				WithReadFailureChancePercentage(0).
-				Build()
+				timescaleAdjustmentFactor = 0.01667
 
-			Expect(driver).ToNot(BeNil())
-		})
+				atom = zap.NewAtomicLevelAt(zap.DebugLevel)
+				workloadDriver = workload.NewBasicWorkloadDriver(workloadDriverOpts, true, timescaleAdjustmentFactor,
+					mockWebsocket, &atom, mockCallbackProvider)
 
-		It("Will correctly resubmit failed 'training-started' events", func() {
-			eventQueue := driver.EventQueue()
-			Expect(eventQueue).ToNot(BeNil())
+				workloadDriver.OutputCsvDisabled = true
+				workloadDriver.KernelManager = mockKernelManager
 
-			sessionMetadata := mock_domain.NewMockSessionMetadata(controller)
-			resourceRequest := domain.NewResourceRequest(128, 512, 1, 1, "AnyGPU")
-			session := domain.NewWorkloadSession("TestSession", sessionMetadata, resourceRequest, time.Now(), &atom)
-			workloadTemplateSession := domain.NewWorkloadTemplateSession(session, 0, 4)
+				remoteStorageDefinition = storage.NewRemoteStorageBuilder().
+					WithName("AWS S3").
+					WithDownloadRate(200_000_000).
+					WithUploadRate(50_000_000).
+					WithDownloadVariancePercent(0).
+					WithUploadVariancePercent(0).
+					WithWriteFailureChancePercentage(0).
+					WithReadFailureChancePercentage(0).
+					Build()
 
-			workloadRegistrationRequest := &domain.WorkloadRegistrationRequest{
-				AdjustGpuReservations:     false,
-				WorkloadName:              "TestWorkload",
-				DebugLogging:              true,
-				Sessions:                  []*domain.WorkloadTemplateSession{workloadTemplateSession},
-				TemplateFilePath:          "",
-				Type:                      "template",
-				Key:                       "TestWorkload",
-				Seed:                      0,
-				TimescaleAdjustmentFactor: timescaleAdjustmentFactor,
-				RemoteStorageDefinition:   remoteStorageDefinition,
-				SessionsSamplePercentage:  1.0,
-			}
+				Expect(workloadDriver).ToNot(BeNil())
 
-			workload, err := driver.RegisterWorkload(workloadRegistrationRequest)
-			Expect(err).To(BeNil())
-			Expect(workload).ToNot(BeNil())
+				mockKernelManager.EXPECT().AddMetadata(gomock.Any(), gomock.Any()).AnyTimes().Do(func(key string, val interface{}) {
+					managerMetadataLock.Lock()
+					defer managerMetadataLock.Unlock()
 
-			go driver.DriveWorkload()
+					managerMetadata[key] = val
+				})
+
+				mockKernelManager.EXPECT().GetMetadata(gomock.Any()).AnyTimes().Do(func(key string) interface{} {
+					managerMetadataLock.Lock()
+					defer managerMetadataLock.Unlock()
+
+					return managerMetadata[key]
+				})
+			})
+
+			It("Will correctly resubmit failed 'training-started' events", func() {
+				sessionId := "TestSession"
+
+				sessionMetadata := mock_domain.NewMockSessionMetadata(controller)
+
+				sessionMetadata.EXPECT().GetPod().AnyTimes().Return(sessionId)
+				sessionMetadata.EXPECT().GetVRAM().AnyTimes().Return(1.0)
+
+				sessionMetadata.EXPECT().GetMaxSessionCPUs().AnyTimes().Return(128.0)
+				sessionMetadata.EXPECT().GetMaxSessionMemory().AnyTimes().Return(512.0)
+				sessionMetadata.EXPECT().GetMaxSessionGPUs().AnyTimes().Return(1)
+				sessionMetadata.EXPECT().GetMaxSessionVRAM().AnyTimes().Return(1.0)
+
+				sessionMetadata.EXPECT().GetCurrentTrainingMaxGPUs().AnyTimes().Return(1)
+				sessionMetadata.EXPECT().GetCurrentTrainingMaxCPUs().AnyTimes().Return(128.0)
+				sessionMetadata.EXPECT().GetCurrentTrainingMaxMemory().AnyTimes().Return(512.0)
+				sessionMetadata.EXPECT().GetCurrentTrainingMaxVRAM().AnyTimes().Return(1.0)
+
+				mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+				mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
+				mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+					func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
+						sessionConn := &jupyter.SessionConnection{
+							Kernel: mockKernelConnection,
+						}
+
+						return sessionConn, nil
+					})
+
+				var kernelStoppedWg sync.WaitGroup
+				kernelStoppedWg.Add(1)
+
+				mockKernelManager.EXPECT().StopKernel(sessionId).Times(1).DoAndReturn(func(sessionId string) error {
+					kernelStoppedWg.Done()
+					return nil
+				})
+
+				resourceRequest := domain.NewResourceRequest(128, 512, 1, 1, "AnyGPU")
+				session := domain.NewWorkloadSession(sessionId, sessionMetadata, resourceRequest, time.UnixMilli(0), &atom)
+				workloadTemplateSession := domain.NewWorkloadTemplateSession(session, 0, 8)
+				workloadTemplateSession.AddTraining(1, 2, 128, 512, 1, []float64{100})
+
+				workloadRegistrationRequest := &domain.WorkloadRegistrationRequest{
+					AdjustGpuReservations:     false,
+					WorkloadName:              "TestWorkload",
+					DebugLogging:              true,
+					Sessions:                  []*domain.WorkloadTemplateSession{workloadTemplateSession},
+					TemplateFilePath:          "",
+					Type:                      "template",
+					Key:                       "TestWorkload",
+					Seed:                      0,
+					TimescaleAdjustmentFactor: timescaleAdjustmentFactor,
+					RemoteStorageDefinition:   remoteStorageDefinition,
+					SessionsSamplePercentage:  1.0,
+				}
+
+				currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
+				Expect(err).To(BeNil())
+				Expect(currWorkload).ToNot(BeNil())
+
+				clientChan := make(chan *workload.Client, 1)
+				mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+					client, loaded := workloadDriver.Clients[sessionId]
+					Expect(loaded).To(BeTrue())
+					Expect(client).ToNot(BeNil())
+
+					clientChan <- client
+
+					return nil, nil
+				})
+
+				err = workloadDriver.StartWorkload()
+				Expect(err).To(BeNil())
+
+				go workloadDriver.ProcessWorkloadEvents()
+				go workloadDriver.DriveWorkload()
+
+				client := <-clientChan
+				Expect(client).ToNot(BeNil())
+
+				client.TrainingStartedChannel <- fmt.Errorf("insufficient hosts available")
+
+				var trainingResubmittedWg sync.WaitGroup
+				trainingResubmittedWg.Add(1)
+
+				var execStartedTimeUnixMillis int64
+				mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+					execStartedTimeUnixMillis = time.Now().UnixMilli()
+					trainingResubmittedWg.Done()
+					return nil, nil
+				})
+
+				//requestExecArgs := <-requestExecArgsChan
+				trainingResubmittedWg.Wait()
+				client.TrainingStartedChannel <- struct{}{}
+
+				time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
+				execStopTimeUnixMillis := time.Now().UnixMilli()
+
+				client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
+					Header: &jupyter.KernelMessageHeader{
+						MessageId:   uuid.NewString(),
+						MessageType: jupyter.ExecuteReply,
+						Date:        time.Now().String(),
+					},
+					Content: map[string]interface{}{
+						"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+						"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+					},
+				}
+
+				kernelStoppedWg.Wait()
+
+				time.Sleep(time.Second * 5)
+			})
 		})
 	})
 })
