@@ -347,6 +347,30 @@ func (t *WorkloadTemplateSession) GetTrainings() []*TrainingEvent {
 	return t.Trainings
 }
 
+// AddTraining appends a new training event and is intended to be used only during unit tests.
+func (t *WorkloadTemplateSession) AddTraining(startTick int, durationTicks int, millicpus float64, memMb float64, vramGb float64, gpuUtils []float64) {
+	gpuUtilizations := make([]GpuUtilization, 0, len(gpuUtils))
+
+	for _, gpuUtil := range gpuUtils {
+		gpuUtilizations = append(gpuUtilizations, GpuUtilization{
+			Utilization: gpuUtil,
+		})
+	}
+
+	trainingEvent := &TrainingEvent{
+		TrainingIndex:   len(t.Trainings),
+		Millicpus:       millicpus,
+		MemUsageMB:      memMb,
+		VRamUsageGB:     vramGb,
+		GpuUtil:         gpuUtilizations,
+		StartTick:       startTick,
+		DurationInTicks: durationTicks,
+	}
+
+	t.Trainings = append(t.Trainings, trainingEvent)
+	t.NumTrainingEvents += 1
+}
+
 // TrainingEvent corresponds to the `TrainingEvent` struct defined in `web/app/Data/BasicWorkload.tsx`.
 // Used by the frontend when submitting workloads created from templates (as opposed to presets).
 type TrainingEvent struct {
