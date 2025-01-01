@@ -314,6 +314,18 @@ type WorkloadTemplateSession struct {
 	ExecutionTimes    []int64          `json:"-"`
 }
 
+func NewWorkloadTemplateSession(session *BasicWorkloadSession, startTick int, stopTick int) *WorkloadTemplateSession {
+	return &WorkloadTemplateSession{
+		BasicWorkloadSession: session,
+		StartTick:            startTick,
+		StopTick:             stopTick,
+		Trainings:            make([]*TrainingEvent, 0),
+		NumTrainingEvents:    0,
+		TotalExecTime:        0,
+		ExecutionTimes:       make([]int64, 0),
+	}
+}
+
 func (t *WorkloadTemplateSession) String() string {
 	m, err := json.Marshal(t)
 	if err != nil {
