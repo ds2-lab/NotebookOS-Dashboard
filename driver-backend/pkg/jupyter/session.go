@@ -16,7 +16,7 @@ var (
 	ErrRequestTimedOut          = errors.New("the request timed out")
 )
 
-// The difference between this and `jupyterSession` is that this struct has a different type for the `JupyterNotebook` field so that it isn't null in the request.
+// The difference between this and `SessionModel` is that this struct has a different type for the `JupyterNotebook` field so that it isn't null in the request.
 type jupyterSessionReq struct {
 	LocalSessionId   string                 `json:"-"`
 	JupyterSessionId string                 `json:"id"`
@@ -62,7 +62,7 @@ func (s *jupyterSessionReq) String() string {
 	return string(out)
 }
 
-type jupyterSession struct {
+type SessionModel struct {
 	LocalSessionId   string           `json:"-"`
 	JupyterSessionId string           `json:"id"`
 	Path             string           `json:"path"`
@@ -74,7 +74,7 @@ type jupyterSession struct {
 	SessionConnection *SessionConnection `json:"-"`
 }
 
-func (s *jupyterSession) String() string {
+func (s *SessionModel) String() string {
 	out, err := json.Marshal(s)
 	if err != nil {
 		panic(err)
@@ -129,8 +129,8 @@ func NewSession(id string, jupyterId string, kernelId string) *Session {
 }
 
 type SessionConnection struct {
-	model  *jupyterSession
-	kernel KernelConnection
+	model  *SessionModel
+	Kernel KernelConnection
 
 	jupyterServerAddress string
 
@@ -154,7 +154,7 @@ type SessionConnection struct {
 // NewSessionConnection creates a new SessionConnection.
 //
 // We do not return until we've successfully connected to the kernel.
-func NewSessionConnection(model *jupyterSession, username string, jupyterServerAddress string, atom *zap.AtomicLevel,
+func NewSessionConnection(model *SessionModel, username string, jupyterServerAddress string, atom *zap.AtomicLevel,
 	metricsConsumer MetricsConsumer, onError func(err error)) (*SessionConnection, error) {
 
 	conn := &SessionConnection{
@@ -197,10 +197,10 @@ func (conn *SessionConnection) AddMetadata(key string, value interface{}, addToK
 
 	conn.metadata[key] = value
 
-	if addToKernelConnection && conn.kernel != nil {
+	if addToKernelConnection && conn.Kernel != nil {
 		conn.logger.Debug("Adding metadata to kernel.", zap.String("kernel_id", conn.model.JupyterKernel.Id),
 			zap.String("metadata_key", key), zap.Any("metadata_value", value))
-		return conn.kernel.AddMetadata(key, value)
+		return conn.Kernel.AddMetadata(key, value)
 	}
 
 	return nil
@@ -220,10 +220,10 @@ func (conn *SessionConnection) GetMetadata(key string) (interface{}, bool) {
 	return value, ok
 }
 
-// connectToKernel creates a new WebSocket-backed connection to the kernel associated with this session.
+// connectToKernel creates a new WebSocket-backed connection to the Kernel associated with this session.
 // Side-effect: set the `kernel` field of the SessionConnection.
 func (conn *SessionConnection) connectToKernel(username string) error {
-	if conn.kernel != nil {
+	if conn.Kernel != nil {
 		return ErrAlreadyConnectedToKernel
 	}
 
@@ -234,7 +234,7 @@ func (conn *SessionConnection) connectToKernel(username string) error {
 		return err
 	}
 
-	conn.kernel = kernel
+	conn.Kernel = kernel
 
 	// Add all the SessionConnection's metadata to the new KernelConnection.
 	conn.metadataMutex.Lock()
@@ -244,7 +244,7 @@ func (conn *SessionConnection) connectToKernel(username string) error {
 	for key, value := range conn.metadata {
 		conn.logger.Debug("Adding metadata to kernel.", zap.String("kernel_id", conn.model.JupyterKernel.Id),
 			zap.String("metadata_key", key), zap.Any("metadata_value", value))
-		metadataError := conn.kernel.AddMetadata(key, value)
+		metadataError := conn.Kernel.AddMetadata(key, value)
 
 		if metadataError != nil {
 			conn.logger.Error("Could not add metadata to kernel.",
@@ -259,14 +259,10 @@ func (conn *SessionConnection) connectToKernel(username string) error {
 }
 
 func (conn *SessionConnection) RegisterIoPubHandler(id string, handler IOPubMessageHandler) error {
-	return conn.kernel.RegisterIoPubHandler(id, handler)
+	return conn.Kernel.RegisterIoPubHandler(id, handler)
 }
 
 // UnregisterIoPubHandler unregisters a handler/consumer of IOPub messages that was registered under the specified ID.
 func (conn *SessionConnection) UnregisterIoPubHandler(id string) error {
-	return conn.kernel.UnregisterIoPubHandler(id)
-}
-
-func (conn *SessionConnection) Kernel() KernelConnection {
-	return conn.kernel
+	return conn.Kernel.UnregisterIoPubHandler(id)
 }
