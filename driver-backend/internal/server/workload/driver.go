@@ -200,6 +200,7 @@ type BasicWorkloadDriver struct {
 	trainingStoppedChannelsMutex       sync.Mutex                                 // trainingStoppedChannelsMutex ensures atomic access to the trainingStoppedChannels
 	workloadOutputInterval             time.Duration                              // workloadOutputInterval defines how often we should collect and write workload output statistics to the CSV file
 	timeCompressTrainingDurations      bool                                       // timeCompressTrainingDurations indicates whether the Workload's TimescaleAdjustmentFactor should be used to compress the duration of training events.
+	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
 	clients                            map[string]*Client
 	clientsWaitGroup                   sync.WaitGroup
 
@@ -896,89 +897,94 @@ func (d *BasicWorkloadDriver) publishStatisticsReport() {
 func (d *BasicWorkloadDriver) DriveWorkload() {
 	var err error
 
-	outputSubdir := time.Now().Format("01-02-2006 15:04:05")
-	outputSubdir = strings.ReplaceAll(outputSubdir, ":", "-")
-	outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.workload.GetId())
-	outputSubdirectoryPath := filepath.Join(d.outputFileDirectory, outputSubdir)
+	if !d.OutputCsvDisabled {
+		outputSubdir := time.Now().Format("01-02-2006 15:04:05")
+		outputSubdir = strings.ReplaceAll(outputSubdir, ":", "-")
+		outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.workload.GetId())
+		outputSubdirectoryPath := filepath.Join(d.outputFileDirectory, outputSubdir)
 
-	err = os.MkdirAll(outputSubdirectoryPath, os.ModePerm)
-	if err != nil {
-		d.logger.Error("Failed to create parent directories for workload .CSV output.",
-			zap.String("workload_id", d.id),
-			zap.String("workload_name", d.workload.WorkloadName()),
-			zap.String("path", outputSubdirectoryPath),
-			zap.Error(err))
-		d.handleCriticalError(err)
-		return
-	}
+		err = os.MkdirAll(outputSubdirectoryPath, os.ModePerm)
+		if err != nil {
+			d.logger.Error("Failed to create parent directories for workload .CSV output.",
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.String("path", outputSubdirectoryPath),
+				zap.Error(err))
+			d.handleCriticalError(err)
+			return
+		}
 
-	d.outputFilePath = filepath.Join(outputSubdirectoryPath, "workload_stats.csv")
-
-	d.outputFileMutex.Lock()
-	d.outputFile, err = os.OpenFile(d.outputFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	d.outputFileMutex.Unlock()
-
-	if err != nil {
-		d.logger.Error("Failed to create .CSV output file for workload.",
-			zap.String("workload_id", d.id),
-			zap.String("workload_name", d.workload.WorkloadName()),
-			zap.String("path", outputSubdirectoryPath),
-			zap.Error(err))
-		d.handleCriticalError(err)
-		return
-	}
-
-	// First, clear the cluster statistics. This will return whatever they were before we called clear.
-	_, err = d.refreshClusterStatistics(true, true)
-	if err != nil {
-		d.logger.Error("Failed to clear and/or retrieve Cluster Statistics before beginning workload.",
-			zap.String("workload_id", d.id),
-			zap.String("workload_name", d.workload.WorkloadName()),
-			zap.String("reason", err.Error()))
-		d.handleCriticalError(err)
+		d.outputFilePath = filepath.Join(outputSubdirectoryPath, "workload_stats.csv")
 
 		d.outputFileMutex.Lock()
-		_ = d.outputFile.Close()
+		d.outputFile, err = os.OpenFile(d.outputFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 		d.outputFileMutex.Unlock()
-		return
+
+		if err != nil {
+			d.logger.Error("Failed to create .CSV output file for workload.",
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.String("path", outputSubdirectoryPath),
+				zap.Error(err))
+			d.handleCriticalError(err)
+			return
+		}
+
+		// First, clear the cluster statistics. This will return whatever they were before we called clear.
+		_, err = d.refreshClusterStatistics(true, true)
+		if err != nil {
+			d.logger.Error("Failed to clear and/or retrieve Cluster Statistics before beginning workload.",
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.String("reason", err.Error()))
+			d.handleCriticalError(err)
+
+			d.outputFileMutex.Lock()
+			_ = d.outputFile.Close()
+			d.outputFileMutex.Unlock()
+			return
+		}
+
+		// Fetch the freshly-cleared cluster statistics.
+		clusterStats, err := d.refreshClusterStatistics(true, false)
+		if err != nil {
+			d.logger.Error("Failed to clear and/or retrieve Cluster Statistics before beginning workload.",
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.String("reason", err.Error()))
+			d.handleCriticalError(err)
+
+			d.outputFileMutex.Lock()
+			_ = d.outputFile.Close()
+			d.outputFileMutex.Unlock()
+			return
+		}
+
+		d.workload.GetStatistics().ClusterStatistics = clusterStats
 	}
-
-	// Fetch the freshly-cleared cluster statistics.
-	clusterStats, err := d.refreshClusterStatistics(true, false)
-	if err != nil {
-		d.logger.Error("Failed to clear and/or retrieve Cluster Statistics before beginning workload.",
-			zap.String("workload_id", d.id),
-			zap.String("workload_name", d.workload.WorkloadName()),
-			zap.String("reason", err.Error()))
-		d.handleCriticalError(err)
-
-		d.outputFileMutex.Lock()
-		_ = d.outputFile.Close()
-		d.outputFileMutex.Unlock()
-		return
-	}
-
-	d.workload.GetStatistics().ClusterStatistics = clusterStats
 
 	d.logger.Info("Workload Simulator has started running. Bootstrapping simulation now.",
 		zap.String("workload_id", d.id),
 		zap.String("workload_name", d.workload.WorkloadName()))
 
 	var statsPublisherWg sync.WaitGroup
-	statsPublisherWg.Add(1)
 
-	go func(wg *sync.WaitGroup) {
-		for d.workload.IsInProgress() {
+	if !d.OutputCsvDisabled {
+		statsPublisherWg.Add(1)
+
+		go func(wg *sync.WaitGroup) {
+			for d.workload.IsInProgress() {
+				d.publishStatisticsReport()
+
+				time.Sleep(d.workloadOutputInterval)
+			}
+
+			// Publish one last statistics report, which will also fetch the Cluster Statistics one last time.
 			d.publishStatisticsReport()
 
-			time.Sleep(d.workloadOutputInterval)
-		}
-
-		// Publish one last statistics report, which will also fetch the Cluster Statistics one last time.
-		d.publishStatisticsReport()
-
-		statsPublisherWg.Done()
-	}(&statsPublisherWg)
+			statsPublisherWg.Done()
+		}(&statsPublisherWg)
+	}
 
 	err = d.bootstrapSimulation()
 	if err != nil {
@@ -1012,9 +1018,11 @@ OUTER:
 					zap.String("workload_id", d.workload.GetId()),
 					zap.String("workload_state", d.workload.GetState().String()))
 
-				d.outputFileMutex.Lock()
-				_ = d.outputFile.Close()
-				d.outputFileMutex.Unlock()
+				if !d.OutputCsvDisabled {
+					d.outputFileMutex.Lock()
+					_ = d.outputFile.Close()
+					d.outputFileMutex.Unlock()
+				}
 				return
 			}
 
@@ -1079,9 +1087,11 @@ OUTER:
 
 	statsPublisherWg.Wait()
 
-	d.outputFileMutex.Lock()
-	_ = d.outputFile.Close()
-	d.outputFileMutex.Unlock()
+	if !d.OutputCsvDisabled {
+		d.outputFileMutex.Lock()
+		_ = d.outputFile.Close()
+		d.outputFileMutex.Unlock()
+	}
 }
 
 func (d *BasicWorkloadDriver) PauseWorkload() error {
