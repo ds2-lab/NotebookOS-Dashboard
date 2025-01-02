@@ -199,7 +199,7 @@ type Client struct {
 	failedToStart             atomic.Bool                            // failedToStart indicates that this Client completely failed to start -- it never succeeded in creating its kernel/session.
 	numSessionStartAttempts   atomic.Int32                           // numSessionStartAttempts counts the number of attempts that were required when initially creating the session/kernel before the session/kernel was successfully created.
 	trainingEventsHandled     atomic.Int32                           // trainingEventsHandled is the number of training events successfully processed by this Client.
-	trainingEventsDelayed     atomic.Int32                           // trainingEventsDelayed is the number of training events that have been delayed because the first attempt returned an error (e.g., insufficient hosts available).
+	trainingEventsDelayed     atomic.Int32                           // trainingEventsDelayed returns the number of times that a training event was delayed after failing to start. The same training event can be delayed multiple times, and each of those delays is counted independently.
 	lastTrainingSubmittedAt   time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
 	TrainingStartedChannel    chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
 	TrainingStoppedChannel    chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
@@ -219,8 +219,8 @@ func (c *Client) NumSessionStartAttempts() int32 {
 	return c.numSessionStartAttempts.Load()
 }
 
-// TrainingEventsDelayed returns the number of training events that have been delayed because the first attempt
-// returned an error (e.g., insufficient hosts available).
+// TrainingEventsDelayed returns the number of times that a training event was delayed after failing to start.
+// The same training event can be delayed multiple times, and each of those delays is counted independently.
 func (c *Client) TrainingEventsDelayed() int32 {
 	return c.trainingEventsDelayed.Load()
 }
