@@ -195,121 +195,450 @@ var _ = Describe("Driver", func() {
 				})
 			})
 
-			It("Will correctly resubmit failed 'training-started' events", func() {
-				sessionId := "TestSession"
+			Context("Resubmitting failed events", func() {
+				It("Will correctly resubmit a failed 'session-started' event", func() {
+					sessionId := "TestSession"
 
-				sessionMetadata := mock_domain.NewMockSessionMetadata(controller)
+					sessionMetadata := mock_domain.NewMockSessionMetadata(controller)
 
-				sessionMetadata.EXPECT().GetPod().AnyTimes().Return(sessionId)
-				sessionMetadata.EXPECT().GetVRAM().AnyTimes().Return(1.0)
+					sessionMetadata.EXPECT().GetPod().AnyTimes().Return(sessionId)
+					sessionMetadata.EXPECT().GetVRAM().AnyTimes().Return(1.0)
 
-				sessionMetadata.EXPECT().GetMaxSessionCPUs().AnyTimes().Return(128.0)
-				sessionMetadata.EXPECT().GetMaxSessionMemory().AnyTimes().Return(512.0)
-				sessionMetadata.EXPECT().GetMaxSessionGPUs().AnyTimes().Return(1)
-				sessionMetadata.EXPECT().GetMaxSessionVRAM().AnyTimes().Return(1.0)
+					sessionMetadata.EXPECT().GetMaxSessionCPUs().AnyTimes().Return(128.0)
+					sessionMetadata.EXPECT().GetMaxSessionMemory().AnyTimes().Return(512.0)
+					sessionMetadata.EXPECT().GetMaxSessionGPUs().AnyTimes().Return(1)
+					sessionMetadata.EXPECT().GetMaxSessionVRAM().AnyTimes().Return(1.0)
 
-				sessionMetadata.EXPECT().GetCurrentTrainingMaxGPUs().AnyTimes().Return(1)
-				sessionMetadata.EXPECT().GetCurrentTrainingMaxCPUs().AnyTimes().Return(128.0)
-				sessionMetadata.EXPECT().GetCurrentTrainingMaxMemory().AnyTimes().Return(512.0)
-				sessionMetadata.EXPECT().GetCurrentTrainingMaxVRAM().AnyTimes().Return(1.0)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxGPUs().AnyTimes().Return(1)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxCPUs().AnyTimes().Return(128.0)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxMemory().AnyTimes().Return(512.0)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxVRAM().AnyTimes().Return(1.0)
 
-				mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
-				mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
-				mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-					func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
-						sessionConn := &jupyter.SessionConnection{
-							Kernel: mockKernelConnection,
-						}
+					var firstCreateSessionAttemptWg1, firstCreateSessionAttemptWg2 sync.WaitGroup
+					firstCreateSessionAttemptWg1.Add(1)
+					firstCreateSessionAttemptWg2.Add(1)
 
-						return sessionConn, nil
+					mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+						func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
+							fmt.Println("\nKernelSessionManager::CreateSession has been called for the first time.")
+
+							// Tell the main goroutine that we've called KernelSessionManager::CreateSession.
+							firstCreateSessionAttemptWg1.Done()
+
+							fmt.Println("\nWaiting for next mocked call to KernelSessionManager::CreateSession to be set up before returning from first call.")
+
+							// Wait for the main goroutine to set up the next expected call to KernelSessionManager::CreateSession.
+							firstCreateSessionAttemptWg2.Wait()
+
+							fmt.Println("\nReturning from KernelSessionManager::CreateSession for the first time with an error.")
+
+							return nil, fmt.Errorf("insufficient hosts available")
+						})
+
+					var kernelStoppedWg sync.WaitGroup
+					kernelStoppedWg.Add(1)
+
+					mockKernelManager.EXPECT().StopKernel(sessionId).Times(1).DoAndReturn(func(sessionId string) error {
+						kernelStoppedWg.Done()
+						return nil
 					})
 
-				var kernelStoppedWg sync.WaitGroup
-				kernelStoppedWg.Add(1)
+					resourceRequest := domain.NewResourceRequest(128, 512, 1, 1, "AnyGPU")
+					session := domain.NewWorkloadSession(sessionId, sessionMetadata, resourceRequest, time.UnixMilli(0), &atom)
+					workloadTemplateSession := domain.NewWorkloadTemplateSession(session, 0, 8)
+					workloadTemplateSession.AddTraining(1, 2, 128, 512, 1, []float64{100})
 
-				mockKernelManager.EXPECT().StopKernel(sessionId).Times(1).DoAndReturn(func(sessionId string) error {
-					kernelStoppedWg.Done()
-					return nil
-				})
+					workloadRegistrationRequest := &domain.WorkloadRegistrationRequest{
+						AdjustGpuReservations:     false,
+						WorkloadName:              "TestWorkload",
+						DebugLogging:              true,
+						Sessions:                  []*domain.WorkloadTemplateSession{workloadTemplateSession},
+						TemplateFilePath:          "",
+						Type:                      "template",
+						Key:                       "TestWorkload",
+						Seed:                      0,
+						TimescaleAdjustmentFactor: timescaleAdjustmentFactor,
+						RemoteStorageDefinition:   remoteStorageDefinition,
+						SessionsSamplePercentage:  1.0,
+					}
 
-				resourceRequest := domain.NewResourceRequest(128, 512, 1, 1, "AnyGPU")
-				session := domain.NewWorkloadSession(sessionId, sessionMetadata, resourceRequest, time.UnixMilli(0), &atom)
-				workloadTemplateSession := domain.NewWorkloadTemplateSession(session, 0, 8)
-				workloadTemplateSession.AddTraining(1, 2, 128, 512, 1, []float64{100})
+					currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
+					Expect(err).To(BeNil())
+					Expect(currWorkload).ToNot(BeNil())
 
-				workloadRegistrationRequest := &domain.WorkloadRegistrationRequest{
-					AdjustGpuReservations:     false,
-					WorkloadName:              "TestWorkload",
-					DebugLogging:              true,
-					Sessions:                  []*domain.WorkloadTemplateSession{workloadTemplateSession},
-					TemplateFilePath:          "",
-					Type:                      "template",
-					Key:                       "TestWorkload",
-					Seed:                      0,
-					TimescaleAdjustmentFactor: timescaleAdjustmentFactor,
-					RemoteStorageDefinition:   remoteStorageDefinition,
-					SessionsSamplePercentage:  1.0,
-				}
+					var execStartedTimeUnixMillis int64
+					clientChan := make(chan *workload.Client, 1)
+					mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+						client, loaded := workloadDriver.Clients[sessionId]
+						Expect(loaded).To(BeTrue())
+						Expect(client).ToNot(BeNil())
 
-				currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
-				Expect(err).To(BeNil())
-				Expect(currWorkload).ToNot(BeNil())
+						clientChan <- client
+						execStartedTimeUnixMillis = time.Now().UnixMilli()
 
-				clientChan := make(chan *workload.Client, 1)
-				mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
-					client, loaded := workloadDriver.Clients[sessionId]
-					Expect(loaded).To(BeTrue())
+						return nil, nil
+					})
+
+					err = workloadDriver.StartWorkload()
+					Expect(err).To(BeNil())
+
+					go workloadDriver.ProcessWorkloadEvents()
+					go workloadDriver.DriveWorkload()
+
+					// Wait for KernelSessionManager::CreateSession to be called.
+					firstCreateSessionAttemptWg1.Wait()
+
+					fmt.Println("\nSetting up second mocked call to KernelSessionManager::CreateSession now.")
+
+					var secondCreateSessionAttemptWg sync.WaitGroup
+					secondCreateSessionAttemptWg.Add(1)
+
+					// Set up the next expected call.
+					mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+						func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
+							// This time, we'll return successfully.
+							sessionConn := &jupyter.SessionConnection{
+								Kernel: mockKernelConnection,
+							}
+
+							secondCreateSessionAttemptWg.Done()
+
+							fmt.Println("Returning from KernelSessionManager::CreateSession for the second time.")
+
+							return sessionConn, nil
+						})
+
+					firstCreateSessionAttemptWg2.Done()
+
+					secondCreateSessionAttemptWg.Wait()
+
+					client := <-clientChan
 					Expect(client).ToNot(BeNil())
 
-					clientChan <- client
+					client.TrainingStartedChannel <- struct{}{}
 
-					return nil, nil
+					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
+					execStopTimeUnixMillis := time.Now().UnixMilli()
+
+					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
+						Header: &jupyter.KernelMessageHeader{
+							MessageId:   uuid.NewString(),
+							MessageType: jupyter.ExecuteReply,
+							Date:        time.Now().String(),
+						},
+						Content: map[string]interface{}{
+							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+						},
+					}
+
+					kernelStoppedWg.Wait()
+
+					time.Sleep(time.Second * 1)
+
+					Expect(client.NumSessionStartAttempts()).To(Equal(int32(2)))
+					Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
+					Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
 				})
 
-				err = workloadDriver.StartWorkload()
-				Expect(err).To(BeNil())
+				It("Will correctly resubmit failed a 'training-started' event", func() {
+					sessionId := "TestSession"
 
-				go workloadDriver.ProcessWorkloadEvents()
-				go workloadDriver.DriveWorkload()
+					sessionMetadata := mock_domain.NewMockSessionMetadata(controller)
 
-				client := <-clientChan
-				Expect(client).ToNot(BeNil())
+					sessionMetadata.EXPECT().GetPod().AnyTimes().Return(sessionId)
+					sessionMetadata.EXPECT().GetVRAM().AnyTimes().Return(1.0)
 
-				client.TrainingStartedChannel <- fmt.Errorf("insufficient hosts available")
+					sessionMetadata.EXPECT().GetMaxSessionCPUs().AnyTimes().Return(128.0)
+					sessionMetadata.EXPECT().GetMaxSessionMemory().AnyTimes().Return(512.0)
+					sessionMetadata.EXPECT().GetMaxSessionGPUs().AnyTimes().Return(1)
+					sessionMetadata.EXPECT().GetMaxSessionVRAM().AnyTimes().Return(1.0)
 
-				var trainingResubmittedWg sync.WaitGroup
-				trainingResubmittedWg.Add(1)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxGPUs().AnyTimes().Return(1)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxCPUs().AnyTimes().Return(128.0)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxMemory().AnyTimes().Return(512.0)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxVRAM().AnyTimes().Return(1.0)
 
-				var execStartedTimeUnixMillis int64
-				mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
-					execStartedTimeUnixMillis = time.Now().UnixMilli()
-					trainingResubmittedWg.Done()
-					return nil, nil
+					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
+					var kernelStartedWg sync.WaitGroup
+					kernelStartedWg.Add(1)
+
+					mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+						func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
+							sessionConn := &jupyter.SessionConnection{
+								Kernel: mockKernelConnection,
+							}
+
+							kernelStartedWg.Done()
+
+							return sessionConn, nil
+						})
+
+					var kernelStoppedWg sync.WaitGroup
+					kernelStoppedWg.Add(1)
+
+					mockKernelManager.EXPECT().StopKernel(sessionId).Times(1).DoAndReturn(func(sessionId string) error {
+						kernelStoppedWg.Done()
+						return nil
+					})
+
+					resourceRequest := domain.NewResourceRequest(128, 512, 1, 1, "AnyGPU")
+					session := domain.NewWorkloadSession(sessionId, sessionMetadata, resourceRequest, time.UnixMilli(0), &atom)
+					workloadTemplateSession := domain.NewWorkloadTemplateSession(session, 0, 8)
+					workloadTemplateSession.AddTraining(1, 2, 128, 512, 1, []float64{100})
+
+					workloadRegistrationRequest := &domain.WorkloadRegistrationRequest{
+						AdjustGpuReservations:     false,
+						WorkloadName:              "TestWorkload",
+						DebugLogging:              true,
+						Sessions:                  []*domain.WorkloadTemplateSession{workloadTemplateSession},
+						TemplateFilePath:          "",
+						Type:                      "template",
+						Key:                       "TestWorkload",
+						Seed:                      0,
+						TimescaleAdjustmentFactor: timescaleAdjustmentFactor,
+						RemoteStorageDefinition:   remoteStorageDefinition,
+						SessionsSamplePercentage:  1.0,
+					}
+
+					currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
+					Expect(err).To(BeNil())
+					Expect(currWorkload).ToNot(BeNil())
+
+					clientChan := make(chan *workload.Client, 1)
+					mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+						client, loaded := workloadDriver.Clients[sessionId]
+						Expect(loaded).To(BeTrue())
+						Expect(client).ToNot(BeNil())
+
+						clientChan <- client
+
+						return nil, nil
+					})
+
+					err = workloadDriver.StartWorkload()
+					Expect(err).To(BeNil())
+
+					go workloadDriver.ProcessWorkloadEvents()
+					go workloadDriver.DriveWorkload()
+
+					kernelStartedWg.Wait()
+
+					client := <-clientChan
+					Expect(client).ToNot(BeNil())
+
+					client.TrainingStartedChannel <- fmt.Errorf("insufficient hosts available")
+
+					var trainingResubmittedWg sync.WaitGroup
+					trainingResubmittedWg.Add(1)
+
+					var execStartedTimeUnixMillis int64
+					mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+						execStartedTimeUnixMillis = time.Now().UnixMilli()
+						trainingResubmittedWg.Done()
+						return nil, nil
+					})
+
+					//requestExecArgs := <-requestExecArgsChan
+					trainingResubmittedWg.Wait()
+					client.TrainingStartedChannel <- struct{}{}
+
+					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
+					execStopTimeUnixMillis := time.Now().UnixMilli()
+
+					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
+						Header: &jupyter.KernelMessageHeader{
+							MessageId:   uuid.NewString(),
+							MessageType: jupyter.ExecuteReply,
+							Date:        time.Now().String(),
+						},
+						Content: map[string]interface{}{
+							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+						},
+					}
+
+					kernelStoppedWg.Wait()
+
+					time.Sleep(time.Second * 1)
+
+					Expect(client.NumSessionStartAttempts()).To(Equal(int32(1)))
+					Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
+					Expect(client.TrainingEventsDelayed()).To(Equal(int32(1)))
 				})
 
-				//requestExecArgs := <-requestExecArgsChan
-				trainingResubmittedWg.Wait()
-				client.TrainingStartedChannel <- struct{}{}
+				It("Will correctly resubmit both a failed 'session-started' event and a failed 'training' event", func() {
+					sessionId := "TestSession"
 
-				time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
-				execStopTimeUnixMillis := time.Now().UnixMilli()
+					sessionMetadata := mock_domain.NewMockSessionMetadata(controller)
 
-				client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-					Header: &jupyter.KernelMessageHeader{
-						MessageId:   uuid.NewString(),
-						MessageType: jupyter.ExecuteReply,
-						Date:        time.Now().String(),
-					},
-					Content: map[string]interface{}{
-						"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
-						"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-					},
-				}
+					sessionMetadata.EXPECT().GetPod().AnyTimes().Return(sessionId)
+					sessionMetadata.EXPECT().GetVRAM().AnyTimes().Return(1.0)
 
-				kernelStoppedWg.Wait()
+					sessionMetadata.EXPECT().GetMaxSessionCPUs().AnyTimes().Return(128.0)
+					sessionMetadata.EXPECT().GetMaxSessionMemory().AnyTimes().Return(512.0)
+					sessionMetadata.EXPECT().GetMaxSessionGPUs().AnyTimes().Return(1)
+					sessionMetadata.EXPECT().GetMaxSessionVRAM().AnyTimes().Return(1.0)
 
-				time.Sleep(time.Second * 5)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxGPUs().AnyTimes().Return(1)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxCPUs().AnyTimes().Return(128.0)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxMemory().AnyTimes().Return(512.0)
+					sessionMetadata.EXPECT().GetCurrentTrainingMaxVRAM().AnyTimes().Return(1.0)
+
+					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
+					var firstCreateSessionAttemptWg1, firstCreateSessionAttemptWg2 sync.WaitGroup
+					firstCreateSessionAttemptWg1.Add(1)
+					firstCreateSessionAttemptWg2.Add(1)
+
+					mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+						func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
+							fmt.Println("\nKernelSessionManager::CreateSession has been called for the first time.")
+
+							// Tell the main goroutine that we've called KernelSessionManager::CreateSession.
+							firstCreateSessionAttemptWg1.Done()
+
+							fmt.Println("\nWaiting for next mocked call to KernelSessionManager::CreateSession to be set up before returning from first call.")
+
+							// Wait for the main goroutine to set up the next expected call to KernelSessionManager::CreateSession.
+							firstCreateSessionAttemptWg2.Wait()
+
+							fmt.Println("\nReturning from KernelSessionManager::CreateSession for the first time with an error.")
+
+							return nil, fmt.Errorf("insufficient hosts available")
+						})
+
+					var kernelStoppedWg sync.WaitGroup
+					kernelStoppedWg.Add(1)
+
+					mockKernelManager.EXPECT().StopKernel(sessionId).Times(1).DoAndReturn(func(sessionId string) error {
+						kernelStoppedWg.Done()
+						return nil
+					})
+
+					resourceRequest := domain.NewResourceRequest(128, 512, 1, 1, "AnyGPU")
+					session := domain.NewWorkloadSession(sessionId, sessionMetadata, resourceRequest, time.UnixMilli(0), &atom)
+					workloadTemplateSession := domain.NewWorkloadTemplateSession(session, 0, 8)
+					workloadTemplateSession.AddTraining(1, 2, 128, 512, 1, []float64{100})
+
+					workloadRegistrationRequest := &domain.WorkloadRegistrationRequest{
+						AdjustGpuReservations:     false,
+						WorkloadName:              "TestWorkload",
+						DebugLogging:              true,
+						Sessions:                  []*domain.WorkloadTemplateSession{workloadTemplateSession},
+						TemplateFilePath:          "",
+						Type:                      "template",
+						Key:                       "TestWorkload",
+						Seed:                      0,
+						TimescaleAdjustmentFactor: timescaleAdjustmentFactor,
+						RemoteStorageDefinition:   remoteStorageDefinition,
+						SessionsSamplePercentage:  1.0,
+					}
+
+					currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
+					Expect(err).To(BeNil())
+					Expect(currWorkload).ToNot(BeNil())
+
+					clientChan := make(chan *workload.Client, 1)
+					mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+						client, loaded := workloadDriver.Clients[sessionId]
+						Expect(loaded).To(BeTrue())
+						Expect(client).ToNot(BeNil())
+
+						clientChan <- client
+
+						return nil, nil
+					})
+
+					err = workloadDriver.StartWorkload()
+					Expect(err).To(BeNil())
+
+					go workloadDriver.ProcessWorkloadEvents()
+					go workloadDriver.DriveWorkload()
+
+					// Wait for KernelSessionManager::CreateSession to be called.
+					firstCreateSessionAttemptWg1.Wait()
+
+					fmt.Println("\nSetting up second mocked call to KernelSessionManager::CreateSession now.")
+
+					var secondCreateSessionAttemptWg sync.WaitGroup
+					secondCreateSessionAttemptWg.Add(1)
+
+					// Set up the next expected call.
+					mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+						func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
+							// This time, we'll return successfully.
+							sessionConn := &jupyter.SessionConnection{
+								Kernel: mockKernelConnection,
+							}
+
+							secondCreateSessionAttemptWg.Done()
+
+							fmt.Println("Returning from KernelSessionManager::CreateSession for the second time.")
+
+							return sessionConn, nil
+						})
+
+					firstCreateSessionAttemptWg2.Done()
+
+					secondCreateSessionAttemptWg.Wait()
+
+					client := <-clientChan
+					Expect(client).ToNot(BeNil())
+
+					client.TrainingStartedChannel <- fmt.Errorf("insufficient hosts available")
+
+					var trainingResubmittedWg sync.WaitGroup
+					trainingResubmittedWg.Add(1)
+
+					var execStartedTimeUnixMillis int64
+					mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+						execStartedTimeUnixMillis = time.Now().UnixMilli()
+						trainingResubmittedWg.Done()
+						return nil, nil
+					})
+
+					//requestExecArgs := <-requestExecArgsChan
+					trainingResubmittedWg.Wait()
+					client.TrainingStartedChannel <- struct{}{}
+
+					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
+					execStopTimeUnixMillis := time.Now().UnixMilli()
+
+					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
+						Header: &jupyter.KernelMessageHeader{
+							MessageId:   uuid.NewString(),
+							MessageType: jupyter.ExecuteReply,
+							Date:        time.Now().String(),
+						},
+						Content: map[string]interface{}{
+							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+						},
+					}
+
+					kernelStoppedWg.Wait()
+
+					time.Sleep(time.Second * 1)
+
+					Expect(client.NumSessionStartAttempts()).To(Equal(int32(2)))
+					Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
+					Expect(client.TrainingEventsDelayed()).To(Equal(int32(1)))
+				})
+
+				It("Will correctly resubmit a failed 'training-started' event multiple times", func() {
+
+				})
+
+				It("Will correctly resubmit a failed 'session-started' event multiple times", func() {
+
+				})
 			})
 		})
 	})
