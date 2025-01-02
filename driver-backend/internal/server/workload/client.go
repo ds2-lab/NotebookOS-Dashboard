@@ -196,11 +196,43 @@ type Client struct {
 	logger                    *zap.Logger                            // logger is how the Client prints log messages.
 	running                   atomic.Int32                           // running indicates whether this Client is actively processing events.
 	ticksHandled              atomic.Int64                           // ticksHandled is the number of ticks handled by this Client.
+	failedToStart             atomic.Bool                            // failedToStart indicates that this Client completely failed to start -- it never succeeded in creating its kernel/session.
+	numSessionStartAttempts   atomic.Int32                           // numSessionStartAttempts counts the number of attempts that were required when initially creating the session/kernel before the session/kernel was successfully created.
+	trainingEventsHandled     atomic.Int32                           // trainingEventsHandled is the number of training events successfully processed by this Client.
+	trainingEventsDelayed     atomic.Int32                           // trainingEventsDelayed is the number of training events that have been delayed because the first attempt returned an error (e.g., insufficient hosts available).
 	lastTrainingSubmittedAt   time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
 	TrainingStartedChannel    chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
 	TrainingStoppedChannel    chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
 	notifyCallback            func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
 	waitGroup                 *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
+}
+
+// FailedToStart returns a bool that, when true, indicates that this Client completely failed to start.
+// That is, the Client never succeeded in creating its kernel/session.
+func (c *Client) FailedToStart() bool {
+	return c.failedToStart.Load()
+}
+
+// NumSessionStartAttempts returns the number of attempts that were required when initially
+// creating the session/kernel before the session/kernel was successfully created.
+func (c *Client) NumSessionStartAttempts() int32 {
+	return c.numSessionStartAttempts.Load()
+}
+
+// TrainingEventsDelayed returns the number of training events that have been delayed because the first attempt
+// returned an error (e.g., insufficient hosts available).
+func (c *Client) TrainingEventsDelayed() int32 {
+	return c.trainingEventsDelayed.Load()
+}
+
+// TrainingEventsHandled returns the number of training events successfully processed by this Client.
+func (c *Client) TrainingEventsHandled() int32 {
+	return c.trainingEventsHandled.Load()
+}
+
+// TicksHandled returns the number of ticks that the target Client has handled.
+func (c *Client) TicksHandled() int64 {
+	return c.ticksHandled.Load()
 }
 
 // Run starts the Client and instructs the Client to begin processing its events in a loop.
@@ -264,9 +296,9 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 	}
 
 	backoff := wait.Backoff{
-		Duration: time.Second * 5,
-		Factor:   2,
-		Jitter:   float64(time.Millisecond * 250),
+		Duration: time.Second * 4,
+		Factor:   1.5,
+		Jitter:   1.125,
 		Steps:    10,
 		Cap:      time.Second * 120,
 	}
@@ -281,11 +313,12 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.WorkloadId),
 			zap.String("resource_request", initialResourceRequest.String()))
+		c.numSessionStartAttempts.Add(1)
 		sessionConnection, err = c.kernelSessionManager.CreateSession(
 			c.SessionId, fmt.Sprintf("%s.ipynb", c.SessionId),
 			"notebook", "distributed", initialResourceRequest)
 		if err != nil {
-			c.logger.Warn("Failed to create session.",
+			c.logger.Warn("Failed to create session/kernel.",
 				zap.String("workload_id", c.WorkloadId),
 				zap.String("session_id", c.SessionId),
 				zap.Error(err))
@@ -321,7 +354,8 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 	if sessionConnection != nil {
 		c.logger.Debug("Successfully created kernel.",
 			zap.String("session_id", c.SessionId),
-			zap.String("workload_id", c.WorkloadId))
+			zap.String("workload_id", c.WorkloadId),
+			zap.Int32("num_attempts_required", c.numSessionStartAttempts.Load()))
 	}
 
 	return sessionConnection, err
@@ -350,12 +384,56 @@ func (c *Client) initialize() error {
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.WorkloadId))
 
-	sessionConnection, err := c.createKernel(evt)
-	if err != nil {
+	maximumNumberOfAttempts := 3
+	backoff := wait.Backoff{
+		Duration: time.Second * 30,
+		Factor:   1.25,
+		Jitter:   1.25,
+		Steps:    maximumNumberOfAttempts,
+		Cap:      time.Second * 300,
+	}
+
+	var (
+		sessionConnection *jupyter.SessionConnection
+		err               error
+	)
+
+	// There are two layers of retrying for creating the session. The first level is here while the second level is
+	// found within the createKernel method.
+	//
+	// The delay/backoff interval in this outer retry loop is significantly longer than the inner retry loop
+	// found within createKernel.
+	for sessionConnection == nil && backoff.Steps > 0 {
+		sessionConnection, err = c.createKernel(evt)
+
+		// If the session connection was created successfully, then exit the loop.
+		if sessionConnection != nil && err == nil {
+			break
+		}
+
+		// Get the next sleep interval.
+		sleepInterval := backoff.Step()
+
+		// Put the event back in the queue.
+		c.EventQueue.Push(evt)
+
+		c.logger.Warn("Failed to create kernel/session.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.WorkloadId),
+			zap.Duration("sleep_interval", sleepInterval),
+			zap.Int("attempt_number", maximumNumberOfAttempts-backoff.Steps+1),
+			zap.Error(err))
+
+		time.Sleep(sleepInterval)
+	}
+
+	// If we just failed completely to create the session, then we'll return, and this session won't be included in the workload.
+	if sessionConnection == nil || err != nil {
 		c.logger.Error("Completely failed to create kernel.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.WorkloadId),
 			zap.Error(err))
+		c.failedToStart.Store(true)
 		return err
 	}
 
@@ -664,6 +742,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 			zap.String("session_id", c.SessionId),
 			zap.String("event", event.StringJson()),
 			zap.Error(err))
+		c.trainingEventsDelayed.Add(1)
 		return err
 	}
 
@@ -675,6 +754,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 
 	trainingStarted, err := c.waitForTrainingToStart(ctx, event, startedHandlingAt, sentRequestAt)
 	if !trainingStarted {
+		c.trainingEventsDelayed.Add(1)
 		return nil
 	}
 
@@ -685,6 +765,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 			zap.String("session_id", c.SessionId),
 			zap.String("event", event.String()),
 			zap.Error(err))
+
+		c.trainingEventsDelayed.Add(1)
 		return err
 	}
 
@@ -697,7 +779,11 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithProcessedAtTime(time.Now()).
 		WithError(err)) // Will be nil on success
 
-	return nil // Will be nil on success
+	if err == nil {
+		c.trainingEventsHandled.Add(1)
+	}
+
+	return err // Will be nil on success
 }
 
 // submitTrainingToKernel submits a training event to be processed/executed by the kernel.
