@@ -26,7 +26,7 @@ import {
 import { GetEventLabel, WorkloadEventTable, WorkloadSessionTable } from '@src/Components';
 import { Workload } from '@src/Data';
 import { GetToastContentWithHeaderAndBody } from '@src/Utils/toast_utils';
-import { numberWithCommas, RoundToThreeDecimalPlaces, RoundToTwoDecimalPlaces } from '@Utils/utils';
+import { numberWithCommas, RoundToTwoDecimalPlaces } from '@Utils/utils';
 import { uuidv4 } from 'lib0/random';
 import React from 'react';
 import toast, { Toast } from 'react-hot-toast';
@@ -102,25 +102,25 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
         return props.workload?.statistics.time_elapsed_str;
     };
 
-    const getLastTickDuration = () => {
-        if (props.workload.tick_durations_milliseconds.length === 0) {
-            return 'N/A';
-        }
+    // const getLastTickDuration = () => {
+    //     if (props.workload.tick_durations_milliseconds.length === 0) {
+    //         return 'N/A';
+    //     }
+    //
+    //     return RoundToThreeDecimalPlaces(
+    //         props.workload.tick_durations_milliseconds[props.workload.tick_durations_milliseconds.length - 1],
+    //     );
+    // };
 
-        return RoundToThreeDecimalPlaces(
-            props.workload.tick_durations_milliseconds[props.workload.tick_durations_milliseconds.length - 1],
-        );
-    };
-
-    const getAverageTickDuration = () => {
-        if (props.workload.tick_durations_milliseconds.length === 0) {
-            return 'N/A';
-        }
-
-        return RoundToThreeDecimalPlaces(
-            props.workload.sum_tick_durations_millis / props.workload.tick_durations_milliseconds.length,
-        );
-    };
+    // const getAverageTickDuration = () => {
+    //     if (props.workload.tick_durations_milliseconds.length === 0) {
+    //         return 'N/A';
+    //     }
+    //
+    //     return RoundToThreeDecimalPlaces(
+    //         props.workload.sum_tick_durations_millis / props.workload.tick_durations_milliseconds.length,
+    //     );
+    // };
 
     const getCurrentTickField = () => {
         const totalTicks: number | undefined = props.workload.statistics.total_num_ticks;
@@ -219,53 +219,53 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                             </DescriptionListTerm>
                             <DescriptionListDescription>{getCurrentTickField()}</DescriptionListDescription>
                         </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Last Tick Duration (ms) <ClockIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>{getLastTickDuration()}</DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Average Tick Duration (ms) <ClockIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>{getAverageTickDuration()}</DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Next Expected Event <RunningIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>
-                                <Tooltip
-                                    content={`Event will target Session ${props.workload.statistics.next_expected_event_target}`}
-                                >
-                                    {props.workload.statistics.next_expected_event_name !== '' ? (
-                                        GetEventLabel(props.workload.statistics.next_expected_event_name)
-                                    ) : (
-                                        <Text component={'p'}>N/A</Text>
-                                    )}
-                                </Tooltip>
-                            </DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Next Expected Event In <ClockIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>
-                                {numberWithCommas(
-                                    props.workload?.statistics.next_event_expected_tick -
-                                        props.workload?.statistics.current_tick || 0,
-                                )}{' '}
-                                tick(s)
-                            </DescriptionListDescription>
-                        </DescriptionListGroup>
+                        {/*<DescriptionListGroup>*/}
+                        {/*    <DescriptionListTerm>*/}
+                        {/*        Last Tick Duration (ms) <ClockIcon />*/}
+                        {/*    </DescriptionListTerm>*/}
+                        {/*    <DescriptionListDescription>{getLastTickDuration()}</DescriptionListDescription>*/}
+                        {/*</DescriptionListGroup>*/}
+                        {/*<DescriptionListGroup>*/}
+                        {/*    <DescriptionListTerm>*/}
+                        {/*        Average Tick Duration (ms) <ClockIcon />*/}
+                        {/*    </DescriptionListTerm>*/}
+                        {/*    <DescriptionListDescription>{getAverageTickDuration()}</DescriptionListDescription>*/}
+                        {/*</DescriptionListGroup>*/}
+                        {/*<DescriptionListGroup>*/}
+                        {/*    <DescriptionListTerm>*/}
+                        {/*        Next Expected Event <RunningIcon />*/}
+                        {/*    </DescriptionListTerm>*/}
+                        {/*    <DescriptionListDescription>*/}
+                        {/*        <Tooltip*/}
+                        {/*            content={`Event will target Session ${props.workload.statistics.next_expected_event_target}`}*/}
+                        {/*        >*/}
+                        {/*            {props.workload.statistics.next_expected_event_name !== '' ? (*/}
+                        {/*                GetEventLabel(props.workload.statistics.next_expected_event_name)*/}
+                        {/*            ) : (*/}
+                        {/*                <Text component={'p'}>N/A</Text>*/}
+                        {/*            )}*/}
+                        {/*        </Tooltip>*/}
+                        {/*    </DescriptionListDescription>*/}
+                        {/*</DescriptionListGroup>*/}
+                        {/*<DescriptionListGroup>*/}
+                        {/*    <DescriptionListTerm>*/}
+                        {/*        Next Expected Event In <ClockIcon />*/}
+                        {/*    </DescriptionListTerm>*/}
+                        {/*    <DescriptionListDescription>*/}
+                        {/*        {numberWithCommas(*/}
+                        {/*            props.workload?.statistics.next_event_expected_tick -*/}
+                        {/*                props.workload?.statistics.current_tick || 0,*/}
+                        {/*        )}{' '}*/}
+                        {/*        tick(s)*/}
+                        {/*    </DescriptionListDescription>*/}
+                        {/*</DescriptionListGroup>*/}
                     </DescriptionList>
                 </FlexItem>
-                {props.showTickDurationChart && (
-                    <FlexItem>
-                        <WorkloadTickDurationChart workload={props.workload} />
-                    </FlexItem>
-                )}
+                {/*{props.showTickDurationChart && (*/}
+                {/*    <FlexItem>*/}
+                {/*        <WorkloadTickDurationChart workload={props.workload} />*/}
+                {/*    </FlexItem>*/}
+                {/*)}*/}
             </Flex>
             <FlexItem>
                 <Flex direction={{ default: 'row' }}>

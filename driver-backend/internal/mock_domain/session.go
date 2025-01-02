@@ -248,3 +248,17 @@ func (mr *MockSessionMetadataMockRecorder) GetVRAM() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVRAM", reflect.TypeOf((*MockSessionMetadata)(nil).GetVRAM))
 }
+
+// HasGpus mocks base method.
+func (m *MockSessionMetadata) HasGpus() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasGpus")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// HasGpus indicates an expected call of HasGpus.
+func (mr *MockSessionMetadataMockRecorder) HasGpus() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasGpus", reflect.TypeOf((*MockSessionMetadata)(nil).HasGpus))
+}

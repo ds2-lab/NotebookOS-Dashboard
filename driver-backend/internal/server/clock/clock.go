@@ -23,7 +23,13 @@ type BasicSimulationClock struct {
 
 func NewSimulationClock() *BasicSimulationClock {
 	return &BasicSimulationClock{
-		clockTime: time.Unix(0, 0),
+		clockTime: time.UnixMilli(0),
+	}
+}
+
+func NewSimulationClockFromTime(startTick time.Time) *BasicSimulationClock {
+	return &BasicSimulationClock{
+		clockTime: startTick,
 	}
 }
 

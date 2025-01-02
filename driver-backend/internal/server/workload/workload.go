@@ -79,14 +79,6 @@ func GetWorkloadStateAsString(state State) string {
 	}
 }
 
-type workloadInternal interface {
-	domain.Workload
-
-	unsafeSessionDiscarded(sessionId string) error
-	unsafeSetSource(source interface{}) error
-	getSessionTrainingEvent(sessionId string, trainingIndex int) *domain.TrainingEvent
-}
-
 type BasicWorkload struct {
 	logger        *zap.Logger
 	sugaredLogger *zap.SugaredLogger
@@ -94,6 +86,10 @@ type BasicWorkload struct {
 
 	// Statistics encapsulates a number of important statistics related to the workload.
 	Statistics *Statistics `json:"statistics"`
+
+	// TimeCompressTrainingDurations indicates whether the TimescaleAdjustmentFactor should be used to compress
+	// (or potentially extend, if the value of TimescaleAdjustmentFactor is > 1) the duration of training events.
+	TimeCompressTrainingDurations bool `json:"time_compress_training_durations"`
 
 	// SampledSessions is a map (really, just a set; the values of the map are not used) that keeps track of the
 	// sessions that this BasicWorkload is actively sampling and processing from the workload.
@@ -115,14 +111,15 @@ type BasicWorkload struct {
 	DebugLoggingEnabled       bool    `json:"debug_logging_enabled"`
 	TimescaleAdjustmentFactor float64 `json:"timescale_adjustment_factor"`
 
-	ErrorMessage           string  `json:"error_message"`
-	SimulationClockTimeStr string  `json:"simulation_clock_time"`
-	WorkloadType           Kind    `json:"workload_type"`
-	TickDurationsMillis    []int64 `json:"tick_durations_milliseconds"`
+	ErrorMessage           string `json:"error_message"`
+	SimulationClockTimeStr string `json:"simulation_clock_time"`
+	WorkloadType           Kind   `json:"workload_type"`
+
+	//TickDurationsMillis    []int64 `json:"tick_durations_milliseconds"`
 
 	// SumTickDurationsMillis is the sum of all tick durations in milliseconds, to make it easier
 	// to compute the average tick duration.
-	SumTickDurationsMillis int64 `json:"sum_tick_durations_millis"`
+	//SumTickDurationsMillis int64 `json:"sum_tick_durations_millis"`
 
 	//SessionsSamplePercentage  float64 `json:"sessions_sample_percentage"`
 	//TimeSpentPausedMillis     int64   `json:"time_spent_paused_milliseconds"`
@@ -132,7 +129,7 @@ type BasicWorkload struct {
 	// This is basically the child struct.
 	// So, if this is a preset workload, then this is the Preset struct.
 	// We use this so we can delegate certain method calls to the child/derived struct.
-	workloadInstance          workloadInternal
+	workloadInstance          internalWorkload
 	workloadSource            interface{}
 	mu                        sync.RWMutex
 	sessionsMap               map[string]interface{} // Internal mapping of session ID to session.
@@ -185,9 +182,9 @@ func (w *BasicWorkload) RegisterOnNonCriticalErrorHandler(handler domain.Workloa
 
 // GetTickDurationsMillis returns a slice containing the clock time that elapsed for each tick
 // of the workload in order, in milliseconds.
-func (w *BasicWorkload) GetTickDurationsMillis() []int64 {
-	return w.TickDurationsMillis
-}
+//func (w *BasicWorkload) GetTickDurationsMillis() []int64 {
+//	return w.TickDurationsMillis
+//}
 
 // SetPausing will set the workload to the pausing state, which means that it is finishing
 // the processing of its current tick before halting until being unpaused.
@@ -254,24 +251,13 @@ func (w *BasicWorkload) Unpause() error {
 	return nil
 }
 
-// TickCompleted is called by the driver after each tick.
-// Updates the time elapsed, current tick, and simulation clock time.
-func (w *BasicWorkload) TickCompleted(tick int64, simClock time.Time) {
-	w.mu.Lock()
-	w.Statistics.CurrentTick = tick
-	w.SimulationClockTimeStr = simClock.String()
-	w.mu.Unlock()
-
-	w.UpdateTimeElapsed()
-}
-
 // AddFullTickDuration is called to record how long a tick lasted, including the "artificial" sleep that is performed
 // by the WorkloadDriver in order to fully simulate ticks that otherwise have no work/events to be processed.
-func (w *BasicWorkload) AddFullTickDuration(timeElapsed time.Duration) {
-	timeElapsedMs := timeElapsed.Milliseconds()
-	w.TickDurationsMillis = append(w.TickDurationsMillis, timeElapsedMs)
-	w.SumTickDurationsMillis += timeElapsedMs
-}
+//func (w *BasicWorkload) AddFullTickDuration(timeElapsed time.Duration) {
+//	timeElapsedMs := timeElapsed.Milliseconds()
+//	w.TickDurationsMillis = append(w.TickDurationsMillis, timeElapsedMs)
+//	w.SumTickDurationsMillis += timeElapsedMs
+//}
 
 // GetCurrentTick returns the current tick.
 func (w *BasicWorkload) GetCurrentTick() int64 {
@@ -988,12 +974,12 @@ func (w *BasicWorkload) SetNextExpectedEventSession(sessionId string) {
 	w.Statistics.NextExpectedEventTarget = sessionId
 }
 
-// GetStatistics returns the Statistics struct of the InternalWorkload.
+// GetStatistics returns the Statistics struct of the internalWorkload.
 func (w *BasicWorkload) GetStatistics() *Statistics {
 	return w.Statistics
 }
 
-// UpdateStatistics provides an atomic mechanism to update the InternalWorkload's Statistics.
+// UpdateStatistics provides an atomic mechanism to update the internalWorkload's Statistics.
 func (w *BasicWorkload) UpdateStatistics(f func(stats *Statistics)) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -1026,4 +1012,12 @@ func (w *BasicWorkload) RecordSessionExecutionTime(sessionId string, execTimeMil
 
 func (w *BasicWorkload) GetSessionTrainingEvent(sessionId string, trainingIndex int) *domain.TrainingEvent {
 	return w.workloadInstance.getSessionTrainingEvent(sessionId, trainingIndex)
+}
+
+// ShouldTimeCompressTrainingDurations returns the value of the TimeCompressTrainingDurations flag.
+//
+// TimeCompressTrainingDurations indicates whether the TimescaleAdjustmentFactor should be used to compress
+// (or potentially extend, if the value of TimescaleAdjustmentFactor is > 1) the duration of training events.
+func (w *BasicWorkload) ShouldTimeCompressTrainingDurations() bool {
+	return w.TimeCompressTrainingDurations
 }

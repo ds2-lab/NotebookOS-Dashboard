@@ -36,6 +36,7 @@ const (
 	KernelDead           KernelConnectionStatus = "dead"         // Kernel is dead. We're not connected.
 
 	ExecuteRequest          MessageType = "execute_request"
+	ExecuteReply            MessageType = "execute_reply"
 	KernelInfoRequest       MessageType = "kernel_info_request"
 	StopRunningTrainingCode MessageType = "stop_running_training_code_request"
 	DummyMessage            MessageType = "dummy_message_request"

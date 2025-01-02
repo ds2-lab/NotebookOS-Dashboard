@@ -314,6 +314,18 @@ type WorkloadTemplateSession struct {
 	ExecutionTimes    []int64          `json:"-"`
 }
 
+func NewWorkloadTemplateSession(session *BasicWorkloadSession, startTick int, stopTick int) *WorkloadTemplateSession {
+	return &WorkloadTemplateSession{
+		BasicWorkloadSession: session,
+		StartTick:            startTick,
+		StopTick:             stopTick,
+		Trainings:            make([]*TrainingEvent, 0),
+		NumTrainingEvents:    0,
+		TotalExecTime:        0,
+		ExecutionTimes:       make([]int64, 0),
+	}
+}
+
 func (t *WorkloadTemplateSession) String() string {
 	m, err := json.Marshal(t)
 	if err != nil {
@@ -333,6 +345,30 @@ func (t *WorkloadTemplateSession) GetStopTick() int {
 
 func (t *WorkloadTemplateSession) GetTrainings() []*TrainingEvent {
 	return t.Trainings
+}
+
+// AddTraining appends a new training event and is intended to be used only during unit tests.
+func (t *WorkloadTemplateSession) AddTraining(startTick int, durationTicks int, millicpus float64, memMb float64, vramGb float64, gpuUtils []float64) {
+	gpuUtilizations := make([]GpuUtilization, 0, len(gpuUtils))
+
+	for _, gpuUtil := range gpuUtils {
+		gpuUtilizations = append(gpuUtilizations, GpuUtilization{
+			Utilization: gpuUtil,
+		})
+	}
+
+	trainingEvent := &TrainingEvent{
+		TrainingIndex:   len(t.Trainings),
+		Millicpus:       millicpus,
+		MemUsageMB:      memMb,
+		VRamUsageGB:     vramGb,
+		GpuUtil:         gpuUtilizations,
+		StartTick:       startTick,
+		DurationInTicks: durationTicks,
+	}
+
+	t.Trainings = append(t.Trainings, trainingEvent)
+	t.NumTrainingEvents += 1
 }
 
 // TrainingEvent corresponds to the `TrainingEvent` struct defined in `web/app/Data/BasicWorkload.tsx`.

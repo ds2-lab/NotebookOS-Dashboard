@@ -155,9 +155,6 @@ type Workload interface {
 	GetCurrentTick() int64
 	// GetSimulationClockTimeStr Returns the simulation clock time.
 	GetSimulationClockTimeStr() string
-	// TickCompleted is Called by the driver after each tick.
-	// Updates the time elapsed, current tick, and the simulation clock time.
-	TickCompleted(int64, time.Time)
 	// RegisterOnNonCriticalErrorHandler registers a non-critical error handler for the target workload.
 	//
 	// If there is already a non-critical handler error registered for the target workload, then the existing
@@ -168,12 +165,15 @@ type Workload interface {
 	// If there is already a critical handler error registered for the target workload, then the existing
 	// critical error handler is overwritten.
 	RegisterOnCriticalErrorHandler(handler WorkloadErrorHandler)
+
 	// GetTickDurationsMillis returns a slice containing the clock time that elapsed for each tick
 	// of the workload in order, in milliseconds.
-	GetTickDurationsMillis() []int64
+	// GetTickDurationsMillis() []int64
+
 	// AddFullTickDuration is called to record how long a tick lasted, including the "artificial" sleep that is performed
 	// by the WorkloadDriver in order to fully simulate ticks that otherwise have no work/events to be processed.
-	AddFullTickDuration(timeElapsed time.Duration)
+	// AddFullTickDuration(timeElapsed time.Duration)
+
 	// PauseWaitBeginning should be called by the WorkloadDriver if it finds that the workload is paused, and it
 	// actually begins waiting. This will prevent any of the time during which the workload was paused from being
 	// counted towards the workload's runtime.

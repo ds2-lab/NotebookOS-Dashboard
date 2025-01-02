@@ -243,7 +243,7 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 	switch resp.StatusCode {
 	case http.StatusCreated:
 		{
-			var jupyterSession *jupyterSession
+			var jupyterSession *SessionModel
 			if err := json.Unmarshal(body, &jupyterSession); err != nil {
 				m.logger.Error("Failed to decode Jupyter Session from JSON.", zap.Error(err))
 				m.tryCallErrorHandler("", sessionId, err)
@@ -378,12 +378,12 @@ func (m *BasicKernelSessionManager) InterruptKernel(sessionId string) error {
 		return ErrKernelNotFound
 	}
 
-	if sess.kernel == nil {
+	if sess.Kernel == nil {
 		m.logger.Error("Cannot interrupt kernel. No active connection to kernel.", zap.String("session_id", sessionId))
 		return ErrNoActiveConnection
 	}
 
-	conn := sess.kernel
+	conn := sess.Kernel
 	if conn.ConnectionStatus() == KernelDead {
 		// Cannot interrupt a dead kernel.
 		return fmt.Errorf("%w: no connection to kernel \"%s\" (session ID = \"%s\")",
