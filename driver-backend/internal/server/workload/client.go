@@ -44,11 +44,23 @@ type ClientBuilder struct {
 	notifyCallback            func(notification *proto.Notification)
 	schedulingPolicy          string
 	waitGroup                 *sync.WaitGroup
+	assignedModel             string // assignedModel is the name of the model to be assigned to the client.
+	assignedDataset           string // assignedDataset is the name of the dataset to be assigned to the client.
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
 func NewClientBuilder() *ClientBuilder {
 	return &ClientBuilder{}
+}
+
+func (b *ClientBuilder) WithDeepLearningModel(model string) *ClientBuilder {
+	b.assignedModel = model
+	return b
+}
+
+func (b *ClientBuilder) WithDataset(dataset string) *ClientBuilder {
+	b.sessionId = dataset
+	return b
 }
 
 func (b *ClientBuilder) WithSessionId(sessionId string) *ClientBuilder {
@@ -205,6 +217,8 @@ type Client struct {
 	TrainingStoppedChannel    chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
 	notifyCallback            func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
 	waitGroup                 *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
+	assignedModel             string                                 // assignedModel is the name of the model assigned to this client.
+	assignedDataset           string                                 // assignedDataset is the name of the dataset assigned to this client.
 }
 
 // FailedToStart returns a bool that, when true, indicates that this Client completely failed to start.

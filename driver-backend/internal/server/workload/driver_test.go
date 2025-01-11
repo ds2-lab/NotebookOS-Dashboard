@@ -57,6 +57,7 @@ var (
 		EvictHostOnLastContainerStop:            0,
 		WorkloadPresetsFilepath:                 "configs/workload-presets-file.yaml",
 		WorkloadTemplatesFilepath:               "configs/workload-templates-file.yaml",
+		WorkloadJobConfigFilepath:               "configs/workload-job-config.yaml",
 		ExpectedOriginPort:                      8001,
 		ExpectedOriginAddresses:                 "http://localhost,http://127.0.0.1",
 		ClusterDashboardHandlerPort:             8078,

@@ -83,6 +83,7 @@ var (
 	ErrWorkloadNil                         = errors.New("workload is nil; cannot process nil workload")
 	ErrTemplateFilePathNotSpecified        = errors.New("template file path was not specified")
 	ErrInvalidTemplateFileSpecified        = errors.New("invalid template file path specified")
+	ErrInvalidJobConfigFileSpecified       = errors.New("invalid workload job config specified")
 	ErrTrainingFailed                      = errors.New("training event could not be processed")
 	ErrKernelCreationFailed                = errors.New("failed to create kernel")
 
@@ -220,10 +221,23 @@ type BasicWorkloadDriver struct {
 	// onNonCriticalErrorOccurred is a handler that is called when a non-critical error occurs.
 	// The onNonCriticalErrorOccurred handler is called in its own goroutine.
 	onNonCriticalErrorOccurred domain.WorkloadErrorHandler
+
+	// workloadJobConfig specifies which models and datasets are available during workloads.
+	workloadJobConfig *domain.WorkloadJobConfiguration
+
+	// modelDatasetCategories is a list of all the categories of models and datasets specified in the workloadJobConfig.
+	modelDatasetCategories []string
+
+	// modelsByCategory is a map from category to a list of models in that category.
+	modelsByCategory map[string][]string
+
+	// datasetsByCategory is a map from category to a list of datasets in that category.
+	datasetsByCategory map[string][]string
 }
 
 func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, timescaleAdjustmentFactor float64,
-	websocket domain.ConcurrentWebSocket, atom *zap.AtomicLevel, callbackProvider CallbackProvider) *BasicWorkloadDriver {
+	websocket domain.ConcurrentWebSocket, atom *zap.AtomicLevel, callbackProvider CallbackProvider,
+	workloadJobConfig *domain.WorkloadJobConfiguration) *BasicWorkloadDriver {
 
 	jupyterAddress := path.Join(opts.InternalJupyterServerAddress, opts.JupyterServerBasePath)
 
@@ -264,6 +278,10 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		Clients:                            make(map[string]*Client),
 		workloadOutputInterval:             time.Second * time.Duration(opts.WorkloadOutputIntervalSec),
 		timeCompressTrainingDurations:      opts.TimeCompressTrainingDurations,
+		workloadJobConfig:                  workloadJobConfig,
+		modelDatasetCategories:             make([]string, 0),
+		modelsByCategory:                   make(map[string][]string),
+		datasetsByCategory:                 make(map[string][]string),
 	}
 
 	driver.pauseCond = sync.NewCond(&driver.pauseMutex)
@@ -302,6 +320,53 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 			err = fmt.Errorf("error occurred for kernel=%s,session=%s: %w", kernelId, sessionId, err)
 			driver.onNonCriticalErrorOccurred(driver.id, err)
 		})
+	}
+
+	// Iterate over all the configured models and record them in the driver's internal dictionaries.
+	for _, modelConfig := range workloadJobConfig.Models {
+		// If we've never seen this category before, then add the category to the slice of categories.
+		if idx := indexOf(driver.modelDatasetCategories, modelConfig.Type); idx == -1 {
+			driver.modelDatasetCategories = append(driver.modelDatasetCategories, modelConfig.Type)
+		}
+
+		// If we don't already have a slice of models mapped for this category, then we'll create the slice.
+		var (
+			models []string
+			loaded bool
+		)
+		if models, loaded = driver.modelsByCategory[modelConfig.Type]; !loaded {
+			// Mapping did not already exist. Create the slice.
+			models = make([]string, 0, 1)
+		}
+
+		// Add the model to the slice.
+		models = append(models, modelConfig.Name)
+
+		// Persist the slice in the map.
+		driver.modelsByCategory[modelConfig.Type] = models
+	}
+
+	// Iterate over all the configured datasets and record them in the driver's internal dictionaries.
+	for _, datasetConfig := range workloadJobConfig.Datasets {
+		if idx := indexOf(driver.modelDatasetCategories, datasetConfig.Type); idx == -1 {
+			driver.modelDatasetCategories = append(driver.modelDatasetCategories, datasetConfig.Type)
+		}
+
+		// If we don't already have a slice of datasets mapped for this category, then we'll create the slice.
+		var (
+			datasets []string
+			loaded   bool
+		)
+		if datasets, loaded = driver.datasetsByCategory[datasetConfig.Type]; !loaded {
+			// Mapping did not already exist. Create the slice.
+			datasets = make([]string, 0, 1)
+		}
+
+		// Add the dataset to the slice.
+		datasets = append(datasets, datasetConfig.Name)
+
+		// Persist the slice in the map.
+		driver.datasetsByCategory[datasetConfig.Type] = datasets
 	}
 
 	return driver
@@ -1587,11 +1652,11 @@ func (d *BasicWorkloadDriver) handleTick(tick time.Time) error {
 	}
 
 	// Process "start/stop training" events.
-	d.enqueueEventsForTick(tick)
+	err := d.enqueueEventsForTick(tick)
 
 	d.ticker.Done()
 
-	return nil
+	return err
 }
 
 // WorkloadExecutionCompleteChan returns the channel that is used to signal
@@ -1630,12 +1695,58 @@ func (d *BasicWorkloadDriver) getSchedulingPolicy() string {
 	return policy
 }
 
+// randomlySelectModel selects a random model from a random category.
+//
+// Both the category and the model are selected uniformly at random.
+//
+// Returns the model, the model's category, and an error (that will be nil on success).
+//
+// A non-nil error is returned if there are no models configured.
+func (d *BasicWorkloadDriver) randomlySelectModel() (string, string, error) {
+	if len(d.modelDatasetCategories) == 0 {
+		return "", "", fmt.Errorf("there are no models configured whatsoever")
+	}
+
+	// First, randomly select the category.
+	rngSource := rand.NewSource(time.Now().Unix())
+	rng := rand.New(rngSource)
+
+	categoryIndex := rng.Intn(len(d.modelDatasetCategories))
+	category := d.modelDatasetCategories[categoryIndex]
+
+	models, loaded := d.modelsByCategory[category]
+	if !loaded {
+		return "", category, fmt.Errorf("no models configured for specified category \"%s\"", category)
+	}
+
+	modelIndex := rng.Intn(len(models))
+	return models[modelIndex], category, nil
+}
+
+// randomlySelectDataset selects a dataset uniformly at random from the specified category.
+//
+// Returns the dataset and an error (that will be nil on success).
+//
+// A non-nil error is returned if there are no datasets configured (for the specified category).
+func (d *BasicWorkloadDriver) randomlySelectDataset(category string) (string, error) {
+	datasets, loaded := d.datasetsByCategory[category]
+	if !loaded {
+		return "", fmt.Errorf("no datasets configured for specified category \"%s\"", category)
+	}
+
+	rngSource := rand.NewSource(time.Now().Unix())
+	rng := rand.New(rngSource)
+
+	idx := rng.Intn(len(datasets))
+	return datasets[idx], nil
+}
+
 // enqueueEventsForTick processes events in chronological/simulation order.
 // This accepts the "current tick" as an argument. The current tick is basically an upper-bound on the times for
 // which we'll process an event. For example, if `tick` is 19:05:00, then we will process all cluster and session
 // events with timestamps that are (a) equal to 19:05:00 or (b) come before 19:05:00. Any events with timestamps
 // that come after 19:05:00 will not be processed until the next tick.
-func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) {
+func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 	// Extract all the "session-ready" events for this tick.
 	for d.eventQueue.HasEventsForTick(tick) {
 		evt := d.eventQueue.Pop(tick)
@@ -1650,12 +1761,33 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) {
 				zap.Time("starting_tick", tick),
 				zap.String("session_ready_event", evt.String()))
 
+			model, category, err := d.randomlySelectModel()
+			if err != nil {
+				d.logger.Error("Failed to randomly select model.", zap.Error(err))
+				return err
+			}
+
+			dataset, err := d.randomlySelectDataset(category)
+			if err != nil {
+				d.logger.Error("Failed to randomly select dataset.",
+					zap.String("model", model), zap.String("category", category), zap.Error(err))
+				return err
+			}
+
+			d.logger.Debug("Assigning randomly-selected model and dataset to client.",
+				zap.String("session_id", sessionId),
+				zap.String("category", category),
+				zap.String("model", model),
+				zap.String("dataset", dataset))
+
 			client := NewClientBuilder().
 				WithSessionId(sessionId).
 				WithWorkloadId(d.workload.GetId()).
 				WithSessionReadyEvent(evt).
 				WithStartingTick(tick).
 				WithAtom(d.atom).
+				WithDeepLearningModel(model).
+				WithDataset(dataset).
 				WithSchedulingPolicy(d.getSchedulingPolicy()).
 				WithKernelManager(d.KernelManager).
 				WithTargetTickDurationSeconds(d.targetTickDurationSeconds).

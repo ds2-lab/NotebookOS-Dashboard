@@ -5,6 +5,7 @@ spoof-specs: false
 server-port: 8000
 workload-presets-file: "configs/workload-presets-file.yaml"
 workload-templates-file: "configs/workload-templates-file.yaml"
+workload-job-config-file: "configs/workload-job-config.yaml"
 gateway-address: localhost:8079
 cluster-dashboard-handler-port: 8078
 websocket-proxy-port: 8077
