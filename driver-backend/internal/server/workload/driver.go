@@ -42,9 +42,6 @@ const (
 	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 
-	ZapInternalSessionIDKey = "internal-session-id"
-	ZapTraceSessionIDKey    = "trace-session-id"
-
 	// AnyGPU is used by ResourceRequest structs when they do not require/request a specific GPU.
 	AnyGPU = "ANY_GPU"
 
@@ -1652,11 +1649,16 @@ func (d *BasicWorkloadDriver) handleTick(tick time.Time) error {
 	}
 
 	// Process "start/stop training" events.
-	err := d.enqueueEventsForTick(tick)
+	err = d.enqueueEventsForTick(tick)
+	if err != nil {
+		d.logger.Error("Error encountered while attempting to enqueue events for tick.",
+			zap.Time("tick", tick), zap.Error(err))
+		// Will return error down below.
+	}
 
 	d.ticker.Done()
 
-	return err
+	return err // Will be nil on success.
 }
 
 // WorkloadExecutionCompleteChan returns the channel that is used to signal
@@ -1767,7 +1769,8 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 				return err
 			}
 
-			dataset, err := d.randomlySelectDataset(category)
+			var dataset string
+			dataset, err = d.randomlySelectDataset(category)
 			if err != nil {
 				d.logger.Error("Failed to randomly select dataset.",
 					zap.String("model", model), zap.String("category", category), zap.Error(err))
@@ -1837,6 +1840,8 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 	// Wait for all the goroutines to complete before returning.
 	// waitGroup.Wait()
 	d.workload.UpdateTimeElapsed()
+
+	return nil
 }
 
 // Given a session ID, such as from the trace data, return the ID used internally.

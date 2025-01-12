@@ -1179,6 +1179,14 @@ func (c *Client) createExecuteRequestArguments(evt *domain.Event) (*jupyter.Requ
 		AddMetadata("resource_request", resourceRequest).
 		AddMetadata("training_duration_millis", milliseconds)
 
+	if c.assignedModel != "" {
+		argsBuilder = argsBuilder.AddMetadata("model", c.assignedModel)
+	}
+
+	if c.assignedDataset != "" {
+		argsBuilder = argsBuilder.AddMetadata("dataset", c.assignedDataset)
+	}
+
 	return argsBuilder.Build(), nil
 }
 
