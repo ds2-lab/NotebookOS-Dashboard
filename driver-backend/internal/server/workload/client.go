@@ -59,7 +59,7 @@ func (b *ClientBuilder) WithDeepLearningModel(model string) *ClientBuilder {
 }
 
 func (b *ClientBuilder) WithDataset(dataset string) *ClientBuilder {
-	b.sessionId = dataset
+	b.assignedDataset = dataset
 	return b
 }
 
@@ -166,6 +166,8 @@ func (b *ClientBuilder) Build() *Client {
 		notifyCallback:            b.notifyCallback,
 		waitGroup:                 b.waitGroup,
 		schedulingPolicy:          b.schedulingPolicy,
+		AssignedModel:             b.assignedModel,
+		AssignedDataset:           b.assignedDataset,
 	}
 
 	zapConfig := zap.NewDevelopmentEncoderConfig()
@@ -217,8 +219,8 @@ type Client struct {
 	TrainingStoppedChannel    chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
 	notifyCallback            func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
 	waitGroup                 *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
-	assignedModel             string                                 // assignedModel is the name of the model assigned to this client.
-	assignedDataset           string                                 // assignedDataset is the name of the dataset assigned to this client.
+	AssignedModel             string                                 // AssignedModel is the name of the model assigned to this client.
+	AssignedDataset           string                                 // AssignedDataset is the name of the dataset assigned to this client.
 }
 
 // FailedToStart returns a bool that, when true, indicates that this Client completely failed to start.
@@ -821,7 +823,7 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 	}
 
 	var executeRequestArgs *jupyter.RequestExecuteArgs
-	executeRequestArgs, err = c.createExecuteRequestArguments(evt)
+	executeRequestArgs, err = c.CreateExecuteRequestArguments(evt)
 	if executeRequestArgs == nil || err != nil {
 		c.logger.Error("Failed to create 'execute_request' arguments.",
 			zap.String("workload_id", c.Workload.GetId()),
@@ -1116,10 +1118,10 @@ func (c *Client) handleIOPubStreamMessage(conn jupyter.KernelConnection, kernelM
 	}
 }
 
-// createExecuteRequestArguments creates the arguments for an "execute_request" from the given event.
+// CreateExecuteRequestArguments creates the arguments for an "execute_request" from the given event.
 //
 // The event must be of type "training-started", or this will return nil.
-func (c *Client) createExecuteRequestArguments(evt *domain.Event) (*jupyter.RequestExecuteArgs, error) {
+func (c *Client) CreateExecuteRequestArguments(evt *domain.Event) (*jupyter.RequestExecuteArgs, error) {
 	if evt.Name != domain.EventSessionTraining {
 		c.logger.Error("Attempted to create \"execute_request\" arguments for event of invalid type.",
 			zap.String("event_type", evt.Name.String()),
@@ -1179,12 +1181,12 @@ func (c *Client) createExecuteRequestArguments(evt *domain.Event) (*jupyter.Requ
 		AddMetadata("resource_request", resourceRequest).
 		AddMetadata("training_duration_millis", milliseconds)
 
-	if c.assignedModel != "" {
-		argsBuilder = argsBuilder.AddMetadata("model", c.assignedModel)
+	if c.AssignedModel != "" {
+		argsBuilder = argsBuilder.AddMetadata("model", c.AssignedModel)
 	}
 
-	if c.assignedDataset != "" {
-		argsBuilder = argsBuilder.AddMetadata("dataset", c.assignedDataset)
+	if c.AssignedDataset != "" {
+		argsBuilder = argsBuilder.AddMetadata("dataset", c.AssignedDataset)
 	}
 
 	return argsBuilder.Build(), nil
