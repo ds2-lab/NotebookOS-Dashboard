@@ -147,26 +147,6 @@ var _ = Describe("Driver", func() {
 		)
 
 		Context("Static scheduling", func() {
-			// Create the domain.SessionMetadata struct that is used for the unit tests within this Context.
-			getBasicSessionMetadata := func(sessionId string) domain.SessionMetadata {
-				sessionMetadata := mock_domain.NewMockSessionMetadata(controller)
-
-				sessionMetadata.EXPECT().GetPod().AnyTimes().Return(sessionId)
-				sessionMetadata.EXPECT().GetVRAM().AnyTimes().Return(1.0)
-
-				sessionMetadata.EXPECT().GetMaxSessionCPUs().AnyTimes().Return(128.0)
-				sessionMetadata.EXPECT().GetMaxSessionMemory().AnyTimes().Return(512.0)
-				sessionMetadata.EXPECT().GetMaxSessionGPUs().AnyTimes().Return(1)
-				sessionMetadata.EXPECT().GetMaxSessionVRAM().AnyTimes().Return(1.0)
-
-				sessionMetadata.EXPECT().GetCurrentTrainingMaxGPUs().AnyTimes().Return(1)
-				sessionMetadata.EXPECT().GetCurrentTrainingMaxCPUs().AnyTimes().Return(128.0)
-				sessionMetadata.EXPECT().GetCurrentTrainingMaxMemory().AnyTimes().Return(512.0)
-				sessionMetadata.EXPECT().GetCurrentTrainingMaxVRAM().AnyTimes().Return(1.0)
-
-				return sessionMetadata
-			}
-
 			// Create and register the workload that is used for the unit tests within this Context.
 			createAndRegisterWorkload := func(sessionId string, sessionMetadata domain.SessionMetadata) {
 				resourceRequest := domain.NewResourceRequest(128, 512, 1, 1, "AnyGPU")
@@ -210,7 +190,20 @@ var _ = Describe("Driver", func() {
 
 				atom = zap.NewAtomicLevelAt(zap.DebugLevel)
 				workloadDriver = workload.NewBasicWorkloadDriver(workloadDriverOpts, true, timescaleAdjustmentFactor,
-					mockWebsocket, &atom, mockCallbackProvider)
+					mockWebsocket, &atom, mockCallbackProvider, &domain.WorkloadJobConfiguration{
+						Models: []*domain.ModelConfig{
+							{
+								Type: "Computer Vision (CV)",
+								Name: "ResNet-18",
+							},
+						},
+						Datasets: []*domain.DatasetConfig{
+							{
+								Type: "Computer Vision (CV)",
+								Name: "CIFAR-10",
+							},
+						},
+					})
 
 				workloadDriver.OutputCsvDisabled = true
 				workloadDriver.KernelManager = mockKernelManager
@@ -246,7 +239,7 @@ var _ = Describe("Driver", func() {
 				It("Will correctly resubmit a failed 'session-started' event", func() {
 					sessionId := "TestSession"
 
-					sessionMetadata := getBasicSessionMetadata(sessionId)
+					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
 					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
@@ -360,7 +353,7 @@ var _ = Describe("Driver", func() {
 				It("Will correctly resubmit failed a 'training-started' event", func() {
 					sessionId := "TestSession"
 
-					sessionMetadata := getBasicSessionMetadata(sessionId)
+					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
 					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
@@ -454,7 +447,7 @@ var _ = Describe("Driver", func() {
 				It("Will correctly resubmit both a failed 'session-started' event and a failed 'training' event", func() {
 					sessionId := "TestSession"
 
-					sessionMetadata := getBasicSessionMetadata(sessionId)
+					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
 					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
@@ -580,7 +573,7 @@ var _ = Describe("Driver", func() {
 				It("Will correctly resubmit a failed 'session-started' event multiple times", func() {
 					sessionId := "TestSession"
 
-					sessionMetadata := getBasicSessionMetadata(sessionId)
+					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
 					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
@@ -718,7 +711,7 @@ var _ = Describe("Driver", func() {
 				It("Will correctly resubmit a failed 'training-started' event multiple times", func() {
 					sessionId := "TestSession"
 
-					sessionMetadata := getBasicSessionMetadata(sessionId)
+					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
 					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
