@@ -16,6 +16,7 @@ import {
     Divider,
     Flex,
     FlexItem,
+    FormGroup,
     FormSelect,
     FormSelectOption,
     FormSelectOptionGroup,
@@ -35,6 +36,7 @@ import { RequestTraceSplitTable } from '@src/Components';
 import {
     ComputerVisionDatasets,
     ComputerVisionModels,
+    Dataset,
     DeepLearningModel,
     DistributedJupyterKernel,
     FirstJupyterKernelBuffersFrame,
@@ -568,7 +570,18 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
 
             const startTime: number = performance.now();
             const initialRequestTimestamp: number = Date.now();
-            const future = kernelConnection.requestExecute({ code: code }, undefined, {
+
+            // If the user is submitting some deep learning training task, then we'll submit metadata that
+            // specifies what model and dataset to use.
+            let metadata;
+            if (showModelAndDatasetSelectionMenu()) {
+                metadata = {
+                    model: selectedModel,
+                    dataset: selectedDataset,
+                };
+            }
+
+            const future = kernelConnection.requestExecute({ code: code }, metadata, {
                 target_replica: targetReplicaId,
                 send_timestamp_unix_milli: Date.now(),
             });
@@ -973,70 +986,90 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
     );
 
     const modelSelectionDropdown = (
-        <FormSelect
-            onChange={(_event: React.FormEvent<HTMLSelectElement>, value: string) => {
-                setSelectedModel(value as string);
-            }}
-            value={selectedModel}
-        >
-            <FormSelectOptionGroup label={'Computer Vision (CV)'}>
-                {ComputerVisionModels.map((model: DeepLearningModel) => (
-                    <FormSelectOption value={model.name} key={`model-dropdown-${model.name}`} label={model.name}>
-                        {model.name}
-                    </FormSelectOption>
-                ))}
-            </FormSelectOptionGroup>
-            <Divider component="li" />
-            <FormSelectOptionGroup label={'Natural Language Processing (NLP)'}>
-                {NLPModels.map((model: DeepLearningModel) => (
-                    <FormSelectOption value={model.name} key={`model-dropdown-${model.name}`} label={model.name}>
-                        {model.name}
-                    </FormSelectOption>
-                ))}
-            </FormSelectOptionGroup>
-            <Divider component="li" />
-            <FormSelectOptionGroup label={'Speech'}>
-                {SpeechModels.map((model: DeepLearningModel) => (
-                    <FormSelectOption value={model.name} key={`model-dropdown-${model.name}`} label={model.name}>
-                        {model.name}
-                    </FormSelectOption>
-                ))}
-            </FormSelectOptionGroup>
-        </FormSelect>
+        <FormGroup label={'Deep Learning Model'}>
+            <FormSelect
+                onChange={(_event: React.FormEvent<HTMLSelectElement>, value: string) => {
+                    setSelectedModel(value as string);
+                }}
+                value={selectedModel}
+            >
+                <FormSelectOptionGroup label={'Computer Vision (CV)'}>
+                    {ComputerVisionModels.map((model: DeepLearningModel) => (
+                        <FormSelectOption value={model.name} key={`model-dropdown-${model.name}`} label={model.name}>
+                            {model.name}
+                        </FormSelectOption>
+                    ))}
+                </FormSelectOptionGroup>
+                <Divider component="li" />
+                <FormSelectOptionGroup label={'Natural Language Processing (NLP)'}>
+                    {NLPModels.map((model: DeepLearningModel) => (
+                        <FormSelectOption value={model.name} key={`model-dropdown-${model.name}`} label={model.name}>
+                            {model.name}
+                        </FormSelectOption>
+                    ))}
+                </FormSelectOptionGroup>
+                <Divider component="li" />
+                <FormSelectOptionGroup label={'Speech'}>
+                    {SpeechModels.map((model: DeepLearningModel) => (
+                        <FormSelectOption value={model.name} key={`model-dropdown-${model.name}`} label={model.name}>
+                            {model.name}
+                        </FormSelectOption>
+                    ))}
+                </FormSelectOptionGroup>
+            </FormSelect>
+        </FormGroup>
     );
 
     const datasetSelectionDropdown = (
-        <FormSelect
-            onChange={(_event: React.FormEvent<HTMLSelectElement>, value: string) => {
-                setSelectedDataset(value as string);
-            }}
-            value={selectedModel}
-        >
-            <FormSelectOptionGroup label={'Computer Vision (CV)'}>
-                {ComputerVisionDatasets.map((model: DeepLearningModel) => (
-                    <FormSelectOption value={model.name} key={`model-dropdown-${model.name}`} label={model.name}>
-                        {model.name}
-                    </FormSelectOption>
-                ))}
-            </FormSelectOptionGroup>
-            <Divider component="li" />
-            <FormSelectOptionGroup label={'Natural Language Processing (NLP)'}>
-                {NLPDatasets.map((model: DeepLearningModel) => (
-                    <FormSelectOption value={model.name} key={`model-dropdown-${model.name}`} label={model.name}>
-                        {model.name}
-                    </FormSelectOption>
-                ))}
-            </FormSelectOptionGroup>
-            <Divider component="li" />
-            <FormSelectOptionGroup label={'Speech'}>
-                {SpeechDatasets.map((model: DeepLearningModel) => (
-                    <FormSelectOption value={model.name} key={`model-dropdown-${model.name}`} label={model.name}>
-                        {model.name}
-                    </FormSelectOption>
-                ))}
-            </FormSelectOptionGroup>
-        </FormSelect>
+        <FormGroup label={'Dataset'}>
+            <FormSelect
+                onChange={(_event: React.FormEvent<HTMLSelectElement>, value: string) => {
+                    setSelectedDataset(value as string);
+                }}
+                value={selectedDataset}
+            >
+                <FormSelectOptionGroup label={'Computer Vision (CV)'}>
+                    {ComputerVisionDatasets.map((dataset: Dataset) => (
+                        <FormSelectOption
+                            value={dataset.name}
+                            key={`dataset-dropdown-${dataset.name}`}
+                            label={dataset.name}
+                        >
+                            {dataset.name}
+                        </FormSelectOption>
+                    ))}
+                </FormSelectOptionGroup>
+                <Divider component="li" />
+                <FormSelectOptionGroup label={'Natural Language Processing (NLP)'}>
+                    {NLPDatasets.map((dataset: Dataset) => (
+                        <FormSelectOption
+                            value={dataset.name}
+                            key={`dataset-dropdown-${dataset.name}`}
+                            label={dataset.name}
+                        >
+                            {dataset.name}
+                        </FormSelectOption>
+                    ))}
+                </FormSelectOptionGroup>
+                <Divider component="li" />
+                <FormSelectOptionGroup label={'Speech'}>
+                    {SpeechDatasets.map((dataset: Dataset) => (
+                        <FormSelectOption
+                            value={dataset.name}
+                            key={`dataset-dropdown-${dataset.name}`}
+                            label={dataset.name}
+                        >
+                            {dataset.name}
+                        </FormSelectOption>
+                    ))}
+                </FormSelectOptionGroup>
+            </FormSelect>
+        </FormGroup>
     );
+
+    const showModelAndDatasetSelectionMenu = () => {
+        return code !== 'training_duration_millis = 1500';
+    };
 
     const codeEditorComponent = (
         <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsMd' }}>
@@ -1062,7 +1095,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     </CodeContext.Provider>
                 </FlexItem>
             </Flex>
-            <Flex direction={{ default: 'row' }}>
+            <Flex direction={{ default: 'row' }} hidden={showModelAndDatasetSelectionMenu()}>
                 <FlexItem>{modelSelectionDropdown}</FlexItem>
                 <FlexItem>{datasetSelectionDropdown}</FlexItem>
             </Flex>
