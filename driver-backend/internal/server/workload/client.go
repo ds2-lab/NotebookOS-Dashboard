@@ -927,7 +927,6 @@ func (c *Client) incurDelay(delayAmount time.Duration) {
 //
 // waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
 func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time, sentRequestAt time.Time) (bool, error) {
-
 	c.logger.Debug("Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1221,7 +1220,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 
 	if schedulingPolicy == "static" || schedulingPolicy == "dynamic-v3" || schedulingPolicy == "dynamic-v4" {
 		// There's no network I/O on the critical path, so stopping the training should be quick.
-		return (time.Second * 30) + c.getAdjustedDuration(evt)
+		return (time.Second * 60) + c.getAdjustedDuration(evt)
 	}
 
 	// Get the remote storage definition of the workload.
@@ -1253,7 +1252,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 	expectedNetworkIoLatency := readTime + writeTime
 
 	// Extra 30 seconds for whatever shenanigans need to occur.
-	interval := (time.Second * 30) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
+	interval := (time.Second * 60) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
 
 	c.logger.Debug("Computed timeout interval.",
 		zap.String("workload_id", c.Workload.GetId()),
