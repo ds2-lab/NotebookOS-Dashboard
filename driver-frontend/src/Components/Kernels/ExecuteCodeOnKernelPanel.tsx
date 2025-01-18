@@ -1010,7 +1010,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     setSelectedModel(value as string);
                 }}
                 value={selectedModel}
-                validated={validateModelDatasetSelection() ? 'warning' : 'error'}
+                validated={validateModelDatasetSelection() ? 'success' : 'error'}
             >
                 <FormSelectOptionGroup label={'Computer Vision (CV)'}>
                     {ComputerVisionModels.map((model: DeepLearningModel) => (
