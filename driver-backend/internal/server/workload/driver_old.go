@@ -2184,10 +2184,10 @@ package workload
 //	return nil
 //}
 //
-//// createExecuteRequestArguments creates the arguments for an "execute_request" from the given event.
+//// CreateExecuteRequestArguments creates the arguments for an "execute_request" from the given event.
 ////
 //// The event must be of type "training-started", or this will return nil.
-//func (d *BasicWorkloadDriverOld) createExecuteRequestArguments(evt *domain.Event, callback func(resp jupyter.KernelMessage)) (*jupyter.RequestExecuteArgs, error) {
+//func (d *BasicWorkloadDriverOld) CreateExecuteRequestArguments(evt *domain.Event, callback func(resp jupyter.KernelMessage)) (*jupyter.RequestExecuteArgs, error) {
 //	if evt.Name != domain.EventSessionTrainingStarted {
 //		d.logger.Error("Attempted to create \"execute_request\" arguments for event of invalid type.",
 //			zap.String("event_type", evt.Name.String()),
@@ -2296,7 +2296,7 @@ package workload
 //	}
 //
 //	var executeRequestArgs *jupyter.RequestExecuteArgs
-//	executeRequestArgs, err = d.createExecuteRequestArguments(evt, handleExecuteReplyWrapper)
+//	executeRequestArgs, err = d.CreateExecuteRequestArguments(evt, handleExecuteReplyWrapper)
 //	if executeRequestArgs == nil || err != nil {
 //		d.logger.Error("Failed to create 'execute_request' arguments.",
 //			zap.String("workload_id", d.workload.GetId()),

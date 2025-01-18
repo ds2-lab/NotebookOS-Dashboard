@@ -68,6 +68,7 @@ type Configuration struct {
 	EvictHostOnLastContainerStop int    `name:"evict-host-on-last-container-stop" description:"Override the default settings for whatever Scheduler you're using and force a value for this parameter. -1 to force false, 0 to leave as default for the particular scheduler, and 1 to force true."`
 	WorkloadPresetsFilepath      string `name:"workload-presets-file" description:"Path to a .YAML file containing the definitions of one or more Workload Presets."`
 	WorkloadTemplatesFilepath    string `name:"workload-templates-file" yaml:"workload-templates-file" json:"workload-templates-file"`
+	WorkloadJobConfigFilepath    string `name:"workload-job-config-file" yaml:"workload-job-config-file" json:"workload-job-config-file"`
 	ExpectedOriginPort           int    `name:"expected-origin-port" description:"Port of the expected origin for messages from the frontend."`
 	ExpectedOriginAddresses      string `name:"expected_websocket_origins" json:"expected_websocket_origins" yaml:"expected_websocket_origins" description:"Comma-separated list of addresses (without ports) passed as a single string. These are acceptable/expected origins for the websocket connection upgrader to allow."`
 	ClusterDashboardHandlerPort  int    `name:"cluster-dashboard-handler-port" description:"Port for the Cluster Dashboard handler gRPC server to listen on."`
@@ -328,4 +329,19 @@ func (opts *Configuration) CheckUsage() {
 	}
 
 	fmt.Printf("Server configuration:\n%v\n", opts)
+}
+
+type ModelConfig struct {
+	Name string `json:"name" yaml:"name"`
+	Type string `json:"type" yaml:"type"`
+}
+
+type DatasetConfig struct {
+	Name string `json:"name" yaml:"name"`
+	Type string `json:"type" yaml:"type"`
+}
+
+type WorkloadJobConfiguration struct {
+	Models   []*ModelConfig   `json:"models" yaml:"models"`
+	Datasets []*DatasetConfig `json:"datasets" yaml:"datasets"`
 }

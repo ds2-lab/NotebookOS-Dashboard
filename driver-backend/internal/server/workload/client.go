@@ -44,11 +44,23 @@ type ClientBuilder struct {
 	notifyCallback            func(notification *proto.Notification)
 	schedulingPolicy          string
 	waitGroup                 *sync.WaitGroup
+	assignedModel             string // assignedModel is the name of the model to be assigned to the client.
+	assignedDataset           string // assignedDataset is the name of the dataset to be assigned to the client.
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
 func NewClientBuilder() *ClientBuilder {
 	return &ClientBuilder{}
+}
+
+func (b *ClientBuilder) WithDeepLearningModel(model string) *ClientBuilder {
+	b.assignedModel = model
+	return b
+}
+
+func (b *ClientBuilder) WithDataset(dataset string) *ClientBuilder {
+	b.assignedDataset = dataset
+	return b
 }
 
 func (b *ClientBuilder) WithSessionId(sessionId string) *ClientBuilder {
@@ -154,6 +166,8 @@ func (b *ClientBuilder) Build() *Client {
 		notifyCallback:            b.notifyCallback,
 		waitGroup:                 b.waitGroup,
 		schedulingPolicy:          b.schedulingPolicy,
+		AssignedModel:             b.assignedModel,
+		AssignedDataset:           b.assignedDataset,
 	}
 
 	zapConfig := zap.NewDevelopmentEncoderConfig()
@@ -199,12 +213,14 @@ type Client struct {
 	failedToStart             atomic.Bool                            // failedToStart indicates that this Client completely failed to start -- it never succeeded in creating its kernel/session.
 	numSessionStartAttempts   atomic.Int32                           // numSessionStartAttempts counts the number of attempts that were required when initially creating the session/kernel before the session/kernel was successfully created.
 	trainingEventsHandled     atomic.Int32                           // trainingEventsHandled is the number of training events successfully processed by this Client.
-	trainingEventsDelayed     atomic.Int32                           // trainingEventsDelayed is the number of training events that have been delayed because the first attempt returned an error (e.g., insufficient hosts available).
+	trainingEventsDelayed     atomic.Int32                           // trainingEventsDelayed returns the number of times that a training event was delayed after failing to start. The same training event can be delayed multiple times, and each of those delays is counted independently.
 	lastTrainingSubmittedAt   time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
 	TrainingStartedChannel    chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
 	TrainingStoppedChannel    chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
 	notifyCallback            func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
 	waitGroup                 *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
+	AssignedModel             string                                 // AssignedModel is the name of the model assigned to this client.
+	AssignedDataset           string                                 // AssignedDataset is the name of the dataset assigned to this client.
 }
 
 // FailedToStart returns a bool that, when true, indicates that this Client completely failed to start.
@@ -219,8 +235,8 @@ func (c *Client) NumSessionStartAttempts() int32 {
 	return c.numSessionStartAttempts.Load()
 }
 
-// TrainingEventsDelayed returns the number of training events that have been delayed because the first attempt
-// returned an error (e.g., insufficient hosts available).
+// TrainingEventsDelayed returns the number of times that a training event was delayed after failing to start.
+// The same training event can be delayed multiple times, and each of those delays is counted independently.
 func (c *Client) TrainingEventsDelayed() int32 {
 	return c.trainingEventsDelayed.Load()
 }
@@ -807,7 +823,7 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 	}
 
 	var executeRequestArgs *jupyter.RequestExecuteArgs
-	executeRequestArgs, err = c.createExecuteRequestArguments(evt)
+	executeRequestArgs, err = c.CreateExecuteRequestArguments(evt)
 	if executeRequestArgs == nil || err != nil {
 		c.logger.Error("Failed to create 'execute_request' arguments.",
 			zap.String("workload_id", c.Workload.GetId()),
@@ -911,7 +927,6 @@ func (c *Client) incurDelay(delayAmount time.Duration) {
 //
 // waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
 func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time, sentRequestAt time.Time) (bool, error) {
-
 	c.logger.Debug("Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1102,10 +1117,10 @@ func (c *Client) handleIOPubStreamMessage(conn jupyter.KernelConnection, kernelM
 	}
 }
 
-// createExecuteRequestArguments creates the arguments for an "execute_request" from the given event.
+// CreateExecuteRequestArguments creates the arguments for an "execute_request" from the given event.
 //
 // The event must be of type "training-started", or this will return nil.
-func (c *Client) createExecuteRequestArguments(evt *domain.Event) (*jupyter.RequestExecuteArgs, error) {
+func (c *Client) CreateExecuteRequestArguments(evt *domain.Event) (*jupyter.RequestExecuteArgs, error) {
 	if evt.Name != domain.EventSessionTraining {
 		c.logger.Error("Attempted to create \"execute_request\" arguments for event of invalid type.",
 			zap.String("event_type", evt.Name.String()),
@@ -1165,6 +1180,14 @@ func (c *Client) createExecuteRequestArguments(evt *domain.Event) (*jupyter.Requ
 		AddMetadata("resource_request", resourceRequest).
 		AddMetadata("training_duration_millis", milliseconds)
 
+	if c.AssignedModel != "" {
+		argsBuilder = argsBuilder.AddMetadata("model", c.AssignedModel)
+	}
+
+	if c.AssignedDataset != "" {
+		argsBuilder = argsBuilder.AddMetadata("dataset", c.AssignedDataset)
+	}
+
 	return argsBuilder.Build(), nil
 }
 
@@ -1197,7 +1220,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 
 	if schedulingPolicy == "static" || schedulingPolicy == "dynamic-v3" || schedulingPolicy == "dynamic-v4" {
 		// There's no network I/O on the critical path, so stopping the training should be quick.
-		return (time.Second * 30) + c.getAdjustedDuration(evt)
+		return (time.Second * 60) + c.getAdjustedDuration(evt)
 	}
 
 	// Get the remote storage definition of the workload.
@@ -1229,7 +1252,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 	expectedNetworkIoLatency := readTime + writeTime
 
 	// Extra 30 seconds for whatever shenanigans need to occur.
-	interval := (time.Second * 30) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
+	interval := (time.Second * 60) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
 
 	c.logger.Debug("Computed timeout interval.",
 		zap.String("workload_id", c.Workload.GetId()),

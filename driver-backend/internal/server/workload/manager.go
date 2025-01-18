@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/api/proto"
 	"github.com/zhangjyr/gocsv"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/scusemua/workload-driver-react/m/v2/internal/domain"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v2"
 )
 
 type ClusterStatisticsRefresher func(update bool, clear bool) (*ClusterStatistics, error)
@@ -29,6 +31,7 @@ type BasicWorkloadManager struct {
 	sugaredLogger *zap.SugaredLogger
 
 	configuration            *domain.Configuration                                // Server-wide configuration.
+	workloadJobConfiguration *domain.WorkloadJobConfiguration                     // workloadJobConfiguration specifies which models and datasets are available during workloads.
 	pushGoroutineActive      atomic.Int32                                         // Indicates whether there is already a goroutine serving the "push" routine, which pushes updated workload data to the frontend.
 	pushUpdateInterval       time.Duration                                        // The interval at which we push updates to the workloads to the frontend.
 	workloadWebsocketHandler *WebsocketHandler                                    // Workload WebSocket handler. Accepts and processes WebSocket requests related to workloads.
@@ -105,6 +108,12 @@ func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLev
 
 	manager.workloadWebsocketHandler = NewWebsocketHandler(configuration, manager, manager.workloadStartedChan, atom)
 	manager.pushGoroutineActive.Store(0)
+
+	var err error
+	manager.workloadJobConfiguration, err = manager.readWorkloadJobConfigurations(configuration.WorkloadJobConfigFilepath)
+	if err != nil {
+		return nil
+	}
 
 	return manager
 }
@@ -303,7 +312,7 @@ func (m *BasicWorkloadManager) RegisterWorkload(request *domain.WorkloadRegistra
 
 	// Create a new workload driver.
 	workloadDriver := NewBasicWorkloadDriver(m.configuration, true, request.TimescaleAdjustmentFactor,
-		ws, m.atom, m.callbackProvider)
+		ws, m.atom, m.callbackProvider, m.workloadJobConfiguration)
 
 	// Register a new workload with the workload driver.
 	workload, err := workloadDriver.RegisterWorkload(request)
@@ -465,4 +474,26 @@ func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */ )
 		// Sleep for the configured amount of time, and then we'll go again.
 		time.Sleep(m.pushUpdateInterval)
 	}
+}
+
+func (m *BasicWorkloadManager) readWorkloadJobConfigurations(filepath string) (*domain.WorkloadJobConfiguration, error) {
+	if filepath == "" {
+		m.logger.Error("Invalid workload job configuration file specified (the empty string).")
+		return nil, ErrInvalidJobConfigFileSpecified
+	}
+
+	file, err := os.ReadFile(filepath)
+	if err != nil {
+		m.logger.Error("Failed to open workload job configuration file.", zap.String("path", filepath), zap.Error(err))
+		return nil, err
+	}
+
+	var workloadJobConfig *domain.WorkloadJobConfiguration
+	err = yaml.Unmarshal(file, &workloadJobConfig)
+	if err != nil {
+		m.logger.Error("Failed to parse workload job configuration file.", zap.String("path", filepath), zap.Error(err))
+		return nil, err
+	}
+
+	return workloadJobConfig, nil
 }
