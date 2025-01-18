@@ -1067,7 +1067,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
         </FormGroup>
     );
 
-    const showModelAndDatasetSelectionMenu = ():boolean => {
+    const showModelAndDatasetSelectionMenu = (): boolean => {
         return code.startsWith('training_duration_millis =') || code.startsWith('training_duration_millis=');
     };
 
@@ -1095,7 +1095,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     </CodeContext.Provider>
                 </FlexItem>
             </Flex>
-            <Flex direction={{ default: 'row' }} hidden={showModelAndDatasetSelectionMenu()}>
+            <Flex direction={{ default: 'row' }} hidden={!showModelAndDatasetSelectionMenu()}>
                 <FlexItem>{modelSelectionDropdown}</FlexItem>
                 <FlexItem>{datasetSelectionDropdown}</FlexItem>
             </Flex>
