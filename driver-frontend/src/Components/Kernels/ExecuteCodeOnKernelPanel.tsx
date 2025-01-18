@@ -108,8 +108,8 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
     const [targetReplicaId, setTargetReplicaId] = React.useState(-1);
     const [forceFailure, setForceFailure] = React.useState(false);
     const [activeExecutionOutputTab, setActiveExecutionOutputTab] = React.useState<string>('');
-    const [selectedModel, setSelectedModel] = React.useState<string>('Select a model');
-    const [selectedDataset, setSelectedDataset] = React.useState<string>('Select a dataset');
+    const [selectedModel, setSelectedModel] = React.useState<string>('ResNet-18');
+    const [selectedDataset, setSelectedDataset] = React.useState<string>('CIFAR-10');
 
     const [executionMap, setExecutionMap] = React.useState<Map<string, Execution>>(new Map());
     const [, setClosedExecutionMap] = React.useState<Map<string, boolean>>(new Map());
