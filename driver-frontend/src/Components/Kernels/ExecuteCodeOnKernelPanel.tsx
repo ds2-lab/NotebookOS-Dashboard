@@ -1067,8 +1067,8 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
         </FormGroup>
     );
 
-    const showModelAndDatasetSelectionMenu = () => {
-        return code !== 'training_duration_millis = 1500';
+    const showModelAndDatasetSelectionMenu = ():boolean => {
+        return code.startsWith('training_duration_millis =') || code.startsWith('training_duration_millis=');
     };
 
     const codeEditorComponent = (
