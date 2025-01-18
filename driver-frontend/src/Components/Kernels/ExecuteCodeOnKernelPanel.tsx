@@ -40,6 +40,8 @@ import {
     DeepLearningModel,
     DistributedJupyterKernel,
     FirstJupyterKernelBuffersFrame,
+    GetDatasetCategory,
+    GetModelCategory,
     JupyterKernelReplica,
     NLPDatasets,
     NLPModels,
@@ -925,6 +927,17 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
         </Tooltip>
     );
 
+    const validateModelDatasetSelection = (): boolean => {
+        if (selectedModel === '' && selectedDataset === '') {
+            return true;
+        }
+
+        const modelCategory: string = GetModelCategory(selectedModel);
+        const datasetCategory: string = GetDatasetCategory(selectedDataset);
+
+        return modelCategory === datasetCategory;
+    };
+
     const executeButton = (
         <Button
             key="submit-code-button"
@@ -941,7 +954,12 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     setExecutionState('idle');
                 }
             }}
-            isDisabled={code.trim().length == 0 || !authenticated || jupyterAddress === undefined}
+            isDisabled={
+                code.trim().length == 0 ||
+                !authenticated ||
+                jupyterAddress === undefined ||
+                !validateModelDatasetSelection()
+            }
             isLoading={executionState === 'busy'}
             icon={executionState === 'done' ? <CheckCircleIcon /> : null}
             spinnerAriaValueText="Loading..."
