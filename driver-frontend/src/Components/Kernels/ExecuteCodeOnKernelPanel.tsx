@@ -1038,6 +1038,16 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
         </FormGroup>
     );
 
+    const isDatasetGroupDisabled = (category: string): boolean => {
+        if (selectedModel === '') {
+            return false;
+        }
+
+        const modelCategory: string = GetModelCategory(selectedModel);
+
+        return category !== modelCategory;
+    };
+
     const datasetSelectionDropdown = (
         <FormGroup label={'Dataset'}>
             <FormSelect
@@ -1046,7 +1056,10 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                 }}
                 value={selectedDataset}
             >
-                <FormSelectOptionGroup label={'Computer Vision (CV)'}>
+                <FormSelectOptionGroup
+                    label={'Computer Vision (CV)'}
+                    isDisabled={isDatasetGroupDisabled('Computer Vision (CV)')}
+                >
                     {ComputerVisionDatasets.map((dataset: Dataset) => (
                         <FormSelectOption
                             value={dataset.name}
@@ -1058,7 +1071,10 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     ))}
                 </FormSelectOptionGroup>
                 <Divider component="li" />
-                <FormSelectOptionGroup label={'Natural Language Processing (NLP)'}>
+                <FormSelectOptionGroup
+                    label={'Natural Language Processing (NLP)'}
+                    isDisabled={isDatasetGroupDisabled('Natural Language Processing (NLP)')}
+                >
                     {NLPDatasets.map((dataset: Dataset) => (
                         <FormSelectOption
                             value={dataset.name}
@@ -1070,7 +1086,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     ))}
                 </FormSelectOptionGroup>
                 <Divider component="li" />
-                <FormSelectOptionGroup label={'Speech'}>
+                <FormSelectOptionGroup label={'Speech'} isDisabled={isDatasetGroupDisabled('Speech')}>
                     {SpeechDatasets.map((dataset: Dataset) => (
                         <FormSelectOption
                             value={dataset.name}
