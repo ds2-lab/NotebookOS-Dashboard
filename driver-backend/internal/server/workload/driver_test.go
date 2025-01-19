@@ -816,7 +816,7 @@ var _ = Describe("Workload Driver Tests", func() {
 			})
 
 			Context("Basic workload execution", func() {
-				It("Will successfully attempt to create a Session", func() {
+				It("Will successfully attempt to create a session", func() {
 					sessionId := "TestSession"
 
 					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
@@ -899,6 +899,149 @@ var _ = Describe("Workload Driver Tests", func() {
 					Expect(client.NumSessionStartAttempts()).To(Equal(int32(1)))
 					Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
 					Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
+				})
+
+				It("Will successfully handle a workload with multiple sessions", func() {
+					numSessions := 16
+
+					sessionIds := make([]string, 0, numSessions)
+					sessionMetadatas := make([]domain.SessionMetadata, 0, numSessions)
+					mockKernelConnections := make([]*mock_jupyter.MockKernelConnection, 0, numSessions)
+					workloadTemplateSessions := make([]*domain.WorkloadTemplateSession, 0, numSessions)
+
+					var firstCreateSessionAttemptWg sync.WaitGroup
+					var kernelStoppedWg sync.WaitGroup
+
+					clientChannel := make(chan *workload.Client, numSessions)
+
+					execStartTimes := make(map[string]int64)
+					var execStartTimeMutex sync.Mutex
+
+					for i := 0; i < numSessions; i++ {
+						sessionId := uuid.NewString()
+						sessionIds = append(sessionIds, sessionId)
+						sessionMetadata := getBasicSessionMetadata(sessionId, controller)
+						sessionMetadatas = append(sessionMetadatas, sessionMetadata)
+
+						mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+						mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+						mockKernelConnection.EXPECT().KernelId().AnyTimes().Return(sessionId)
+
+						mockKernelConnections = append(mockKernelConnections, mockKernelConnection)
+
+						kernelStoppedWg.Add(1)
+						firstCreateSessionAttemptWg.Add(1)
+
+						mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+							func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
+								// This time, we'll return successfully.
+								sessionConn := &jupyter.SessionConnection{
+									Kernel: mockKernelConnection,
+								}
+
+								firstCreateSessionAttemptWg.Done()
+
+								fmt.Println("Returning from KernelSessionManager::CreateSession for the second time.")
+
+								return sessionConn, nil
+							})
+
+						resourceRequest := domain.NewResourceRequest(128, 512, 1, 1, "AnyGPU")
+						session := domain.NewWorkloadSession(sessionId, sessionMetadata, resourceRequest, time.UnixMilli(0), &atom)
+						workloadTemplateSession := domain.NewWorkloadTemplateSession(session, 0, 8)
+						workloadTemplateSession.AddTraining(1, 2, 128, 512, 1, []float64{100})
+						workloadTemplateSessions = append(workloadTemplateSessions, workloadTemplateSession)
+
+						mockKernelManager.EXPECT().StopKernel(sessionId).Times(1).DoAndReturn(func(sessionId string) error {
+							kernelStoppedWg.Done()
+							return nil
+						})
+
+						mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+							client, loaded := workloadDriver.Clients[sessionId]
+							Expect(loaded).To(BeTrue())
+							Expect(client).ToNot(BeNil())
+
+							clientChannel <- client
+
+							execStartTimeMutex.Lock()
+							execStartTimes[sessionId] = time.Now().UnixMilli()
+							execStartTimeMutex.Unlock()
+
+							return nil, nil
+						})
+					}
+
+					workloadRegistrationRequest := &domain.WorkloadRegistrationRequest{
+						AdjustGpuReservations:     false,
+						WorkloadName:              "TestWorkload",
+						DebugLogging:              true,
+						Sessions:                  workloadTemplateSessions,
+						TemplateFilePath:          "",
+						Type:                      "template",
+						Key:                       "TestWorkload",
+						Seed:                      0,
+						TimescaleAdjustmentFactor: timescaleAdjustmentFactor,
+						RemoteStorageDefinition:   remoteStorageDefinition,
+						SessionsSamplePercentage:  1.0,
+					}
+
+					currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
+					Expect(err).To(BeNil())
+					Expect(currWorkload).ToNot(BeNil())
+
+					err = workloadDriver.StartWorkload()
+					Expect(err).To(BeNil())
+
+					go workloadDriver.ProcessWorkloadEvents()
+					go workloadDriver.DriveWorkload()
+
+					// Wait for KernelSessionManager::CreateSession to be called.
+					firstCreateSessionAttemptWg.Wait()
+
+					clients := make([]*workload.Client, 0, numSessions)
+					for i := 0; i < numSessions; i++ {
+						client := <-clientChannel
+						Expect(client).ToNot(BeNil())
+						clients = append(clients, client)
+
+						go func() {
+							client.TrainingStartedChannel <- struct{}{}
+						}()
+					}
+
+					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
+					execStopTimeUnixMillis := time.Now().UnixMilli()
+
+					Expect(len(execStartTimes)).To(Equal(numSessions))
+
+					for _, client := range clients {
+						execStartTimeMutex.Lock()
+						execStartTime := execStartTimes[client.SessionId]
+						execStartTimeMutex.Unlock()
+
+						client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
+							Header: &jupyter.KernelMessageHeader{
+								MessageId:   uuid.NewString(),
+								MessageType: jupyter.ExecuteReply,
+								Date:        time.Now().String(),
+							},
+							Content: map[string]interface{}{
+								"execution_start_unix_millis":    float64(execStartTime),
+								"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+							},
+						}
+					}
+
+					kernelStoppedWg.Wait()
+
+					time.Sleep(time.Second * 1)
+
+					for _, client := range clients {
+						Expect(client.NumSessionStartAttempts()).To(Equal(int32(1)))
+						Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
+						Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
+					}
 				})
 			})
 		})
