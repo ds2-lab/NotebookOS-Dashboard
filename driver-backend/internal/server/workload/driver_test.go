@@ -129,7 +129,7 @@ var (
 	}
 )
 
-var _ = Describe("Driver", func() {
+var _ = Describe("Workload Driver Tests", func() {
 	Context("Driving workloads", func() {
 		var (
 			controller           *gomock.Controller
@@ -812,6 +812,93 @@ var _ = Describe("Driver", func() {
 					Expect(client.NumSessionStartAttempts()).To(Equal(int32(1)))
 					Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
 					Expect(client.TrainingEventsDelayed()).To(Equal(int32(6)))
+				})
+			})
+
+			Context("Basic workload execution", func() {
+				It("Will successfully attempt to create a Session", func() {
+					sessionId := "TestSession"
+
+					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
+					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
+					var firstCreateSessionAttemptWg sync.WaitGroup
+					firstCreateSessionAttemptWg.Add(1)
+
+					mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+						func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
+							// This time, we'll return successfully.
+							sessionConn := &jupyter.SessionConnection{
+								Kernel: mockKernelConnection,
+							}
+
+							firstCreateSessionAttemptWg.Done()
+
+							fmt.Println("Returning from KernelSessionManager::CreateSession for the second time.")
+
+							return sessionConn, nil
+						})
+
+					var kernelStoppedWg sync.WaitGroup
+					kernelStoppedWg.Add(1)
+
+					mockKernelManager.EXPECT().StopKernel(sessionId).Times(1).DoAndReturn(func(sessionId string) error {
+						kernelStoppedWg.Done()
+						return nil
+					})
+
+					createAndRegisterWorkload(sessionId, sessionMetadata)
+
+					var execStartedTimeUnixMillis int64
+					clientChan := make(chan *workload.Client, 1)
+					mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+						client, loaded := workloadDriver.Clients[sessionId]
+						Expect(loaded).To(BeTrue())
+						Expect(client).ToNot(BeNil())
+
+						clientChan <- client
+						execStartedTimeUnixMillis = time.Now().UnixMilli()
+
+						return nil, nil
+					})
+
+					err := workloadDriver.StartWorkload()
+					Expect(err).To(BeNil())
+
+					go workloadDriver.ProcessWorkloadEvents()
+					go workloadDriver.DriveWorkload()
+
+					// Wait for KernelSessionManager::CreateSession to be called.
+					firstCreateSessionAttemptWg.Wait()
+
+					client := <-clientChan
+					Expect(client).ToNot(BeNil())
+
+					client.TrainingStartedChannel <- struct{}{}
+
+					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
+					execStopTimeUnixMillis := time.Now().UnixMilli()
+
+					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
+						Header: &jupyter.KernelMessageHeader{
+							MessageId:   uuid.NewString(),
+							MessageType: jupyter.ExecuteReply,
+							Date:        time.Now().String(),
+						},
+						Content: map[string]interface{}{
+							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+						},
+					}
+
+					kernelStoppedWg.Wait()
+
+					time.Sleep(time.Second * 1)
+
+					Expect(client.NumSessionStartAttempts()).To(Equal(int32(1)))
+					Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
+					Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
 				})
 			})
 		})
