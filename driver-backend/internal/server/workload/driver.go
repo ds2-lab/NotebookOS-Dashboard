@@ -287,9 +287,24 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	// Create the ticker for the workload.
 	driver.ticker = driver.clockTrigger.NewSyncTicker(time.Second*time.Duration(opts.TraceStep), fmt.Sprintf("Workload-%s", driver.id), driver.clockTime)
 
-	zapConfig := zap.NewDevelopmentEncoderConfig()
-	zapConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zapConfig), zapcore.AddSync(colorable.NewColorableStdout()), driver.atom)
+	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()
+	zapEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zapEncoderConfig), zapcore.AddSync(colorable.NewColorableStdout()), atom)
+
+	var core zapcore.Core
+	// Create file output as well.
+	logFile, err := os.Create(fmt.Sprintf("workload_driver_%s_output.json", driver.ID()))
+	if err != nil {
+		panic(err)
+	}
+
+	writer := zapcore.AddSync(logFile)
+
+	zapFileEncoderConfig := zap.NewDevelopmentEncoderConfig()
+	zapFileEncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(zapFileEncoderConfig), writer, atom)
+	core = zapcore.NewTee(consoleCore, fileCore)
+
 	logger := zap.New(core, zap.Development())
 	if logger == nil {
 		panic("failed to create logger for workload driver")
@@ -527,6 +542,7 @@ func (d *BasicWorkloadDriver) createWorkloadFromPreset(workloadRegistrationReque
 		SetRemoteStorageDefinition(workloadRegistrationRequest.RemoteStorageDefinition).
 		SetSessionsSamplePercentage(workloadRegistrationRequest.SessionsSamplePercentage).
 		SetTimeCompressTrainingDurations(d.timeCompressTrainingDurations).
+		WithFileOutput("").
 		Build()
 
 	workloadFromPreset := NewWorkloadFromPreset(basicWorkload, d.workloadPreset)
@@ -953,6 +969,41 @@ func (d *BasicWorkloadDriver) publishStatisticsReport() {
 	}
 }
 
+// CreateOutputDirectory creates the output directories for the workload (where the .CSV file is written).
+func (d *BasicWorkloadDriver) CreateOutputDirectory() (string, error) {
+	outputSubdir := time.Now().Format("01-02-2006 15:04:05")
+	outputSubdir = strings.ReplaceAll(outputSubdir, ":", "-")
+	outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.workload.GetId())
+	outputSubdirectoryPath := filepath.Join(d.outputFileDirectory, outputSubdir)
+
+	err := os.MkdirAll(outputSubdirectoryPath, os.ModePerm)
+	if err != nil {
+		d.logger.Error("Failed to create parent directories for workload .CSV output.",
+			zap.String("workload_id", d.id),
+			zap.String("workload_name", d.workload.WorkloadName()),
+			zap.String("path", outputSubdirectoryPath),
+			zap.Error(err))
+		d.handleCriticalError(err)
+		return "", err
+	}
+
+	clientOutputDirectory := filepath.Join(outputSubdirectoryPath, "clients")
+	err = os.MkdirAll(clientOutputDirectory, os.ModePerm)
+	if err != nil {
+		d.logger.Error("Failed to create parent directories for workload client output.",
+			zap.String("workload_id", d.id),
+			zap.String("workload_name", d.workload.WorkloadName()),
+			zap.String("path", outputSubdirectoryPath),
+			zap.Error(err))
+		d.handleCriticalError(err)
+		return "", err
+	}
+
+	d.outputFilePath = filepath.Join(outputSubdirectoryPath, "workload_stats.csv")
+
+	return outputSubdirectoryPath, nil
+}
+
 // DriveWorkload accepts a *sync.WaitGroup that is used to notify the caller when the workload has completed.
 // This issues clock ticks as events are submitted.
 //
@@ -961,35 +1012,10 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 	var err error
 
 	if !d.OutputCsvDisabled {
-		outputSubdir := time.Now().Format("01-02-2006 15:04:05")
-		outputSubdir = strings.ReplaceAll(outputSubdir, ":", "-")
-		outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.workload.GetId())
-		outputSubdirectoryPath := filepath.Join(d.outputFileDirectory, outputSubdir)
-
-		err = os.MkdirAll(outputSubdirectoryPath, os.ModePerm)
+		outputSubdirectoryPath, err := d.CreateOutputDirectory()
 		if err != nil {
-			d.logger.Error("Failed to create parent directories for workload .CSV output.",
-				zap.String("workload_id", d.id),
-				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("path", outputSubdirectoryPath),
-				zap.Error(err))
-			d.handleCriticalError(err)
-			return
+			return // We already called d.handleCriticalError(err) up above.
 		}
-
-		clientOutputDirectory := filepath.Join(outputSubdirectoryPath, "clients")
-		err = os.MkdirAll(clientOutputDirectory, os.ModePerm)
-		if err != nil {
-			d.logger.Error("Failed to create parent directories for workload client output.",
-				zap.String("workload_id", d.id),
-				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("path", outputSubdirectoryPath),
-				zap.Error(err))
-			d.handleCriticalError(err)
-			return
-		}
-
-		d.outputFilePath = filepath.Join(outputSubdirectoryPath, "workload_stats.csv")
 
 		d.outputFileMutex.Lock()
 		d.outputFile, err = os.OpenFile(d.outputFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)

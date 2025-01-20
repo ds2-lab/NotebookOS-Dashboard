@@ -6,6 +6,7 @@ import (
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/api/proto"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"os"
 	"time"
 )
 
@@ -19,6 +20,7 @@ type Builder struct {
 	SessionsSamplePercentage      float64                        `json:"sessions_sample_percentage"`
 	TimeCompressTrainingDurations bool                           `json:"time_compress_training_durations"`
 	RemoteStorageDefinition       *proto.RemoteStorageDefinition `json:"remote-storage-definition"`
+	FileOutputPath                string                         `json:"file_output_path"`
 
 	atom   *zap.AtomicLevel
 	logger *zap.Logger
@@ -104,6 +106,13 @@ func (b *Builder) SetRemoteStorageDefinition(def *proto.RemoteStorageDefinition)
 	return b
 }
 
+// WithFileOutput will instruct the Workload [that is to be built] to also output its logs to a file (at the specified
+// path) in addition to outputting its logs to the console/terminal (stdout).
+func (b *Builder) WithFileOutput(path string) *Builder {
+	b.FileOutputPath = path
+	return b
+}
+
 // Build creates a Workload instance with the specified values.
 func (b *Builder) Build() *BasicWorkload {
 	b.logger.Debug("Building workload.",
@@ -126,16 +135,34 @@ func (b *Builder) Build() *BasicWorkload {
 		UnsampledSessions:             make(map[string]interface{}),
 		Statistics:                    NewStatistics(b.SessionsSamplePercentage),
 		TimeCompressTrainingDurations: b.TimeCompressTrainingDurations,
-		//SumTickDurationsMillis:    0,
-		//TickDurationsMillis:       make([]int64, 0),
 	}
 
-	zapConfig := zap.NewDevelopmentEncoderConfig()
-	zapConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zapConfig), zapcore.AddSync(colorable.NewColorableStdout()), b.atom)
+	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()
+	zapEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zapEncoderConfig), zapcore.AddSync(colorable.NewColorableStdout()), b.atom)
+
+	var core zapcore.Core
+	if b.FileOutputPath == "" {
+		// No filepath specified. Will just output to the console.
+		core = zapcore.NewTee(consoleCore)
+	} else {
+		// Create file output as well.
+		logFile, err := os.Create(b.FileOutputPath)
+		if err != nil {
+			panic(err)
+		}
+
+		writer := zapcore.AddSync(logFile)
+
+		zapFileEncoderConfig := zap.NewDevelopmentEncoderConfig()
+		zapFileEncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+		fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(zapFileEncoderConfig), writer, b.atom)
+		core = zapcore.NewTee(consoleCore, fileCore)
+	}
+
 	logger := zap.New(core, zap.Development())
 	if logger == nil {
-		panic("failed to create logger for workload")
+		panic("failed to create logger for workload driver")
 	}
 
 	workload.logger = logger
