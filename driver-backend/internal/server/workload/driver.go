@@ -1502,10 +1502,10 @@ func (d *BasicWorkloadDriver) ProcessWorkloadEvents() {
 		select {
 		case tick := <-d.ticker.TickDelivery:
 			{
-				d.logger.Debug("Workload received tick.",
-					zap.String("workload_id", d.workload.GetId()),
-					zap.String("workload_name", d.workload.WorkloadName()),
-					zap.Time("tick", tick))
+				//d.logger.Debug("Workload received tick.",
+				//	zap.String("workload_id", d.workload.GetId()),
+				//	zap.String("workload_name", d.workload.WorkloadName()),
+				//	zap.Time("tick", tick))
 
 				// Handle the tick.
 				if err := d.handleTick(tick); err != nil {

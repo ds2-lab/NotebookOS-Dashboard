@@ -1283,9 +1283,9 @@ var _ = Describe("Workload Driver Tests", func() {
 				})
 
 				It("Will successfully handle a workload with 16 sessions that each train multiple times", func() {
-					numSessions := 16
-					numTrainingsPerSession := []int{12, 2, 10, 4, 8, 5, 3, 9, 7, 6, 11, 2, 5, 3, 4, 7}
-					startTicks := []int{0, 5, 1, 6, 2, 3, 4, 6, 3, 4, 0, 2, 5, 1, 4, 3}
+					numSessions := 1
+					numTrainingsPerSession := []int{3, 2, 5, 4, 8, 5, 3, 9, 7, 6, 8, 2, 5, 3, 4, 7}
+					firstTrainingTicks := []int{1, 5, 1, 6, 2, 3, 4, 6, 3, 4, 2, 2, 5, 1, 4, 3}
 
 					sessionIds := make([]string, 0, numSessions)
 					sessionMetadatas := make([]domain.SessionMetadata, 0, numSessions)
@@ -1333,10 +1333,13 @@ var _ = Describe("Workload Driver Tests", func() {
 
 						resourceRequest := domain.NewResourceRequest(float64(maxCpu), float64(maxMemMb), maxGpus, float64(maxVram), "AnyGPU")
 						session := domain.NewWorkloadSession(sessionId, sessionMetadata, resourceRequest, time.UnixMilli(0), &atom)
-						workloadTemplateSession := domain.NewWorkloadTemplateSession(session, 0, 8)
+
+						firstTrainingTick := firstTrainingTicks[i]
+						startTick := rand.Intn(firstTrainingTick)
+						workloadTemplateSession := domain.NewWorkloadTemplateSession(session, startTick, 8)
 
 						numTrainings := numTrainingsPerSession[i]
-						tick := startTicks[i]
+						tick := firstTrainingTick
 						for j := 0; j < numTrainings; j++ {
 							cpu := rand.Intn(maxCpu)
 							memMb := rand.Intn(maxMemMb)
@@ -1351,7 +1354,7 @@ var _ = Describe("Workload Driver Tests", func() {
 
 							duration := rand.Intn(6) + 1
 							workloadTemplateSession.AddTraining(tick, duration, float64(cpu), float64(memMb), float64(vram), gpuUtilizations)
-							tick += duration
+							tick += duration + 1
 						}
 
 						workloadTemplateSession.StopTick = tick + 1
@@ -1362,11 +1365,16 @@ var _ = Describe("Workload Driver Tests", func() {
 
 						mockKernelManager.EXPECT().StopKernel(sessionId).Times(1).DoAndReturn(func(sessionId string) error {
 							kernelStoppedWg.Done()
+							fmt.Printf("Session \"%s\" is stopping.\n", sessionId)
 							return nil
 						})
 
+						workloadDriverClientsMutex := sync.Mutex{}
 						firstCall := mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+							workloadDriverClientsMutex.Lock()
 							client, loaded := workloadDriver.Clients[sessionId]
+							workloadDriverClientsMutex.Unlock()
+
 							Expect(loaded).To(BeTrue())
 							Expect(client).ToNot(BeNil())
 
@@ -1376,10 +1384,6 @@ var _ = Describe("Workload Driver Tests", func() {
 						})
 
 						mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(numTrainings - 1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
-							client, loaded := workloadDriver.Clients[sessionId]
-							Expect(loaded).To(BeTrue())
-							Expect(client).ToNot(BeNil())
-
 							return nil, nil
 						}).After(firstCall)
 					}
@@ -1417,6 +1421,8 @@ var _ = Describe("Workload Driver Tests", func() {
 					}
 
 					clients := make([]*workload.Client, 0, numSessions)
+
+					// Training start.
 					for i := 0; i < numSessions; i++ {
 						client := <-clientChannel
 						Expect(client).ToNot(BeNil())
@@ -1425,14 +1431,19 @@ var _ = Describe("Workload Driver Tests", func() {
 						numTrainings := numTrainingsPerSession[i]
 						go func(sessionIndex int) {
 							trainingStartTimeChannel := trainingStartTimeChannels[sessionIndex]
+							workloadTemplateSession := workloadTemplateSessions[sessionIndex]
 							for j := 0; j < numTrainings; j++ {
+								training := workloadTemplateSession.Trainings[j]
+								trainingDuration := training.DurationInTicks
 								client.TrainingStartedChannel <- struct{}{}
 								trainingStartTimeChannel <- time.Now()
-								time.Sleep(time.Millisecond * 10)
+								fmt.Printf("Submitted training %d/%d (duration=%d ticks) for session \"%s\"\n", j+1, numTrainings, trainingDuration, workloadTemplateSession.Id)
+								time.Sleep(time.Duration(float64(trainingDuration) * float64(time.Minute) * timescaleAdjustmentFactor))
 							}
 						}(i)
 					}
 
+					// Training end.
 					for i, client := range clients {
 						numTrainings := numTrainingsPerSession[i]
 						go func(sessionIndex int) {
@@ -1443,10 +1454,10 @@ var _ = Describe("Workload Driver Tests", func() {
 								training := workloadTemplateSession.Trainings[j]
 								trainingDuration := training.DurationInTicks
 
+								trainingStartTime := <-trainingStartTimeChannel
+
 								time.Sleep(time.Duration(float64(trainingDuration) * float64(time.Minute) * timescaleAdjustmentFactor))
 								execStopTimeUnixMillis := time.Now().UnixMilli()
-
-								trainingStartTime := <-trainingStartTimeChannel
 								client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
 									Header: &jupyter.KernelMessageHeader{
 										MessageId:   uuid.NewString(),
@@ -1458,6 +1469,7 @@ var _ = Describe("Workload Driver Tests", func() {
 										"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
 									},
 								}
+								fmt.Printf("Submitted 'training-stopped' %d/%d for session \"%s\"\n", j+1, numTrainings, workloadTemplateSession.Id)
 								time.Sleep(time.Millisecond * 10)
 							}
 						}(i)

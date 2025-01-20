@@ -527,10 +527,10 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 			break
 		}
 
-		c.logger.Debug("Client incremented client-level ticker. Triggering events now.",
-			zap.String("session_id", c.SessionId),
-			zap.String("workload_id", c.WorkloadId),
-			zap.Time("tick", tick))
+		//c.logger.Debug("Client incremented client-level ticker. Triggering events now.",
+		//	zap.String("session_id", c.SessionId),
+		//	zap.String("workload_id", c.WorkloadId),
+		//	zap.Time("tick", tick))
 		c.clockTrigger.Trigger(tick)
 
 		tickElapsedBase := time.Since(tickStart)
@@ -564,11 +564,11 @@ func (c *Client) run(wg *sync.WaitGroup) {
 	for c.Workload.IsInProgress() {
 		select {
 		case tick := <-c.ticker.TickDelivery:
-			c.logger.Debug("Client received tick.",
-				zap.String("session_id", c.SessionId),
-				zap.String("workload_id", c.WorkloadId),
-				zap.String("workload_name", c.Workload.WorkloadName()),
-				zap.Time("tick", tick))
+			//c.logger.Debug("Client received tick.",
+			//	zap.String("session_id", c.SessionId),
+			//	zap.String("workload_id", c.WorkloadId),
+			//	zap.String("workload_name", c.Workload.WorkloadName()),
+			//	zap.Time("tick", tick))
 
 			err := c.handleTick(tick)
 
@@ -581,10 +581,10 @@ func (c *Client) run(wg *sync.WaitGroup) {
 }
 
 func (c *Client) handleTick(tick time.Time) error {
-	c.logger.Debug("Serving tick.",
-		zap.String("session_id", c.SessionId),
-		zap.String("workload_id", c.WorkloadId),
-		zap.Time("tick", tick))
+	//c.logger.Debug("Serving tick.",
+	//	zap.String("session_id", c.SessionId),
+	//	zap.String("workload_id", c.WorkloadId),
+	//	zap.Time("tick", tick))
 
 	_, _, err := c.currentTick.IncreaseClockTimeTo(tick)
 	if err != nil {
@@ -615,10 +615,10 @@ func (c *Client) handleTick(tick time.Time) error {
 		return err
 	}
 
-	c.logger.Debug("Finished serving tick.",
-		zap.String("session_id", c.SessionId),
-		zap.String("workload_id", c.WorkloadId),
-		zap.Time("tick", tick))
+	//c.logger.Debug("Finished serving tick.",
+	//	zap.String("session_id", c.SessionId),
+	//	zap.String("workload_id", c.WorkloadId),
+	//	zap.Time("tick", tick))
 
 	c.ticksHandled.Add(1)
 	c.ticker.Done()
@@ -671,11 +671,11 @@ func (c *Client) processEventsForTick(tick time.Time) error {
 		numEventsProcessed += 1
 	}
 
-	c.logger.Debug("Client finished processing events for tick.",
-		zap.String("session_id", c.SessionId),
-		zap.String("workload_id", c.Workload.GetId()),
-		zap.Time("tick", tick),
-		zap.Int("num_events_processed", numEventsProcessed))
+	//c.logger.Debug("Client finished processing events for tick.",
+	//	zap.String("session_id", c.SessionId),
+	//	zap.String("workload_id", c.Workload.GetId()),
+	//	zap.Time("tick", tick),
+	//	zap.Int("num_events_processed", numEventsProcessed))
 
 	return nil
 }
