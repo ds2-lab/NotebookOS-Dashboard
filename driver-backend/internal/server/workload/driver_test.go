@@ -14,6 +14,7 @@ import (
 	mock_jupyter "github.com/scusemua/workload-driver-react/m/v2/pkg/jupyter/mock"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -1138,7 +1139,7 @@ var _ = Describe("Workload Driver Tests", func() {
 					Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
 				})
 
-				It("Will successfully handle a workload with 16 sessions", func() {
+				It("Will successfully handle a workload with 16 sessions that each train a single time", func() {
 					numSessions := 16
 
 					sessionIds := make([]string, 0, numSessions)
@@ -1277,6 +1278,198 @@ var _ = Describe("Workload Driver Tests", func() {
 					for _, client := range clients {
 						Expect(client.NumSessionStartAttempts()).To(Equal(int32(1)))
 						Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
+						Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
+					}
+				})
+
+				It("Will successfully handle a workload with 16 sessions that each train multiple times", func() {
+					numSessions := 16
+					numTrainingsPerSession := []int{12, 2, 10, 4, 8, 5, 3, 9, 7, 6, 11, 2, 5, 3, 4, 7}
+					startTicks := []int{0, 5, 1, 6, 2, 3, 4, 6, 3, 4, 0, 2, 5, 1, 4, 3}
+
+					sessionIds := make([]string, 0, numSessions)
+					sessionMetadatas := make([]domain.SessionMetadata, 0, numSessions)
+					mockKernelConnections := make([]*mock_jupyter.MockKernelConnection, 0, numSessions)
+					workloadTemplateSessions := make([]*domain.WorkloadTemplateSession, 0, numSessions)
+
+					var firstCreateSessionAttemptWg sync.WaitGroup
+					var kernelStoppedWg sync.WaitGroup
+
+					clientChannel := make(chan *workload.Client, numSessions)
+
+					for i := 0; i < numSessions; i++ {
+						sessionId := uuid.NewString()
+						sessionIds = append(sessionIds, sessionId)
+						sessionMetadata := getBasicSessionMetadata(sessionId, controller)
+						sessionMetadatas = append(sessionMetadatas, sessionMetadata)
+
+						mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+						mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+						mockKernelConnection.EXPECT().KernelId().AnyTimes().Return(sessionId)
+
+						mockKernelConnections = append(mockKernelConnections, mockKernelConnection)
+
+						kernelStoppedWg.Add(1)
+						firstCreateSessionAttemptWg.Add(1)
+
+						mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+							func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
+								// This time, we'll return successfully.
+								sessionConn := &jupyter.SessionConnection{
+									Kernel: mockKernelConnection,
+								}
+
+								firstCreateSessionAttemptWg.Done()
+
+								fmt.Println("Returning from KernelSessionManager::CreateSession for the second time.")
+
+								return sessionConn, nil
+							})
+
+						maxCpu := rand.Intn(63800) + 100
+						maxMemMb := rand.Intn(127800) + 1
+						maxGpus := rand.Intn(7) + 1
+						maxVram := rand.Intn(31) + 1
+
+						resourceRequest := domain.NewResourceRequest(float64(maxCpu), float64(maxMemMb), maxGpus, float64(maxVram), "AnyGPU")
+						session := domain.NewWorkloadSession(sessionId, sessionMetadata, resourceRequest, time.UnixMilli(0), &atom)
+						workloadTemplateSession := domain.NewWorkloadTemplateSession(session, 0, 8)
+
+						numTrainings := numTrainingsPerSession[i]
+						tick := startTicks[i]
+						for j := 0; j < numTrainings; j++ {
+							cpu := rand.Intn(maxCpu)
+							memMb := rand.Intn(maxMemMb)
+							gpus := rand.Intn(maxGpus)
+							vram := rand.Intn(maxVram)
+
+							gpuUtilizations := make([]float64, 0, gpus)
+							for k := 0; k < gpus; k++ {
+								gpuUtilization := rand.Intn(100)
+								gpuUtilizations = append(gpuUtilizations, float64(gpuUtilization))
+							}
+
+							duration := rand.Intn(6) + 1
+							workloadTemplateSession.AddTraining(tick, duration, float64(cpu), float64(memMb), float64(vram), gpuUtilizations)
+							tick += duration
+						}
+
+						workloadTemplateSession.StopTick = tick + 1
+
+						fmt.Printf("Session '%s' will finish at tick %d.\n", sessionId, tick)
+
+						workloadTemplateSessions = append(workloadTemplateSessions, workloadTemplateSession)
+
+						mockKernelManager.EXPECT().StopKernel(sessionId).Times(1).DoAndReturn(func(sessionId string) error {
+							kernelStoppedWg.Done()
+							return nil
+						})
+
+						firstCall := mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+							client, loaded := workloadDriver.Clients[sessionId]
+							Expect(loaded).To(BeTrue())
+							Expect(client).ToNot(BeNil())
+
+							clientChannel <- client
+
+							return nil, nil
+						})
+
+						mockKernelConnection.EXPECT().RequestExecute(gomock.Any()).Times(numTrainings - 1).DoAndReturn(func(args *jupyter.RequestExecuteArgs) (jupyter.KernelMessage, error) {
+							client, loaded := workloadDriver.Clients[sessionId]
+							Expect(loaded).To(BeTrue())
+							Expect(client).ToNot(BeNil())
+
+							return nil, nil
+						}).After(firstCall)
+					}
+
+					workloadRegistrationRequest := &domain.WorkloadRegistrationRequest{
+						AdjustGpuReservations:     false,
+						WorkloadName:              "TestWorkload",
+						DebugLogging:              true,
+						Sessions:                  workloadTemplateSessions,
+						TemplateFilePath:          "",
+						Type:                      "template",
+						Key:                       "TestWorkload",
+						Seed:                      0,
+						TimescaleAdjustmentFactor: timescaleAdjustmentFactor,
+						RemoteStorageDefinition:   remoteStorageDefinition,
+						SessionsSamplePercentage:  1.0,
+					}
+
+					currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
+					Expect(err).To(BeNil())
+					Expect(currWorkload).ToNot(BeNil())
+
+					err = workloadDriver.StartWorkload()
+					Expect(err).To(BeNil())
+
+					go workloadDriver.ProcessWorkloadEvents()
+					go workloadDriver.DriveWorkload()
+
+					// Wait for KernelSessionManager::CreateSession to be called.
+					firstCreateSessionAttemptWg.Wait()
+
+					trainingStartTimeChannels := make([]chan time.Time, 0, numSessions)
+					for i := 0; i < numSessions; i++ {
+						trainingStartTimeChannels = append(trainingStartTimeChannels, make(chan time.Time))
+					}
+
+					clients := make([]*workload.Client, 0, numSessions)
+					for i := 0; i < numSessions; i++ {
+						client := <-clientChannel
+						Expect(client).ToNot(BeNil())
+						clients = append(clients, client)
+
+						numTrainings := numTrainingsPerSession[i]
+						go func(sessionIndex int) {
+							trainingStartTimeChannel := trainingStartTimeChannels[sessionIndex]
+							for j := 0; j < numTrainings; j++ {
+								client.TrainingStartedChannel <- struct{}{}
+								trainingStartTimeChannel <- time.Now()
+								time.Sleep(time.Millisecond * 10)
+							}
+						}(i)
+					}
+
+					for i, client := range clients {
+						numTrainings := numTrainingsPerSession[i]
+						go func(sessionIndex int) {
+							trainingStartTimeChannel := trainingStartTimeChannels[sessionIndex]
+
+							for j := 0; j < numTrainings; j++ {
+								workloadTemplateSession := workloadTemplateSessions[sessionIndex]
+								training := workloadTemplateSession.Trainings[j]
+								trainingDuration := training.DurationInTicks
+
+								time.Sleep(time.Duration(float64(trainingDuration) * float64(time.Minute) * timescaleAdjustmentFactor))
+								execStopTimeUnixMillis := time.Now().UnixMilli()
+
+								trainingStartTime := <-trainingStartTimeChannel
+								client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
+									Header: &jupyter.KernelMessageHeader{
+										MessageId:   uuid.NewString(),
+										MessageType: jupyter.ExecuteReply,
+										Date:        time.Now().String(),
+									},
+									Content: map[string]interface{}{
+										"execution_start_unix_millis":    float64(trainingStartTime.UnixMilli()),
+										"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+									},
+								}
+								time.Sleep(time.Millisecond * 10)
+							}
+						}(i)
+					}
+
+					kernelStoppedWg.Wait()
+
+					time.Sleep(time.Second * 1)
+
+					for idx, client := range clients {
+						Expect(client.NumSessionStartAttempts()).To(Equal(int32(1)))
+						Expect(client.TrainingEventsHandled()).To(Equal(int32(numTrainingsPerSession[idx])))
 						Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
 					}
 				})
