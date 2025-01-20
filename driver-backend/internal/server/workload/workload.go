@@ -660,7 +660,7 @@ func (w *BasicWorkload) TrainingSubmitted(sessionId string, evt *domain.Event) {
 	}
 
 	session := val.(*domain.WorkloadTemplateSession)
-	if err := session.SetState(domain.SessionTraining); err != nil {
+	if err := session.SetState(domain.SessionTrainingSubmitted); err != nil {
 		w.logger.Error("Failed to set session state.", zap.String("session_id", sessionId), zap.Error(err))
 	}
 
@@ -694,6 +694,17 @@ func (w *BasicWorkload) TrainingStarted(sessionId string, tickNumber int64) {
 
 	w.trainingStartedTimes[sessionId] = time.Now()
 	w.trainingStartedTimesTicks[sessionId] = tickNumber
+
+	val, ok := w.sessionsMap[sessionId]
+	if !ok {
+		w.logger.Error("Failed to find now-training session in session map.", zap.String("session_id", sessionId))
+		return
+	}
+
+	session := val.(*domain.WorkloadTemplateSession)
+	if err := session.SetState(domain.SessionTraining); err != nil {
+		w.logger.Error("Failed to set session state.", zap.String("session_id", sessionId), zap.Error(err))
+	}
 
 	metrics.PrometheusMetricsWrapperInstance.WorkloadActiveTrainingSessions.
 		With(prometheus.Labels{"workload_id": w.Id}).

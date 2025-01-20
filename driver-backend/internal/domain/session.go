@@ -11,12 +11,13 @@ import (
 )
 
 const (
-	SessionAwaitingStart SessionState = "awaiting start" // The session has not yet been created.
-	SessionIdle          SessionState = "idle"           // The session is running, but is not actively training.
-	SessionTraining      SessionState = "training"       // The session is actively training.
-	SessionStopped       SessionState = "terminated"     // The session has been terminated (without an error).
-	SessionErred         SessionState = "erred"          // An error occurred, forcing the session to terminate.
-	SessionDiscarded     SessionState = "discarded"      // Session was not sampled for the workload.
+	SessionAwaitingStart     SessionState = "awaiting start"     // The session has not yet been created.
+	SessionIdle              SessionState = "idle"               // The session is running, but is not actively training.
+	SessionTrainingSubmitted SessionState = "training_submitted" // The session submitted a request to begin training.
+	SessionTraining          SessionState = "training"           // The session is actively training.
+	SessionStopped           SessionState = "terminated"         // The session has been terminated (without an error).
+	SessionErred             SessionState = "erred"              // An error occurred, forcing the session to terminate.
+	SessionDiscarded         SessionState = "discarded"          // Session was not sampled for the workload.
 )
 
 var (
@@ -260,14 +261,17 @@ func (s *BasicWorkloadSession) SetState(targetState SessionState) error {
 
 	sourceState := s.State
 	if sourceState != "" { // Don't bother printing when we're setting the Session's state for the first time.
-		s.getLogger().Debug("Transitioning session now.", zap.String("session_id", s.Id),
-			zap.String("source_state", sourceState.String()), zap.String("target_state", targetState.String()))
+		s.getLogger().Debug("Transitioning session now.",
+			zap.String("session_id", s.Id),
+			zap.String("source_state", sourceState.String()),
+			zap.String("target_state", targetState.String()))
 	}
 
 	s.State = targetState
 
 	if sourceState == SessionTraining {
-		s.getLogger().Debug("Session finished training.", zap.String("session_id", s.Id),
+		s.getLogger().Debug(ColorizeText("Session finished training.", Green),
+			zap.String("session_id", s.Id),
 			zap.Duration("training_duration", time.Since(s.TrainingStartedAt)))
 	}
 

@@ -1283,7 +1283,7 @@ var _ = Describe("Workload Driver Tests", func() {
 				})
 
 				It("Will successfully handle a workload with 16 sessions that each train multiple times", func() {
-					numSessions := 1
+					numSessions := 16
 					numTrainingsPerSession := []int{3, 2, 5, 4, 8, 5, 3, 9, 7, 6, 8, 2, 5, 3, 4, 7}
 					firstTrainingTicks := []int{1, 5, 1, 6, 2, 3, 4, 6, 3, 4, 2, 2, 5, 1, 4, 3}
 
@@ -1295,10 +1295,17 @@ var _ = Describe("Workload Driver Tests", func() {
 					var firstCreateSessionAttemptWg sync.WaitGroup
 					var kernelStoppedWg sync.WaitGroup
 
-					clientChannel := make(chan *workload.Client, numSessions)
+					clientChannels := make([]chan *workload.Client, 0, numSessions)
+					clients := make([]*workload.Client, numSessions)
+					for i := 0; i < numSessions; i++ {
+						channel := make(chan *workload.Client)
+						clientChannels = append(clientChannels, channel)
+					}
+
+					clientsMutex := sync.Mutex{}
 
 					for i := 0; i < numSessions; i++ {
-						sessionId := uuid.NewString()
+						sessionId := fmt.Sprintf("TestSession%d", i)
 						sessionIds = append(sessionIds, sessionId)
 						sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 						sessionMetadatas = append(sessionMetadatas, sessionMetadata)
@@ -1378,7 +1385,11 @@ var _ = Describe("Workload Driver Tests", func() {
 							Expect(loaded).To(BeTrue())
 							Expect(client).ToNot(BeNil())
 
-							clientChannel <- client
+							clientsMutex.Lock()
+							channel := clientChannels[i]
+							clientsMutex.Unlock()
+
+							channel <- client
 
 							return nil, nil
 						})
@@ -1420,13 +1431,15 @@ var _ = Describe("Workload Driver Tests", func() {
 						trainingStartTimeChannels = append(trainingStartTimeChannels, make(chan time.Time))
 					}
 
-					clients := make([]*workload.Client, 0, numSessions)
-
 					// Training start.
 					for i := 0; i < numSessions; i++ {
-						client := <-clientChannel
+						channel := clientChannels[i]
+						Expect(channel).ToNot(BeNil())
+
+						client := <-channel
 						Expect(client).ToNot(BeNil())
-						clients = append(clients, client)
+
+						clients[i] = client
 
 						numTrainings := numTrainingsPerSession[i]
 						go func(sessionIndex int) {

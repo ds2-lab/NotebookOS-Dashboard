@@ -1337,12 +1337,12 @@ func (d *BasicWorkloadDriver) issueClockTicks(timestamp time.Time) error {
 		}
 
 		tickNumber := int(d.convertTimestampToTickNumber(tick))
-		d.logger.Debug("Issuing tick.",
-			zap.Int("tick_number", tickNumber),
-			zap.Time("tick_timestamp", tick),
-			zap.Int("num_events", d.eventQueue.Len()),
-			zap.String("workload_id", d.id),
-			zap.String("workload_name", d.workload.WorkloadName()))
+		//d.logger.Debug("Issuing tick.",
+		//	zap.Int("tick_number", tickNumber),
+		//	zap.Time("tick_timestamp", tick),
+		//	zap.Int("num_events", d.eventQueue.Len()),
+		//	zap.String("workload_id", d.id),
+		//	zap.String("workload_name", d.workload.WorkloadName()))
 
 		// Trigger the clock ticker, which will prompt the other goroutine within the workload driver to process events and whatnot for this tick.
 		d.clockTrigger.Trigger(tick)
@@ -1379,16 +1379,16 @@ func (d *BasicWorkloadDriver) issueClockTicks(timestamp time.Time) error {
 				zap.String("workload_state", d.workload.GetState().String()))
 		} else {
 			// Simulate the remainder of the tick -- however much time is left.
-			d.logger.Debug("Sleeping to simulate remainder of tick.",
-				zap.Int("tick_number", tickNumber),
-				zap.Time("tick_timestamp", tick),
-				zap.Duration("time_elapsed", tickElapsedBase),
-				zap.Duration("target_tick_duration", d.targetTickDuration),
-				zap.Float64("timescale_adjustment_factor", d.timescaleAdjustmentFactor),
-				zap.Duration("sleep_time", tickRemaining),
-				zap.String("workload_id", d.id),
-				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("workload_state", d.workload.GetState().String()))
+			//d.logger.Debug("Sleeping to simulate remainder of tick.",
+			//	zap.Int("tick_number", tickNumber),
+			//	zap.Time("tick_timestamp", tick),
+			//	zap.Duration("time_elapsed", tickElapsedBase),
+			//	zap.Duration("target_tick_duration", d.targetTickDuration),
+			//	zap.Float64("timescale_adjustment_factor", d.timescaleAdjustmentFactor),
+			//	zap.Duration("sleep_time", tickRemaining),
+			//	zap.String("workload_id", d.id),
+			//	zap.String("workload_name", d.workload.WorkloadName()),
+			//	zap.String("workload_state", d.workload.GetState().String()))
 			time.Sleep(tickRemaining)
 		}
 

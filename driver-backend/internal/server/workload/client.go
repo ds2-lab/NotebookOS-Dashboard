@@ -762,7 +762,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		return err
 	}
 
-	c.logger.Debug("Handled \"training-started\" event.",
+	c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-started", domain.Green)),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
@@ -939,7 +939,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 			case error:
 				{
 					err := v.(error)
-					c.logger.Warn("Session failed to start training",
+					c.logger.Warn(domain.ColorizeText("Session failed to start training.", domain.Orange),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
@@ -957,7 +957,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 			default:
 				{
 					startLatency := time.Since(sentRequestAt)
-					c.logger.Debug("Session started training",
+					c.logger.Debug(domain.ColorizeText("Session started training.", domain.Green),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
@@ -1158,14 +1158,15 @@ func (c *Client) CreateExecuteRequestArguments(evt *domain.Event) (*jupyter.Requ
 
 	milliseconds := float64(evt.Duration.Milliseconds())
 	if c.Workload.ShouldTimeCompressTrainingDurations() {
-		milliseconds = milliseconds * c.Workload.GetTimescaleAdjustmentFactor()
-		c.logger.Debug("Applied time-compression to training duration.",
-			zap.String("session_id", evt.SessionID()),
-			zap.Duration("original_duration", evt.Duration),
-			zap.Float64("updated_duration", milliseconds),
-			zap.String("event_id", evt.Id()),
-			zap.String("workload_id", c.Workload.GetId()),
-			zap.String("workload_name", c.Workload.WorkloadName()))
+		milliseconds = milliseconds * c.timescaleAdjustmentFactor
+		//c.logger.Debug("Applied time-compression to training duration.",
+		//	zap.String("session_id", evt.SessionID()),
+		//	zap.Duration("original_duration", evt.Duration),
+		//	zap.Float64("updated_duration_ms", milliseconds),
+		//	zap.Float64("timescale_adjustment_factor", c.timescaleAdjustmentFactor),
+		//	zap.String("event_id", evt.Id()),
+		//	zap.String("workload_id", c.Workload.GetId()),
+		//	zap.String("workload_name", c.Workload.WorkloadName()))
 	}
 
 	argsBuilder := jupyter.NewRequestExecuteArgsBuilder().
@@ -1376,7 +1377,7 @@ func (c *Client) handleSessionStoppedEvent(evt *domain.Event) error {
 		return err
 	}
 
-	c.logger.Debug("Successfully stopped session.",
+	c.logger.Debug(domain.ColorizeText("Successfully stopped session.", domain.LightGreen),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId))
@@ -1388,7 +1389,7 @@ func (c *Client) handleSessionStoppedEvent(evt *domain.Event) error {
 		Observe(sessionLifetimeDuration.Seconds())
 
 	c.Workload.SessionStopped(c.SessionId, evt)
-	c.logger.Debug("Handled SessionStopped event.",
+	c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("session-stopped", domain.LightOrange)),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId))
