@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -46,6 +47,8 @@ type ClientBuilder struct {
 	waitGroup                 *sync.WaitGroup
 	assignedModel             string // assignedModel is the name of the model to be assigned to the client.
 	assignedDataset           string // assignedDataset is the name of the dataset to be assigned to the client.
+	fileOutputEnabled         bool
+	fileOutputPath            string
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
@@ -55,6 +58,14 @@ func NewClientBuilder() *ClientBuilder {
 
 func (b *ClientBuilder) WithDeepLearningModel(model string) *ClientBuilder {
 	b.assignedModel = model
+	return b
+}
+
+// WithFileOutput will instruct the Client [that is to be built] to also output its logs to a file (at the specified
+// path) in addition to outputting its logs to the console/terminal (stdout).
+func (b *ClientBuilder) WithFileOutput(path string) *ClientBuilder {
+	b.fileOutputEnabled = true
+	b.fileOutputPath = path
 	return b
 }
 
@@ -170,9 +181,25 @@ func (b *ClientBuilder) Build() *Client {
 		AssignedDataset:           b.assignedDataset,
 	}
 
-	zapConfig := zap.NewDevelopmentEncoderConfig()
-	zapConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zapConfig), zapcore.AddSync(colorable.NewColorableStdout()), b.atom)
+	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()
+	zapEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zapEncoderConfig), zapcore.AddSync(colorable.NewColorableStdout()), b.atom)
+
+	var core zapcore.Core
+	if b.fileOutputEnabled {
+		core = zapcore.NewTee(consoleCore)
+	} else {
+		logFile, err := os.OpenFile(b.fileOutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+
+		writer := zapcore.AddSync(logFile)
+
+		fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(zapEncoderConfig), writer, b.atom)
+		core = zapcore.NewTee(consoleCore, fileCore)
+	}
+
 	logger := zap.New(core, zap.Development())
 	if logger == nil {
 		panic("failed to create logger for workload driver")

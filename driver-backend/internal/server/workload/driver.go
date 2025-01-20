@@ -187,6 +187,7 @@ type BasicWorkloadDriver struct {
 	trainingSubmittedTimes             *hashmap.HashMap                           // trainingSubmittedTimes keeps track of when "execute_request" messages were sent for different sessions. Keys are internal session IDs, values are unix millisecond timestamps.
 	outputFile                         io.ReadWriteCloser                         // The opened .CSV output statistics file.
 	outputFileDirectory                string                                     // outputFileDirectory is the directory where all the workload-specific output directories live
+	clientOutputDirectory              string                                     // clientOutputDirectory is the name of the directory where the individual clients will write their output.
 	outputFilePath                     string                                     // Path to the outputFile
 	outputFileMutex                    sync.Mutex                                 // Atomic access to output file
 	appendToOutputFile                 bool                                       // Flag that is set to true after the first write
@@ -968,6 +969,18 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 		err = os.MkdirAll(outputSubdirectoryPath, os.ModePerm)
 		if err != nil {
 			d.logger.Error("Failed to create parent directories for workload .CSV output.",
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.String("path", outputSubdirectoryPath),
+				zap.Error(err))
+			d.handleCriticalError(err)
+			return
+		}
+
+		clientOutputDirectory := filepath.Join(outputSubdirectoryPath, "clients")
+		err = os.MkdirAll(clientOutputDirectory, os.ModePerm)
+		if err != nil {
+			d.logger.Error("Failed to create parent directories for workload client output.",
 				zap.String("workload_id", d.id),
 				zap.String("workload_name", d.workload.WorkloadName()),
 				zap.String("path", outputSubdirectoryPath),
@@ -1783,6 +1796,8 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 				zap.String("model", model),
 				zap.String("dataset", dataset))
 
+			fileOutputDirectory := path.Join(d.clientOutputDirectory, fmt.Sprintf("client-%s.json", sessionId))
+
 			client := NewClientBuilder().
 				WithSessionId(sessionId).
 				WithWorkloadId(d.workload.GetId()).
@@ -1800,6 +1815,7 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 				WithNotifyCallback(d.notifyCallback).
 				WithWaitGroup(&d.clientsWaitGroup).
 				WithTimescaleAdjustmentFactor(d.timescaleAdjustmentFactor).
+				WithFileOutput(fileOutputDirectory).
 				Build()
 
 			d.Clients[sessionId] = client
