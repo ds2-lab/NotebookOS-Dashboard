@@ -427,7 +427,7 @@ func (q *EventQueue) Pop(threshold time.Time) *domain.Event {
 		nextEvent.SetIndex(q.lenUnsafe())
 		nextEvent.Dequeued()
 
-		q.logger.Debug("Returning ready event.",
+		q.logger.Debug(fmt.Sprintf("Returning ready event: \"%s\"", domain.ColorizeText(nextEvent.Name.String(), domain.LightGreen)),
 			zap.String("event_name", nextEvent.Name.String()),
 			zap.String("event_id", nextEvent.ID),
 			zap.Time("threshold", threshold),

@@ -40,6 +40,8 @@ import {
     DeepLearningModel,
     DistributedJupyterKernel,
     FirstJupyterKernelBuffersFrame,
+    GetDatasetCategory,
+    GetModelCategory,
     JupyterKernelReplica,
     NLPDatasets,
     NLPModels,
@@ -106,8 +108,8 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
     const [targetReplicaId, setTargetReplicaId] = React.useState(-1);
     const [forceFailure, setForceFailure] = React.useState(false);
     const [activeExecutionOutputTab, setActiveExecutionOutputTab] = React.useState<string>('');
-    const [selectedModel, setSelectedModel] = React.useState<string>('Select a model');
-    const [selectedDataset, setSelectedDataset] = React.useState<string>('Select a dataset');
+    const [selectedModel, setSelectedModel] = React.useState<string>('ResNet-18');
+    const [selectedDataset, setSelectedDataset] = React.useState<string>('CIFAR-10');
 
     const [executionMap, setExecutionMap] = React.useState<Map<string, Execution>>(new Map());
     const [, setClosedExecutionMap] = React.useState<Map<string, boolean>>(new Map());
@@ -925,6 +927,17 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
         </Tooltip>
     );
 
+    const validateModelDatasetSelection = (): boolean => {
+        if (selectedModel === '' && selectedDataset === '') {
+            return true;
+        }
+
+        const modelCategory: string = GetModelCategory(selectedModel);
+        const datasetCategory: string = GetDatasetCategory(selectedDataset);
+
+        return modelCategory === datasetCategory;
+    };
+
     const executeButton = (
         <Button
             key="submit-code-button"
@@ -941,7 +954,12 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     setExecutionState('idle');
                 }
             }}
-            isDisabled={code.trim().length == 0 || !authenticated || jupyterAddress === undefined}
+            isDisabled={
+                code.trim().length == 0 ||
+                !authenticated ||
+                jupyterAddress === undefined ||
+                !validateModelDatasetSelection()
+            }
             isLoading={executionState === 'busy'}
             icon={executionState === 'done' ? <CheckCircleIcon /> : null}
             spinnerAriaValueText="Loading..."
@@ -992,6 +1010,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     setSelectedModel(value as string);
                 }}
                 value={selectedModel}
+                validated={validateModelDatasetSelection() ? 'success' : 'error'}
             >
                 <FormSelectOptionGroup label={'Computer Vision (CV)'}>
                     {ComputerVisionModels.map((model: DeepLearningModel) => (
@@ -1020,6 +1039,16 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
         </FormGroup>
     );
 
+    const isDatasetGroupDisabled = (category: string): boolean => {
+        if (selectedModel === '') {
+            return false;
+        }
+
+        const modelCategory: string = GetModelCategory(selectedModel);
+
+        return category !== modelCategory;
+    };
+
     const datasetSelectionDropdown = (
         <FormGroup label={'Dataset'}>
             <FormSelect
@@ -1027,8 +1056,12 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     setSelectedDataset(value as string);
                 }}
                 value={selectedDataset}
+                validated={validateModelDatasetSelection() ? 'success' : 'error'}
             >
-                <FormSelectOptionGroup label={'Computer Vision (CV)'}>
+                <FormSelectOptionGroup
+                    label={'Computer Vision (CV)'}
+                    isDisabled={isDatasetGroupDisabled('Computer Vision (CV)')}
+                >
                     {ComputerVisionDatasets.map((dataset: Dataset) => (
                         <FormSelectOption
                             value={dataset.name}
@@ -1040,7 +1073,10 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     ))}
                 </FormSelectOptionGroup>
                 <Divider component="li" />
-                <FormSelectOptionGroup label={'Natural Language Processing (NLP)'}>
+                <FormSelectOptionGroup
+                    label={'Natural Language Processing (NLP)'}
+                    isDisabled={isDatasetGroupDisabled('Natural Language Processing (NLP)')}
+                >
                     {NLPDatasets.map((dataset: Dataset) => (
                         <FormSelectOption
                             value={dataset.name}
@@ -1052,7 +1088,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     ))}
                 </FormSelectOptionGroup>
                 <Divider component="li" />
-                <FormSelectOptionGroup label={'Speech'}>
+                <FormSelectOptionGroup label={'Speech'} isDisabled={isDatasetGroupDisabled('Speech')}>
                     {SpeechDatasets.map((dataset: Dataset) => (
                         <FormSelectOption
                             value={dataset.name}
@@ -1067,7 +1103,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
         </FormGroup>
     );
 
-    const showModelAndDatasetSelectionMenu = ():boolean => {
+    const showModelAndDatasetSelectionMenu = (): boolean => {
         return code.startsWith('training_duration_millis =') || code.startsWith('training_duration_millis=');
     };
 
@@ -1095,7 +1131,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
                     </CodeContext.Provider>
                 </FlexItem>
             </Flex>
-            <Flex direction={{ default: 'row' }} hidden={showModelAndDatasetSelectionMenu()}>
+            <Flex direction={{ default: 'row' }} hidden={!showModelAndDatasetSelectionMenu()}>
                 <FlexItem>{modelSelectionDropdown}</FlexItem>
                 <FlexItem>{datasetSelectionDropdown}</FlexItem>
             </Flex>

@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-var _ = Describe("Client Tests", func() {
+var _ = Describe("Workload Client Tests", func() {
 	var (
 		mockCtrl                *gomock.Controller
 		remoteStorageDefinition *proto.RemoteStorageDefinition

@@ -14,6 +14,50 @@ export const Categories: 'Computer Vision (CV)' | 'Natural Language Processing (
     'Speech',
 ];
 
+export function GetDatasetCategory(datasetName: string): string {
+    switch (datasetName) {
+        case 'CIFAR-10':
+            return 'Computer Vision (CV)';
+        case 'CIFAR-100':
+            return 'Computer Vision (CV)';
+        case 'Tiny ImageNet':
+            return 'Computer Vision (CV)';
+        case 'Corpus of Linguistic Acceptability (CoLA)':
+            return 'Natural Language Processing (NLP)';
+        case 'Truncated IMDb Large Movie Review Dataset (Truncated IMDb)':
+            return 'Natural Language Processing (NLP)';
+        case 'IMDb Large Movie Review Dataset (IMDb)':
+            return 'Natural Language Processing (NLP)';
+        case 'LibriSpeech':
+            return 'Speech';
+    }
+
+    return 'N/A';
+}
+
+export function GetModelCategory(modelName: string): string {
+    switch (modelName) {
+        case 'ResNet-18':
+            return 'Computer Vision (CV)';
+        case 'VGG-11':
+            return 'Computer Vision (CV)';
+        case 'VGG-13':
+            return 'Computer Vision (CV)';
+        case 'VGG-16':
+            return 'Computer Vision (CV)';
+        case 'VGG-19':
+            return 'Inception v3';
+        case 'BERT':
+            return 'Natural Language Processing (NLP)';
+        case 'GPT-2':
+            return 'Natural Language Processing (NLP)';
+        case 'Deep Speech 2':
+            return 'Speech';
+    }
+
+    return 'N/A';
+}
+
 export const Datasets: Dataset[] = [
     {
         name: 'CIFAR-10',
