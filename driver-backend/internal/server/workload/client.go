@@ -16,7 +16,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -47,7 +46,6 @@ type ClientBuilder struct {
 	waitGroup                 *sync.WaitGroup
 	assignedModel             string // assignedModel is the name of the model to be assigned to the client.
 	assignedDataset           string // assignedDataset is the name of the dataset to be assigned to the client.
-	fileOutputEnabled         bool
 	fileOutputPath            string
 }
 
@@ -64,7 +62,6 @@ func (b *ClientBuilder) WithDeepLearningModel(model string) *ClientBuilder {
 // WithFileOutput will instruct the Client [that is to be built] to also output its logs to a file (at the specified
 // path) in addition to outputting its logs to the console/terminal (stdout).
 func (b *ClientBuilder) WithFileOutput(path string) *ClientBuilder {
-	b.fileOutputEnabled = true
 	b.fileOutputPath = path
 	return b
 }
@@ -186,23 +183,32 @@ func (b *ClientBuilder) Build() *Client {
 	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zapEncoderConfig), zapcore.AddSync(colorable.NewColorableStdout()), b.atom)
 
 	var core zapcore.Core
-	if b.fileOutputEnabled {
+	if b.fileOutputPath == "" {
 		core = zapcore.NewTee(consoleCore)
 	} else {
-		logFile, err := os.OpenFile(b.fileOutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		//logFile, err := os.Create(b.fileOutputPath)
+		//if err != nil {
+		//	panic(err)
+		//}
+
+		writer, closeFile, err := zap.Open(b.fileOutputPath)
 		if err != nil {
 			panic(err)
 		}
 
-		writer := zapcore.AddSync(logFile)
-
-		fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(zapEncoderConfig), writer, b.atom)
+		zapFileEncoderConfig := zap.NewDevelopmentEncoderConfig()
+		zapFileEncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+		fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(zapFileEncoderConfig), writer, b.atom)
 		core = zapcore.NewTee(consoleCore, fileCore)
+
+		// Save a reference to the closeFunc in the Client's closeLogFileFunc field so that
+		// we can close the log file explicitly when stopping the client.
+		client.closeLogFileFunc = closeFile
 	}
 
 	logger := zap.New(core, zap.Development())
 	if logger == nil {
-		panic("failed to create logger for workload driver")
+		panic(fmt.Sprintf("failed to create logger for client %s", b.sessionId))
 	}
 	client.logger = logger
 
@@ -248,6 +254,17 @@ type Client struct {
 	waitGroup                 *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
 	AssignedModel             string                                 // AssignedModel is the name of the model assigned to this client.
 	AssignedDataset           string                                 // AssignedDataset is the name of the dataset assigned to this client.
+	explicitlyStopped         atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
+	closeLogFileFunc          func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
+}
+
+func (c *Client) closeLogFile() error {
+	if c.closeLogFileFunc == nil {
+		return fmt.Errorf("cannot close log file; no log file open")
+	}
+
+	c.closeLogFileFunc()
+	return nil
 }
 
 // FailedToStart returns a bool that, when true, indicates that this Client completely failed to start.
@@ -294,7 +311,7 @@ func (c *Client) Run() {
 			zap.String("workload_id", c.WorkloadId),
 			zap.Error(err))
 
-		c.running.Store(0)
+		_ = c.Stop()
 		return
 	}
 
@@ -305,6 +322,36 @@ func (c *Client) Run() {
 	c.run(&wg)
 
 	wg.Wait()
+
+	// Do some clean-up.
+	c.stop()
+}
+
+// Stop explicitly and forcibly stops the client.
+func (c *Client) Stop() error {
+	c.logger.Warn("Explicitly instructed to stop.")
+
+	// Signal to the client to stop.
+	c.explicitlyStopped.Store(1)
+
+	// Wait briefly.
+	time.Sleep(time.Millisecond * 100)
+
+	c.stop()
+
+	return nil
+}
+
+// stop performs the stopping logic for the Client without setting explicitlyStopped to 1 like Stop does.
+// Specifically, stop flushes any buffered logs before closing the log file. Finally, stop sets running to 0.
+func (c *Client) stop() {
+	// Flush any buffered logs.
+	_ = c.logger.Core().Sync()
+
+	// Close the log file.
+	_ = c.closeLogFile()
+
+	c.running.Store(0)
 }
 
 // createKernel attempts to create the kernel for the Client, possibly handling any errors that are encountered
@@ -539,7 +586,7 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.WorkloadId))
 
-	for c.Workload.IsInProgress() {
+	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 {
 		tickStart := time.Now()
 
 		// Increment the clock.
@@ -588,7 +635,7 @@ func (c *Client) run(wg *sync.WaitGroup) {
 		}
 	}()
 
-	for c.Workload.IsInProgress() {
+	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 {
 		select {
 		case tick := <-c.ticker.TickDelivery:
 			//c.logger.Debug("Client received tick.",
