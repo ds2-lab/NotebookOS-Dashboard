@@ -10,6 +10,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/zhangjyr/gocsv"
 	"io"
+	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -204,6 +205,7 @@ type BasicWorkloadDriver struct {
 	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
 	Clients                            map[string]*Client
 	clientsWaitGroup                   sync.WaitGroup
+	trainingEventSubmitted             bool
 
 	pauseMutex sync.Mutex
 	pauseCond  *sync.Cond
@@ -1146,6 +1148,10 @@ OUTER:
 				d.workload.SetNextExpectedEventSession(evt.SessionId)
 
 				d.eventQueue.EnqueueEvent(evt)
+
+				if evt.Name == domain.EventSessionTraining || evt.Name == domain.EventSessionTrainingStarted {
+					d.trainingEventSubmitted = true
+				}
 			} else {
 				d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" does NOT occur before next tick [%v] (i.e., tick #%d). Will have to issue clock ticks until we get to event's timestamp of [%v] (i.e., tick #%d).",
 					evt.Name.String(), evt.ID, evt.SessionID(), nextTick, nextTick.Unix()/d.targetTickDurationSeconds, evt.Timestamp, evt.Timestamp.Unix()/d.targetTickDurationSeconds)
@@ -1166,6 +1172,10 @@ OUTER:
 				}
 				nextTick = d.currentTick.GetClockTime().Add(d.targetTickDuration)
 				d.eventQueue.EnqueueEvent(evt)
+
+				if evt.Name == domain.EventSessionTraining || evt.Name == domain.EventSessionTrainingStarted {
+					d.trainingEventSubmitted = true
+				}
 			}
 		case <-d.workloadEventGeneratorCompleteChan:
 			d.logger.Debug("Drivers finished generating events.",
@@ -1434,7 +1444,17 @@ func (d *BasicWorkloadDriver) issueClockTicks(timestamp time.Time) error {
 			//	zap.String("workload_id", d.id),
 			//	zap.String("workload_name", d.workload.WorkloadName()),
 			//	zap.String("workload_state", d.workload.GetState().String()))
-			time.Sleep(tickRemaining)
+
+			if !d.trainingEventSubmitted {
+				// Pick the shorter of the two: 10ms or whatever the computed 'tickRemaining' quantity is.
+				sleepInterval := math.Min(float64(tickRemaining), float64(time.Millisecond*15))
+
+				// Skip quickly through the beginning of the workload before any training events are submitted.
+				time.Sleep(time.Duration(sleepInterval))
+			} else {
+				// Skip quickly through the beginning of the workload before any training events are submitted.
+				time.Sleep(tickRemaining)
+			}
 		}
 
 		tickDuration := time.Since(tickStart)
