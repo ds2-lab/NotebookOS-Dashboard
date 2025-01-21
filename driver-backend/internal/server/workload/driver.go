@@ -186,8 +186,9 @@ type BasicWorkloadDriver struct {
 	paused                             bool                                       // Paused indicates whether the workload has been paused.
 	trainingSubmittedTimes             *hashmap.HashMap                           // trainingSubmittedTimes keeps track of when "execute_request" messages were sent for different sessions. Keys are internal session IDs, values are unix millisecond timestamps.
 	outputFile                         io.ReadWriteCloser                         // The opened .CSV output statistics file.
-	outputFileDirectory                string                                     // outputFileDirectory is the directory where all the workload-specific output directories live
+	outputFileDirectory                string                                     // outputFileDirectory is the directory where all the workload-specific output directories live. There are sub-directories for each workload in this directory.
 	clientOutputDirectory              string                                     // clientOutputDirectory is the name of the directory where the individual clients will write their output.
+	outputSubdirectoryPath             string                                     // The actual directory where the output of this specific workload will be.
 	outputFilePath                     string                                     // Path to the outputFile
 	outputFileMutex                    sync.Mutex                                 // Atomic access to output file
 	appendToOutputFile                 bool                                       // Flag that is set to true after the first write
@@ -291,9 +292,16 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	zapEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zapEncoderConfig), zapcore.AddSync(colorable.NewColorableStdout()), atom)
 
+	err := driver.CreateOutputDirectory()
+	if err != nil {
+		panic(err)
+	}
+
+	driverOutputLogFilePath := path.Join(driver.outputSubdirectoryPath, fmt.Sprintf("workload_driver_%s_output.json", driver.ID()))
+
 	var core zapcore.Core
 	// Create file output as well.
-	logFile, err := os.Create(fmt.Sprintf("workload_driver_%s_output.json", driver.ID()))
+	logFile, err := os.Create(driverOutputLogFilePath)
 	if err != nil {
 		panic(err)
 	}
@@ -970,38 +978,38 @@ func (d *BasicWorkloadDriver) publishStatisticsReport() {
 }
 
 // CreateOutputDirectory creates the output directories for the workload (where the .CSV file is written).
-func (d *BasicWorkloadDriver) CreateOutputDirectory() (string, error) {
+func (d *BasicWorkloadDriver) CreateOutputDirectory() error {
 	outputSubdir := time.Now().Format("01-02-2006 15:04:05")
 	outputSubdir = strings.ReplaceAll(outputSubdir, ":", "-")
 	outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.workload.GetId())
-	outputSubdirectoryPath := filepath.Join(d.outputFileDirectory, outputSubdir)
+	d.outputSubdirectoryPath = filepath.Join(d.outputFileDirectory, outputSubdir)
 
-	err := os.MkdirAll(outputSubdirectoryPath, os.ModePerm)
+	err := os.MkdirAll(d.outputSubdirectoryPath, os.ModePerm)
 	if err != nil {
 		d.logger.Error("Failed to create parent directories for workload .CSV output.",
 			zap.String("workload_id", d.id),
 			zap.String("workload_name", d.workload.WorkloadName()),
-			zap.String("path", outputSubdirectoryPath),
+			zap.String("path", d.outputSubdirectoryPath),
 			zap.Error(err))
 		d.handleCriticalError(err)
-		return "", err
+		return err
 	}
 
-	clientOutputDirectory := filepath.Join(outputSubdirectoryPath, "clients")
-	err = os.MkdirAll(clientOutputDirectory, os.ModePerm)
+	d.clientOutputDirectory = filepath.Join(d.outputSubdirectoryPath, "clients")
+	err = os.MkdirAll(d.clientOutputDirectory, os.ModePerm)
 	if err != nil {
 		d.logger.Error("Failed to create parent directories for workload client output.",
 			zap.String("workload_id", d.id),
 			zap.String("workload_name", d.workload.WorkloadName()),
-			zap.String("path", outputSubdirectoryPath),
+			zap.String("path", d.outputSubdirectoryPath),
 			zap.Error(err))
 		d.handleCriticalError(err)
-		return "", err
+		return err
 	}
 
-	d.outputFilePath = filepath.Join(outputSubdirectoryPath, "workload_stats.csv")
+	d.outputFilePath = filepath.Join(d.outputSubdirectoryPath, "workload_stats.csv")
 
-	return outputSubdirectoryPath, nil
+	return nil
 }
 
 // DriveWorkload accepts a *sync.WaitGroup that is used to notify the caller when the workload has completed.
@@ -1012,11 +1020,6 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 	var err error
 
 	if !d.OutputCsvDisabled {
-		outputSubdirectoryPath, err := d.CreateOutputDirectory()
-		if err != nil {
-			return // We already called d.handleCriticalError(err) up above.
-		}
-
 		d.outputFileMutex.Lock()
 		d.outputFile, err = os.OpenFile(d.outputFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 		d.outputFileMutex.Unlock()
@@ -1025,7 +1028,7 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 			d.logger.Error("Failed to create .CSV output file for workload.",
 				zap.String("workload_id", d.id),
 				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("path", outputSubdirectoryPath),
+				zap.String("path", d.outputSubdirectoryPath),
 				zap.Error(err))
 			d.handleCriticalError(err)
 			return
