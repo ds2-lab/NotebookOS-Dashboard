@@ -439,7 +439,7 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 					zap.Time("current_tick", c.currentTick.GetClockTime()),
 					zap.Int32("num_times_enqueued", evt.GetNumTimesEnqueued()),
 					zap.Duration("total_delay", evt.TotalDelay()),
-					zap.Int("attempt_number", backoff.Steps-10+1),
+					zap.Int("attempt_number", 10-backoff.Steps+1),
 					zap.Duration("sleep_interval", sleepInterval))
 
 				// TODO: How to accurately compute the delay here? Since we're using ticks, so one minute is the
@@ -1065,18 +1065,19 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 // trainingStartTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
 // training event started being processed after the timeout interval elapses.
 func (c *Client) trainingStartTimedOut(sentRequestAt time.Time) {
+	timeElapsed := time.Since(sentRequestAt)
 	c.logger.Warn("Have not received 'training started' notification for over 1 minute. Assuming message was lost.",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
-		zap.Duration("time_elapsed", time.Since(sentRequestAt)))
+		zap.Duration("time_elapsed", timeElapsed))
 
 	c.notifyCallback(&proto.Notification{
 		Id:    uuid.NewString(),
-		Title: "Have Spent 1+ Minute(s) Waiting for 'Training Started' Notification",
+		Title: fmt.Sprintf("Have Spent Over %v Waiting for 'Training Started' Notification", timeElapsed),
 		Message: fmt.Sprintf("Submitted \"execute_request\" to kernel \"%s\" during workload \"%s\" (ID=\"%s\") "+
-			"over 1 minute ago and have not yet received 'smr_lead_task' IOPub message. Time elapsed: %v.",
-			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), time.Since(sentRequestAt)),
+			"over %v ago and have not yet received 'smr_lead_task' IOPub message.",
+			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed),
 		Panicked:         false,
 		NotificationType: domain.WarningNotification.Int32(),
 	})
@@ -1304,12 +1305,12 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 120) + c.getAdjustedDuration(evt)
+		return (time.Second * 180) + c.getAdjustedDuration(evt)
 	}
 
 	if schedulingPolicy == "static" || schedulingPolicy == "dynamic-v3" || schedulingPolicy == "dynamic-v4" {
 		// There's no network I/O on the critical path, so stopping the training should be quick.
-		return (time.Second * 120) + c.getAdjustedDuration(evt)
+		return (time.Second * 180) + c.getAdjustedDuration(evt)
 	}
 
 	// Get the remote storage definition of the workload.
@@ -1341,7 +1342,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 	expectedNetworkIoLatency := readTime + writeTime
 
 	// Extra 30 seconds for whatever shenanigans need to occur.
-	interval := (time.Second * 120) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
+	interval := (time.Second * 180) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
 
 	c.logger.Debug("Computed timeout interval.",
 		zap.String("workload_id", c.Workload.GetId()),

@@ -1445,7 +1445,7 @@ func (d *BasicWorkloadDriver) issueClockTicks(timestamp time.Time) error {
 			//	zap.String("workload_name", d.workload.WorkloadName()),
 			//	zap.String("workload_state", d.workload.GetState().String()))
 
-			if !d.trainingEventSubmitted {
+			if !d.trainingEventSubmitted && d.schedulingPolicy != "static" && d.schedulingPolicy != "dynamic v3" && d.schedulingPolicy != "dynamic v4" {
 				// Pick the shorter of the two: 10ms or whatever the computed 'tickRemaining' quantity is.
 				sleepInterval := math.Min(float64(tickRemaining), float64(time.Millisecond*15))
 
