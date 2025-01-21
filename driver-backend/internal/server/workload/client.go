@@ -1304,12 +1304,12 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 90) + c.getAdjustedDuration(evt)
+		return (time.Second * 120) + c.getAdjustedDuration(evt)
 	}
 
 	if schedulingPolicy == "static" || schedulingPolicy == "dynamic-v3" || schedulingPolicy == "dynamic-v4" {
 		// There's no network I/O on the critical path, so stopping the training should be quick.
-		return (time.Second * 90) + c.getAdjustedDuration(evt)
+		return (time.Second * 120) + c.getAdjustedDuration(evt)
 	}
 
 	// Get the remote storage definition of the workload.
@@ -1320,7 +1320,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 150) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
+		return (time.Second * 180) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
 	}
 
 	// Load the session and subsequently its current resource request.
@@ -1332,7 +1332,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 150) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
+		return (time.Second * 180) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
 	}
 
 	vramBytes := resourceRequest.VRAM * 1000000000
@@ -1341,7 +1341,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 	expectedNetworkIoLatency := readTime + writeTime
 
 	// Extra 30 seconds for whatever shenanigans need to occur.
-	interval := (time.Second * 90) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
+	interval := (time.Second * 120) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
 
 	c.logger.Debug("Computed timeout interval.",
 		zap.String("workload_id", c.Workload.GetId()),
