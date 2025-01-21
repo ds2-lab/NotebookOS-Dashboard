@@ -173,6 +173,7 @@ type BasicWorkloadDriver struct {
 	ticker                             *clock.Ticker                              // Receive Tick events this way.
 	ticksHandled                       atomic.Int64                               // Incremented/accessed atomically.
 	timescaleAdjustmentFactor          float64                                    // Adjusts the timescale of the simulation. Setting this to 1 means that each tick is simulated as a whole minute. Setting this to 0.5 means each tick will be simulated for half its real time. So, if ticks are 60 seconds, and this variable is set to 0.5, then each tick will be simulated for 30 seconds before continuing to the next tick.
+	maxClientSleepDuringInitSeconds    int                                        // maxClientSleepDuringInitSeconds is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
 	websocket                          domain.ConcurrentWebSocket                 // Shared Websocket used to communicate with frontend.
 	workload                           internalWorkload                           // The workload being driven by this driver.
 	workloadStartTime                  time.Time                                  // The time at which the workload began.
@@ -281,6 +282,7 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		modelDatasetCategories:             make([]string, 0),
 		modelsByCategory:                   make(map[string][]string),
 		datasetsByCategory:                 make(map[string][]string),
+		maxClientSleepDuringInitSeconds:    opts.MaxClientSleepDuringInitSeconds,
 	}
 
 	driver.pauseCond = sync.NewCond(&driver.pauseMutex)
@@ -1846,6 +1848,7 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 				WithWaitGroup(&d.clientsWaitGroup).
 				WithTimescaleAdjustmentFactor(d.timescaleAdjustmentFactor).
 				WithFileOutput(fileOutputDirectory).
+				WithMaxInitializationSleepIntervalSeconds(d.maxClientSleepDuringInitSeconds).
 				Build()
 
 			d.Clients[sessionId] = client

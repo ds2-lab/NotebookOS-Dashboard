@@ -47,11 +47,23 @@ type ClientBuilder struct {
 	assignedModel             string // assignedModel is the name of the model to be assigned to the client.
 	assignedDataset           string // assignedDataset is the name of the dataset to be assigned to the client.
 	fileOutputPath            string
+	maxSleepDuringInitSec     int // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
 func NewClientBuilder() *ClientBuilder {
-	return &ClientBuilder{}
+	return &ClientBuilder{
+		maxSleepDuringInitSec:     120, // Default
+		timescaleAdjustmentFactor: 1.0, // Default
+	}
+}
+
+// WithMaxInitializationSleepIntervalSeconds is used to set the value of the maxSleepDuringInitSec field.
+// The maxSleepDuringInitSec field is the maximum amount of time that the Client should sleep for during
+// exponential backoff when it is first being created.
+func (b *ClientBuilder) WithMaxInitializationSleepIntervalSeconds(intervalSec int) *ClientBuilder {
+	b.maxSleepDuringInitSec = intervalSec
+	return b
 }
 
 func (b *ClientBuilder) WithDeepLearningModel(model string) *ClientBuilder {
@@ -176,6 +188,7 @@ func (b *ClientBuilder) Build() *Client {
 		schedulingPolicy:          b.schedulingPolicy,
 		AssignedModel:             b.assignedModel,
 		AssignedDataset:           b.assignedDataset,
+		maxSleepDuringInitSec:     b.maxSleepDuringInitSec,
 	}
 
 	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()
@@ -224,6 +237,7 @@ type Client struct {
 	Workload internalWorkload
 	Session  *domain.WorkloadTemplateSession
 
+	maxSleepDuringInitSec     int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
 	SessionId                 string                                 // SessionId is the Jupyter kernel/session ID of this Client
 	WorkloadId                string                                 // WorkloadId is the ID of the workload that the Client is a part of.
 	errorChan                 chan<- error                           // errorChan is used to notify the WorkloadDriver that an error has occurred.
@@ -390,7 +404,7 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 		Factor:   1.5,
 		Jitter:   1.125,
 		Steps:    10,
-		Cap:      time.Second * 120,
+		Cap:      time.Second * time.Duration(c.maxSleepDuringInitSec),
 	}
 
 	var (
@@ -480,7 +494,7 @@ func (c *Client) initialize() error {
 		Factor:   1.25,
 		Jitter:   1.25,
 		Steps:    maximumNumberOfAttempts,
-		Cap:      time.Second * 300,
+		Cap:      time.Second * time.Duration(float64(c.maxSleepDuringInitSec)*1.5 /* slightly longer here */),
 	}
 
 	var (
@@ -1233,14 +1247,14 @@ func (c *Client) CreateExecuteRequestArguments(evt *domain.Event) (*jupyter.Requ
 	milliseconds := float64(evt.Duration.Milliseconds())
 	if c.Workload.ShouldTimeCompressTrainingDurations() {
 		milliseconds = milliseconds * c.timescaleAdjustmentFactor
-		//c.logger.Debug("Applied time-compression to training duration.",
-		//	zap.String("session_id", evt.SessionID()),
-		//	zap.Duration("original_duration", evt.Duration),
-		//	zap.Float64("updated_duration_ms", milliseconds),
-		//	zap.Float64("timescale_adjustment_factor", c.timescaleAdjustmentFactor),
-		//	zap.String("event_id", evt.Id()),
-		//	zap.String("workload_id", c.Workload.GetId()),
-		//	zap.String("workload_name", c.Workload.WorkloadName()))
+		c.logger.Debug("Applied time-compression to training duration.",
+			zap.String("session_id", evt.SessionID()),
+			zap.Duration("original_duration", evt.Duration),
+			zap.Float64("updated_duration_ms", milliseconds),
+			zap.Float64("timescale_adjustment_factor", c.timescaleAdjustmentFactor),
+			zap.String("event_id", evt.Id()),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()))
 	}
 
 	argsBuilder := jupyter.NewRequestExecuteArgsBuilder().

@@ -127,6 +127,7 @@ var (
 		WorkloadOutputDirectory:                        "./workload-output",
 		WorkloadOutputIntervalSec:                      2,
 		TimeCompressTrainingDurations:                  true,
+		MaxClientSleepDuringInitSeconds:                2,
 	}
 )
 

@@ -42,12 +42,14 @@ var _ = Describe("Workload Client Tests", func() {
 		sessionId := uuid.NewString()
 		workloadId := uuid.NewString()
 
+		timescaleAdjustmentFactor := 1.0
+
 		basicWorkload := workload.NewBuilder(&atom).
 			SetID(workloadId).
 			SetWorkloadName("Dummy Workload").
 			SetSeed(1).
 			EnableDebugLogging(true).
-			SetTimescaleAdjustmentFactor(1.0).
+			SetTimescaleAdjustmentFactor(timescaleAdjustmentFactor).
 			SetTimeCompressTrainingDurations(true).
 			SetRemoteStorageDefinition(remoteStorageDefinition).
 			SetSessionsSamplePercentage(1.0).
@@ -75,6 +77,7 @@ var _ = Describe("Workload Client Tests", func() {
 			WithDeepLearningModel("ResNet-18").
 			WithDataset("CIFAR-10").
 			WithWorkload(workloadFromTemplate).
+			WithTimescaleAdjustmentFactor(timescaleAdjustmentFactor).
 			Build()
 		Expect(client).ToNot(BeNil())
 
@@ -107,6 +110,11 @@ var _ = Describe("Workload Client Tests", func() {
 		metadata := args.RequestMetadata()
 		Expect(metadata).ToNot(BeNil())
 		Expect(len(metadata)).To(Equal(4))
+
+		GinkgoWriter.Printf("metadata: %v\n", metadata)
+		milliseconds := float64(trainingEvent.Duration.Milliseconds())
+		GinkgoWriter.Printf("evt.Duration.Milliseconds(): %v\n", milliseconds)
+		GinkgoWriter.Printf("milliseconds * basicWorkload.TimescaleAdjustmentFactor: %v\n", milliseconds*basicWorkload.TimescaleAdjustmentFactor)
 
 		_, loadedResourceReq := metadata["resource_request"]
 		Expect(loadedResourceReq).To(BeTrue())
