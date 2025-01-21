@@ -236,7 +236,7 @@ type BasicWorkloadDriver struct {
 
 func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, timescaleAdjustmentFactor float64,
 	websocket domain.ConcurrentWebSocket, atom *zap.AtomicLevel, callbackProvider CallbackProvider,
-	workloadJobConfig *domain.WorkloadJobConfiguration) *BasicWorkloadDriver {
+	workloadJobConfig *domain.WorkloadJobConfiguration) (*BasicWorkloadDriver, error) {
 
 	jupyterAddress := path.Join(opts.InternalJupyterServerAddress, opts.JupyterServerBasePath)
 
@@ -292,9 +292,9 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	zapEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zapEncoderConfig), zapcore.AddSync(colorable.NewColorableStdout()), atom)
 
-	err := driver.CreateOutputDirectory()
+	err := driver.createOutputDirectory()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	driverOutputLogFilePath := path.Join(driver.outputSubdirectoryPath, fmt.Sprintf("workload_driver_%s_output.json", driver.ID()))
@@ -303,7 +303,7 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	// Create file output as well.
 	logFile, err := os.Create(driverOutputLogFilePath)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	writer := zapcore.AddSync(logFile)
@@ -390,7 +390,7 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		driver.datasetsByCategory[datasetConfig.Type] = datasets
 	}
 
-	return driver
+	return driver, err
 }
 
 //// GetStatisticsFileOutputPath returns the path to the statistics CSV file.
@@ -977,11 +977,11 @@ func (d *BasicWorkloadDriver) publishStatisticsReport() {
 	}
 }
 
-// CreateOutputDirectory creates the output directories for the workload (where the .CSV file is written).
-func (d *BasicWorkloadDriver) CreateOutputDirectory() error {
+// createOutputDirectory creates the output directories for the workload (where the .CSV file is written).
+func (d *BasicWorkloadDriver) createOutputDirectory() error {
 	outputSubdir := time.Now().Format("01-02-2006 15:04:05")
 	outputSubdir = strings.ReplaceAll(outputSubdir, ":", "-")
-	outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.workload.GetId())
+	outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.id)
 	d.outputSubdirectoryPath = filepath.Join(d.outputFileDirectory, outputSubdir)
 
 	err := os.MkdirAll(d.outputSubdirectoryPath, os.ModePerm)

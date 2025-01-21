@@ -190,7 +190,9 @@ var _ = Describe("Workload Driver Tests", func() {
 				timescaleAdjustmentFactor = 0.01667
 
 				atom = zap.NewAtomicLevelAt(zap.DebugLevel)
-				workloadDriver = workload.NewBasicWorkloadDriver(workloadDriverOpts, true, timescaleAdjustmentFactor,
+
+				var err error
+				workloadDriver, err = workload.NewBasicWorkloadDriver(workloadDriverOpts, true, timescaleAdjustmentFactor,
 					mockWebsocket, &atom, mockCallbackProvider, &domain.WorkloadJobConfiguration{
 						Models: []*domain.ModelConfig{
 							{
@@ -205,6 +207,7 @@ var _ = Describe("Workload Driver Tests", func() {
 							},
 						},
 					})
+				Expect(err).To(BeNil())
 
 				workloadDriver.OutputCsvDisabled = true
 				workloadDriver.KernelManager = mockKernelManager
