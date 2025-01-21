@@ -292,18 +292,18 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	zapEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zapEncoderConfig), zapcore.AddSync(colorable.NewColorableStdout()), atom)
 
-	err := driver.createOutputDirectory()
-	if err != nil {
-		return nil, err
+	outputDirectoryCreationError := driver.createOutputDirectory()
+	if outputDirectoryCreationError != nil {
+		return nil, outputDirectoryCreationError
 	}
 
 	driverOutputLogFilePath := path.Join(driver.outputSubdirectoryPath, fmt.Sprintf("workload_driver_%s_output.json", driver.ID()))
 
 	var core zapcore.Core
 	// Create file output as well.
-	logFile, err := os.Create(driverOutputLogFilePath)
-	if err != nil {
-		return nil, err
+	logFile, outputFileCreationError := os.Create(driverOutputLogFilePath)
+	if outputFileCreationError != nil {
+		return nil, outputFileCreationError
 	}
 
 	writer := zapcore.AddSync(logFile)
@@ -324,9 +324,10 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	// TODO: Can we just load them in from a file once? Why do this for every single workload?
 	// Load the list of workload presets from the specified file.
 	driver.logger.Debug("Loading workload presets from file now.", zap.String("filepath", opts.WorkloadPresetsFilepath))
-	presets, err := domain.LoadWorkloadPresetsFromFile(opts.WorkloadPresetsFilepath)
-	if err != nil {
-		driver.logger.Error("Error encountered while loading workload presets from file now.", zap.String("filepath", opts.WorkloadPresetsFilepath), zap.Error(err))
+	presets, readPresetFileError := domain.LoadWorkloadPresetsFromFile(opts.WorkloadPresetsFilepath)
+	if readPresetFileError != nil {
+		driver.logger.Error("Error encountered while loading workload presets from file now.",
+			zap.String("filepath", opts.WorkloadPresetsFilepath), zap.Error(readPresetFileError))
 	}
 
 	driver.workloadPresets = make(map[string]*domain.WorkloadPreset, len(presets))
@@ -390,7 +391,7 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		driver.datasetsByCategory[datasetConfig.Type] = datasets
 	}
 
-	return driver, err
+	return driver, nil
 }
 
 //// GetStatisticsFileOutputPath returns the path to the statistics CSV file.
