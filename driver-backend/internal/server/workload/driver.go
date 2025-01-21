@@ -45,11 +45,11 @@ const (
 	// AnyGPU is used by ResourceRequest structs when they do not require/request a specific GPU.
 	AnyGPU = "ANY_GPU"
 
-	// TrainingCode is the code executed by kernels to simulate GPU training.
+	// OldTrainingCode is the code executed by kernels to simulate GPU training.
 	// TODO: Figure out a good way to do this, such as via a library like:
 	// https://github.com/GaetanoCarlucci/CPULoadGenerator/tree/Python3
 	// which could enable us to simulate an actual CPU load based on trace data.
-	TrainingCode = `
+	OldTrainingCode = `
 # This is the code we run in a notebook cell to simulate training.
 import socket, os
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

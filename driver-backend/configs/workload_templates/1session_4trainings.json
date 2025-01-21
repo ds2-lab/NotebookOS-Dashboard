@@ -7,8 +7,8 @@
     "debugLoggingEnabled": true,
     "remoteStorageDefinition": {
         "name": "AWS S3",
-        "downloadRate": 200000000,
-        "uploadRate": 125000000,
+        "downloadRate": 2500000000,
+        "uploadRate": 1250000000,
         "downloadRateVariancePercentage": 5,
         "uploadRateVariancePercentage": 5,
         "readFailureChancePercentage": 0,

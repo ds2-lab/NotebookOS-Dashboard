@@ -1258,7 +1258,7 @@ func (c *Client) CreateExecuteRequestArguments(evt *domain.Event) (*jupyter.Requ
 	}
 
 	argsBuilder := jupyter.NewRequestExecuteArgsBuilder().
-		Code(TrainingCode).
+		Code(fmt.Sprintf("training_duration_millis = %d", evt.Duration.Milliseconds())).
 		Silent(false).
 		StoreHistory(true).
 		UserExpressions(nil).

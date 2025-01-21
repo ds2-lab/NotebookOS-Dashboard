@@ -112,7 +112,7 @@ func (s *CustomEventSequencer) RegisterSession(sessionId string, maxCPUs float64
 	s.sessions[sessionId] = wrappedSession
 	s.sessionEventIndexes[sessionId] = 0
 
-	//s.sugarLog.Debugf("Registered session \"%s\". MaxCPUs: %.2f, MaxMemory: %.2f, MaxGPUs: %d, MaxVRAM: %.2f", sessionId, maxCPUs, maxMem, maxGPUs, maxVRAM)
+	s.sugarLog.Debugf("Registered session \"%s\". MaxCPUs: %.2f, MaxMemory: %.2f, MaxGPUs: %d, MaxVRAM: %.2f", sessionId, maxCPUs, maxMem, maxGPUs, maxVRAM)
 }
 
 func (s *CustomEventSequencer) AddSessionStartedEvent(sessionId string, tickNumber int, cpuUtil float64, memUtil float64, gpuUtil float64, numGPUs int) {
