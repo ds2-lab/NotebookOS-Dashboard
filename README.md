@@ -102,10 +102,10 @@ $ npm version
 ```
 
 ## Configurations
-* [TypeScript Config](./tsconfig.json)
-* [Webpack Config](./webpack.common.js)
-* [Jest Config](./jest.config.js)
-* [Editor Config](./.editorconfig)
+* [TypeScript Config](./driver-frontend/tsconfig.json)
+* [Webpack Config](./driver-frontend/webpack.common.js)
+* [Jest Config](./driver-frontend/jest.config.js)
+* [Editor Config](./.driver-frontend/editorconfig)
 
 ## Code quality tools
 * For accessibility compliance, we use [react-axe](https://github.com/dequelabs/react-axe)
