@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 const TimescaleAdjustmentFactorDelta: number = 0.01;
 const TimescaleAdjustmentFactorMax: number = 10;
 const TimescaleAdjustmentFactorMin: number = 0;
-const TimescaleAdjustmentFactorDefault: number = 1.0 / 6.0;
+const TimescaleAdjustmentFactorDefault: number = 1.0 / 60.0;
 
 // The number of Sessions in the workload.
 const NumberOfSessionsDefault: number = 1;
