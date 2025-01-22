@@ -4,7 +4,7 @@ This repository contains a "Workload Driver" for the Distributed Jupyter Noteboo
 
 The Workload Driver provides a web interface containing a dashboard for monitoring the Notebook Cluster. The Workload Driver will also allow users to execute large-scale workloads on the Jupyter Notebook cluster.
 
-![demo image](docs/demo_images/dashboard_combined.jpg?raw=true)
+![demo image](demo.png?raw=true)
 
 ## Repository Overview 
 
@@ -88,8 +88,3 @@ ENV_2=http://2.myendpoint.com
 ```
 
 With that in place, you can use the values in your code like `console.log(process.env.ENV_1);`
-
-# Demo Images
-![Demo image showing various cards within the Dashboard.](docs/demo_images/dashboard1.png?raw=true)
-![Demo image showing various cards within the Dashboard, including a Kubernetes Nodes card.](docs/demo_images/dashboard2.png?raw=true)
-![Combined version of the previous two demo images.](docs/demo_images/dashboard_combined.jpg?raw=true)
