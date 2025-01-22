@@ -329,6 +329,8 @@ func (c *Client) Run() {
 		return
 	}
 
+	c.Workload.SessionCreated(c.SessionId, c.Session.Meta)
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 
