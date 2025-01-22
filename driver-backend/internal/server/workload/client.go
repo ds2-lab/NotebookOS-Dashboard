@@ -864,6 +864,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		return nil
 	}
 
+	c.Workload.TrainingStarted(c.SessionId, c.convertCurrentTickTimestampToTickNumber())
+
 	if err != nil {
 		c.logger.Error("Failed to wait for training to start.",
 			zap.String("workload_id", c.Workload.GetId()),
@@ -876,7 +878,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		return err
 	}
 
-	err = c.waitForTrainingToEnd(ctx)
+	err = c.waitForTrainingToEnd(ctx, event)
 	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
 		WithEventId(event.Id()).
 		WithSessionId(event.SessionID()).
@@ -1096,6 +1098,11 @@ func (c *Client) convertTimestampToTickNumber(tick time.Time) int64 {
 	return tick.Unix() / c.targetTickDurationSeconds
 }
 
+// convertCurrentTickTimestampToTickNumber converts the current tick to what "tick number" it is.
+func (c *Client) convertCurrentTickTimestampToTickNumber() int64 {
+	return c.currentTick.GetClockTime().Unix() / c.targetTickDurationSeconds
+}
+
 // handleIOPubMessage returns the extracted text.
 // This is expected to be called within a session-specific wrapper.
 //
@@ -1122,7 +1129,7 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(conn jupyter.KernelConnection, ke
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", conn.KernelId()))
 
-	c.Workload.TrainingStarted(c.SessionId, c.convertTimestampToTickNumber(c.currentTick.GetClockTime()))
+	c.Workload.TrainingStarted(c.SessionId, c.convertCurrentTickTimestampToTickNumber())
 
 	// Use the timestamp encoded in the IOPub message to determine when the training actually began,
 	// and then delay the session by how long it took for training to begin.
@@ -1359,7 +1366,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 }
 
 // waitForTrainingToEnd waits until we receive an "execute_request" from the kernel.
-func (c *Client) waitForTrainingToEnd(ctx context.Context) error {
+func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) error {
 	select {
 	case v := <-c.TrainingStoppedChannel:
 		{
@@ -1400,6 +1407,8 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context) error {
 						stats.TotalReplyLatenciesMillis = append(stats.TotalReplyLatenciesMillis, delay)
 						stats.TotalReplyLatencyMillis += delay
 					})
+
+					c.Workload.TrainingStopped(c.SessionId, event, c.convertCurrentTickTimestampToTickNumber())
 
 					c.logger.Debug("Session stopped training",
 						zap.String("session_id", c.SessionId),
