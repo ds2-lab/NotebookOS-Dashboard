@@ -1211,6 +1211,30 @@ OUTER:
 		d.outputFileMutex.Lock()
 		_ = d.outputFile.Close()
 		d.outputFileMutex.Unlock()
+
+		d.logger.Debug("Closed output CSV file.", zap.String("output_file_path", d.outputFilePath))
+	}
+
+	workloadJsonPath := filepath.Join(d.outputSubdirectoryPath, fmt.Sprintf("workload_%s.json", d.workload.GetId()))
+	d.logger.Debug("Writing Workload struct to JSON file.", zap.String("path", workloadJsonPath))
+
+	jsonFile, err := os.OpenFile(workloadJsonPath, os.O_CREATE, os.ModePerm)
+	if err != nil {
+		d.logger.Error("Failed to create JSON file for workload.",
+			zap.String("path", workloadJsonPath), zap.Error(err))
+		return
+	}
+
+	defer jsonFile.Close()
+
+	encoder := json.NewEncoder(jsonFile)
+	encoder.SetIndent("", "  ")
+
+	err = encoder.Encode(d.workload)
+	if err != nil {
+		d.logger.Error("Failed to write workload to JSON file.",
+			zap.String("path", workloadJsonPath), zap.Error(err))
+		return
 	}
 }
 
