@@ -856,7 +856,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
-		zap.Time("tick", tick))
+		zap.Time("tick", tick),
+		zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)))
 
 	trainingStarted, err := c.waitForTrainingToStart(ctx, event, startedHandlingAt, sentRequestAt)
 	if !trainingStarted {
@@ -897,7 +898,9 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 			zap.Duration("time_elapsed", time.Since(startedHandlingAt)),
 			zap.Int32("training_events_handled", trainingEventsHandled),
 			zap.Int("total_training_events_for_session", len(c.Session.Trainings)),
-			zap.Float64("percent_done", float64(trainingEventsHandled)/float64(len(c.Session.Trainings))))
+			zap.Float64("percent_done", float64(trainingEventsHandled)/float64(len(c.Session.Trainings))),
+			zap.Time("tick", tick),
+			zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)))
 	}
 
 	return err // Will be nil on success
