@@ -30,6 +30,7 @@ import {
     Switch,
     Text,
     TextInput,
+    Tooltip,
     ValidatedOptions,
 } from '@patternfly/react-core';
 import { DropEvent } from '@patternfly/react-core/src/helpers/typeUtils';
@@ -930,7 +931,8 @@ export const RegisterWorkloadFromTemplateForm: React.FunctionComponent<IRegister
                             each tick is 60 seconds, then setting this value to 1.0 will instruct the Workload Driver to
                             simulate each tick for the full 60 seconds. Alternatively, setting this quantity to 2.0 will
                             instruct the Workload Driver to spend 120 seconds on each tick. Setting the quantity to 0.5
-                            will instruct the Workload Driver to spend 30 seconds on each tick.
+                            will instruct the Workload Driver to spend 30 seconds on each tick. <br /> <br /> Current
+                            value: {form.getValues('timescaleAdjustmentFactor')}
                         </div>
                     }
                 >
@@ -954,51 +956,53 @@ export const RegisterWorkloadFromTemplateForm: React.FunctionComponent<IRegister
                     min: TimescaleAdjustmentFactorMin,
                 }}
                 render={({ field }) => (
-                    <NumberInput
-                        inputName="timescale-adjustment-factor-number-input"
-                        id="timescale-adjustment-factor-number-input"
-                        type="number"
-                        aria-label="Text input for the 'timescale adjustment factor'"
-                        onBlur={field.onBlur}
-                        onChange={(event: React.FormEvent<HTMLInputElement>) => {
-                            field.onChange(parseFloat((event.target as HTMLInputElement).value));
-                        }}
-                        name={field.name}
-                        value={field.value}
-                        min={TimescaleAdjustmentFactorMin}
-                        max={TimescaleAdjustmentFactorMax}
-                        onPlus={() => {
-                            const curr: number = form.getValues('timescaleAdjustmentFactor') as number;
-                            let next: number = curr + TimescaleAdjustmentFactorDelta;
+                    <Tooltip content={form.getValues('timescaleAdjustmentFactor')}>
+                        <NumberInput
+                            inputName="timescale-adjustment-factor-number-input"
+                            id="timescale-adjustment-factor-number-input"
+                            type="number"
+                            aria-label="Text input for the 'timescale adjustment factor'"
+                            onBlur={field.onBlur}
+                            onChange={(event: React.FormEvent<HTMLInputElement>) => {
+                                field.onChange(parseFloat((event.target as HTMLInputElement).value));
+                            }}
+                            name={field.name}
+                            value={field.value}
+                            min={TimescaleAdjustmentFactorMin}
+                            max={TimescaleAdjustmentFactorMax}
+                            onPlus={() => {
+                                const curr: number = form.getValues('timescaleAdjustmentFactor') as number;
+                                let next: number = curr + TimescaleAdjustmentFactorDelta;
 
-                            if (next > TimescaleAdjustmentFactorMax) {
-                                next = TimescaleAdjustmentFactorMax;
-                            }
+                                if (next > TimescaleAdjustmentFactorMax) {
+                                    next = TimescaleAdjustmentFactorMax;
+                                }
 
-                            next = RoundToThreeDecimalPlaces(next);
+                                next = RoundToThreeDecimalPlaces(next);
 
-                            form.setValue(
-                                'timescaleAdjustmentFactor',
-                                clamp(next, TimescaleAdjustmentFactorMin, TimescaleAdjustmentFactorMax),
-                            );
-                        }}
-                        onMinus={() => {
-                            const curr: number = form.getValues('timescaleAdjustmentFactor') as number;
-                            let next: number = curr - TimescaleAdjustmentFactorDelta;
+                                form.setValue(
+                                    'timescaleAdjustmentFactor',
+                                    clamp(next, TimescaleAdjustmentFactorMin, TimescaleAdjustmentFactorMax),
+                                );
+                            }}
+                            onMinus={() => {
+                                const curr: number = form.getValues('timescaleAdjustmentFactor') as number;
+                                let next: number = curr - TimescaleAdjustmentFactorDelta;
 
-                            // For the timescale adjustment factor, we don't want to decrement it to 0.
-                            if (next < TimescaleAdjustmentFactorMin) {
-                                next = TimescaleAdjustmentFactorMin;
-                            }
+                                // For the timescale adjustment factor, we don't want to decrement it to 0.
+                                if (next < TimescaleAdjustmentFactorMin) {
+                                    next = TimescaleAdjustmentFactorMin;
+                                }
 
-                            next = RoundToThreeDecimalPlaces(next);
+                                next = RoundToThreeDecimalPlaces(next);
 
-                            form.setValue(
-                                'timescaleAdjustmentFactor',
-                                clamp(next, TimescaleAdjustmentFactorMin, TimescaleAdjustmentFactorMax),
-                            );
-                        }}
-                    />
+                                form.setValue(
+                                    'timescaleAdjustmentFactor',
+                                    clamp(next, TimescaleAdjustmentFactorMin, TimescaleAdjustmentFactorMax),
+                                );
+                            }}
+                        />
+                    </Tooltip>
                 )}
             />
         </FormGroup>
