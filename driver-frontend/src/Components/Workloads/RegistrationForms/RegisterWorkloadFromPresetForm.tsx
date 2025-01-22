@@ -1,24 +1,25 @@
 import {
-  Button,
-  Dropdown,
-  DropdownItem,
-  DropdownList,
-  Flex,
-  FlexItem,
-  Form,
-  FormGroup,
-  FormHelperText,
-  Grid,
-  GridItem,
-  HelperText,
-  HelperTextItem,
-  MenuToggle,
-  MenuToggleElement,
-  NumberInput,
-  Popover,
-  Switch,
-  TextInput, Tooltip,
-  ValidatedOptions
+    Button,
+    Dropdown,
+    DropdownItem,
+    DropdownList,
+    Flex,
+    FlexItem,
+    Form,
+    FormGroup,
+    FormHelperText,
+    Grid,
+    GridItem,
+    HelperText,
+    HelperTextItem,
+    MenuToggle,
+    MenuToggleElement,
+    NumberInput,
+    Popover,
+    Switch,
+    TextInput,
+    Tooltip,
+    ValidatedOptions,
 } from '@patternfly/react-core';
 import HelpIcon from '@patternfly/react-icons/dist/esm/icons/help-icon';
 import styles from '@patternfly/react-styles/css/components/Form/form';
@@ -483,7 +484,7 @@ export const RegisterWorkloadFromPresetForm: React.FunctionComponent<IRegisterWo
                                     </Popover>
                                 }
                             >
-                                <Tooltip content={timescaleAdjustmentFactor}>
+                                <Tooltip content={timescaleAdjustmentFactor} position={'bottom'}>
                                     <NumberInput
                                         value={timescaleAdjustmentFactor}
                                         onMinus={() =>

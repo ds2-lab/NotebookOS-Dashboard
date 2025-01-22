@@ -956,7 +956,7 @@ export const RegisterWorkloadFromTemplateForm: React.FunctionComponent<IRegister
                     min: TimescaleAdjustmentFactorMin,
                 }}
                 render={({ field }) => (
-                    <Tooltip content={form.getValues('timescaleAdjustmentFactor')}>
+                    <Tooltip content={form.getValues('timescaleAdjustmentFactor')} position={"bottom"}>
                         <NumberInput
                             inputName="timescale-adjustment-factor-number-input"
                             id="timescale-adjustment-factor-number-input"
