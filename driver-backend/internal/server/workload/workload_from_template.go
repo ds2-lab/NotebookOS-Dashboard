@@ -138,8 +138,8 @@ func (w *Template) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			return domain.ErrMissingMaxResourceRequest
 		}
 
-		if session.NumTrainingEvents == 0 && len(session.Trainings) > 0 {
-			session.NumTrainingEvents = len(session.Trainings)
+		if session.NumTrainingEvents == 0 && len(session.TrainingEvents) > 0 {
+			session.NumTrainingEvents = len(session.TrainingEvents)
 		}
 
 		// Need to set this before calling unsafeIsSessionBeingSampled.
@@ -226,9 +226,9 @@ func (w *Template) getSessionTrainingEvent(sessionId string, trainingIndex int) 
 	}
 
 	session := val.(*domain.WorkloadTemplateSession)
-	if trainingIndex > len(session.Trainings) {
+	if trainingIndex > len(session.TrainingEvents) {
 		return nil
 	}
 
-	return session.Trainings[trainingIndex]
+	return session.TrainingEvents[trainingIndex]
 }

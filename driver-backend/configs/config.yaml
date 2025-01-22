@@ -11,7 +11,9 @@ cluster-dashboard-handler-port: 8078
 websocket-proxy-port: 8077
 base-url: "/"
 workload-output-interval-seconds: 2
+workload-output-json-frequency: 5
 apply-time-compression-to-training-durations: true
+drop_sessions_with_no_trainings: true
 
 # The address of the Jupyter Server.
 frontend-jupyter-server-address: 127.0.0.1:8888

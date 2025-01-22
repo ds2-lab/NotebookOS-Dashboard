@@ -196,7 +196,9 @@ type Configuration struct {
 	PrometheusEndpoint            string `name:"prometheus-endpoint" yaml:"prometheus-endpoint" json:"prometheus-endpoint" default:"/metrics"`
 	WorkloadOutputDirectory       string `name:"workload_output_directory" json:"workload_output_directory" yaml:"workload_output_directory" default:"./workload_output_directory"`
 	WorkloadOutputIntervalSec     int    `name:"workload-output-interval-seconds" json:"workload-output-interval-seconds" yaml:"workload-output-interval-seconds"`
+	WorkloadJsonOutputFrequency   int    `name:"workload-output-json-frequency" json:"workload-output-json-frequency" yaml:"workload-output-json-frequency" description:"For every N times that we write statistics to a .CSV file, we write the workload struct itself to a .JSON file."`
 	TimeCompressTrainingDurations bool   `name:"apply-time-compression-to-training-durations" json:"apply-time-compression-to-training-durations" yaml:"apply-time-compression-to-training-durations"`
+	DropSessionsWithNoTrainings   bool   `name:"drop_sessions_with_no_trainings" json:"drop_sessions_with_no_trainings" yaml:"drop_sessions_with_no_trainings" description:"If true, then drop Sessions with no training events from workloads."`
 }
 
 func GetDefaultConfig() *Configuration {
@@ -228,8 +230,10 @@ func GetDefaultConfig() *Configuration {
 		TraceStep:                       60,
 		WorkloadOutputDirectory:         "./workload_output_directory",
 		WorkloadOutputIntervalSec:       2,
+		WorkloadJsonOutputFrequency:     5,
 		TimeCompressTrainingDurations:   true,
 		MaxClientSleepDuringInitSeconds: 120,
+		DropSessionsWithNoTrainings:     true,
 	}
 }
 

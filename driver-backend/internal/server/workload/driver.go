@@ -201,8 +201,9 @@ type BasicWorkloadDriver struct {
 	trainingStoppedChannels            map[string]chan interface{}                // trainingStartedChannels are channels used to notify that training has ended
 	trainingStoppedChannelsMutex       sync.Mutex                                 // trainingStoppedChannelsMutex ensures atomic access to the trainingStoppedChannels
 	workloadOutputInterval             time.Duration                              // workloadOutputInterval defines how often we should collect and write workload output statistics to the CSV file
-	workloadJsonOutputInterval         int                                        // workloadJsonOutputInterval determines how many iterations of statistics publishing must occur before the Workload struct is re-written to a JSON file.
+	workloadJsonOutputFrequency        int                                        // workloadJsonOutputFrequency determines how many iterations of statistics publishing must occur before the Workload struct is re-written to a JSON file.
 	timeCompressTrainingDurations      bool                                       // timeCompressTrainingDurations indicates whether the Workload's TimescaleAdjustmentFactor should be used to compress the duration of training events.
+	DropSessionsWithNoTrainingEvents   bool                                       // DropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
 	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
 	Clients                            map[string]*Client
 	clientsWaitGroup                   sync.WaitGroup
@@ -286,6 +287,8 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		modelsByCategory:                   make(map[string][]string),
 		datasetsByCategory:                 make(map[string][]string),
 		maxClientSleepDuringInitSeconds:    opts.MaxClientSleepDuringInitSeconds,
+		workloadJsonOutputFrequency:        opts.WorkloadJsonOutputFrequency,
+		DropSessionsWithNoTrainingEvents:   opts.DropSessionsWithNoTrainings,
 	}
 
 	driver.pauseCond = sync.NewCond(&driver.pauseMutex)
@@ -675,6 +678,7 @@ func (d *BasicWorkloadDriver) createWorkloadFromTemplate(workloadRegistrationReq
 		SetTimeCompressTrainingDurations(d.timeCompressTrainingDurations).
 		SetRemoteStorageDefinition(workloadRegistrationRequest.RemoteStorageDefinition).
 		SetSessionsSamplePercentage(workloadRegistrationRequest.SessionsSamplePercentage).
+		SetDropSessionsWithNoTrainingEvents(d.DropSessionsWithNoTrainingEvents).
 		Build()
 
 	workloadFromTemplate, err := NewWorkloadFromTemplate(basicWorkload, workloadRegistrationRequest.Sessions)
@@ -1231,7 +1235,7 @@ func (d *BasicWorkloadDriver) writeWorkloadToJsonFile() {
 func (d *BasicWorkloadDriver) publishStatisticsReports(wg *sync.WaitGroup) {
 	var counter int64
 
-	interval := int64(d.workloadJsonOutputInterval)
+	interval := int64(d.workloadJsonOutputFrequency)
 
 	// Write the workload struct to a JSON file.
 	d.writeWorkloadToJsonFile()
@@ -1914,6 +1918,7 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 				WithTimescaleAdjustmentFactor(d.timescaleAdjustmentFactor).
 				WithFileOutput(fileOutputDirectory).
 				WithMaxInitializationSleepIntervalSeconds(d.maxClientSleepDuringInitSeconds).
+				WithDropSessionsWithNoTrainingEvents(d.DropSessionsWithNoTrainingEvents).
 				Build()
 
 			d.Clients[sessionId] = client

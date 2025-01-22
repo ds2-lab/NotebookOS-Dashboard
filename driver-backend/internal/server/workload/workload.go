@@ -138,6 +138,10 @@ type BasicWorkload struct {
 	seedSet                   bool                   // Flag keeping track of whether we've already set the seed for this workload.
 	sessionsSet               bool                   // Flag keeping track of whether we've already set the sessions for this workload.
 
+	// DropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it
+	// finds it has no training events.
+	DropSessionsWithNoTrainingEvents bool
+
 	// OnError is a callback passed to WorkloadDrivers (via the WorkloadManager).
 	// If a critical error occurs during the execution of the workload, then this handler is called.
 	onCriticalError domain.WorkloadErrorHandler
@@ -951,6 +955,29 @@ func (w *BasicWorkload) IsSessionBeingSampled(sessionId string) bool {
 }
 
 func (w *BasicWorkload) unsafeIsSessionBeingSampled(sessionId string) bool {
+	// First, check if we're discarding sessions with no training events.
+	// If we are, then just discard the session.
+	if w.DropSessionsWithNoTrainingEvents {
+		type TrainingEventProvider interface {
+			GetTrainings() []*domain.TrainingEvent
+		}
+
+		val := w.sessionsMap[sessionId]
+		session, ok := val.(TrainingEventProvider)
+		if !ok {
+			panic(fmt.Sprintf("Unexpected session: %v", session))
+		}
+
+		if len(session.GetTrainings()) == 0 {
+			w.logger.Debug("Session has 0 training events. Discarding.",
+				zap.String("workload_id", w.Id),
+				zap.String("session_id", sessionId))
+
+			w.unsafeSetSessionDiscarded(sessionId)
+			return false
+		}
+	}
+
 	// Check if we've already decided to discard events for this session.
 	_, discarded := w.UnsampledSessions[sessionId]
 	if discarded {
