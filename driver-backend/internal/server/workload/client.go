@@ -888,7 +888,16 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithError(err)) // Will be nil on success
 
 	if err == nil {
-		c.trainingEventsHandled.Add(1)
+		trainingEventsHandled := c.trainingEventsHandled.Add(1)
+
+		c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-stopped", domain.LightGreen)),
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.Duration("time_elapsed", time.Since(startedHandlingAt)),
+			zap.Int32("training_events_handled", trainingEventsHandled),
+			zap.Int("total_training_events_for_session", len(c.Session.Trainings)),
+			zap.Float64("percent_done", float64(trainingEventsHandled)/float64(len(c.Session.Trainings))))
 	}
 
 	return err // Will be nil on success
@@ -1415,7 +1424,9 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) 
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.Int64("exec_time_millis", execTimeMillis),
-						zap.Duration("e2e_latency", e2eLatency))
+						zap.Duration("e2e_latency", e2eLatency),
+						zap.Int32("training_events_handled", c.trainingEventsHandled.Load()),
+						zap.Int("total_training_events_for_session", len(c.Session.Trainings)))
 
 					return nil
 				}
