@@ -10,6 +10,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/zhangjyr/gocsv"
 	"io"
+	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -45,11 +46,11 @@ const (
 	// AnyGPU is used by ResourceRequest structs when they do not require/request a specific GPU.
 	AnyGPU = "ANY_GPU"
 
-	// TrainingCode is the code executed by kernels to simulate GPU training.
+	// OldTrainingCode is the code executed by kernels to simulate GPU training.
 	// TODO: Figure out a good way to do this, such as via a library like:
 	// https://github.com/GaetanoCarlucci/CPULoadGenerator/tree/Python3
 	// which could enable us to simulate an actual CPU load based on trace data.
-	TrainingCode = `
+	OldTrainingCode = `
 # This is the code we run in a notebook cell to simulate training.
 import socket, os
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -173,6 +174,7 @@ type BasicWorkloadDriver struct {
 	ticker                             *clock.Ticker                              // Receive Tick events this way.
 	ticksHandled                       atomic.Int64                               // Incremented/accessed atomically.
 	timescaleAdjustmentFactor          float64                                    // Adjusts the timescale of the simulation. Setting this to 1 means that each tick is simulated as a whole minute. Setting this to 0.5 means each tick will be simulated for half its real time. So, if ticks are 60 seconds, and this variable is set to 0.5, then each tick will be simulated for 30 seconds before continuing to the next tick.
+	maxClientSleepDuringInitSeconds    int                                        // maxClientSleepDuringInitSeconds is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
 	websocket                          domain.ConcurrentWebSocket                 // Shared Websocket used to communicate with frontend.
 	workload                           internalWorkload                           // The workload being driven by this driver.
 	workloadStartTime                  time.Time                                  // The time at which the workload began.
@@ -186,7 +188,9 @@ type BasicWorkloadDriver struct {
 	paused                             bool                                       // Paused indicates whether the workload has been paused.
 	trainingSubmittedTimes             *hashmap.HashMap                           // trainingSubmittedTimes keeps track of when "execute_request" messages were sent for different sessions. Keys are internal session IDs, values are unix millisecond timestamps.
 	outputFile                         io.ReadWriteCloser                         // The opened .CSV output statistics file.
-	outputFileDirectory                string                                     // outputFileDirectory is the directory where all the workload-specific output directories live
+	outputFileDirectory                string                                     // outputFileDirectory is the directory where all the workload-specific output directories live. There are sub-directories for each workload in this directory.
+	clientOutputDirectory              string                                     // clientOutputDirectory is the name of the directory where the individual clients will write their output.
+	outputSubdirectoryPath             string                                     // The actual directory where the output of this specific workload will be.
 	outputFilePath                     string                                     // Path to the outputFile
 	outputFileMutex                    sync.Mutex                                 // Atomic access to output file
 	appendToOutputFile                 bool                                       // Flag that is set to true after the first write
@@ -201,6 +205,7 @@ type BasicWorkloadDriver struct {
 	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
 	Clients                            map[string]*Client
 	clientsWaitGroup                   sync.WaitGroup
+	trainingEventSubmitted             bool
 
 	pauseMutex sync.Mutex
 	pauseCond  *sync.Cond
@@ -234,7 +239,7 @@ type BasicWorkloadDriver struct {
 
 func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, timescaleAdjustmentFactor float64,
 	websocket domain.ConcurrentWebSocket, atom *zap.AtomicLevel, callbackProvider CallbackProvider,
-	workloadJobConfig *domain.WorkloadJobConfiguration) *BasicWorkloadDriver {
+	workloadJobConfig *domain.WorkloadJobConfiguration) (*BasicWorkloadDriver, error) {
 
 	jupyterAddress := path.Join(opts.InternalJupyterServerAddress, opts.JupyterServerBasePath)
 
@@ -279,6 +284,7 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		modelDatasetCategories:             make([]string, 0),
 		modelsByCategory:                   make(map[string][]string),
 		datasetsByCategory:                 make(map[string][]string),
+		maxClientSleepDuringInitSeconds:    opts.MaxClientSleepDuringInitSeconds,
 	}
 
 	driver.pauseCond = sync.NewCond(&driver.pauseMutex)
@@ -286,9 +292,31 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	// Create the ticker for the workload.
 	driver.ticker = driver.clockTrigger.NewSyncTicker(time.Second*time.Duration(opts.TraceStep), fmt.Sprintf("Workload-%s", driver.id), driver.clockTime)
 
-	zapConfig := zap.NewDevelopmentEncoderConfig()
-	zapConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zapConfig), zapcore.AddSync(colorable.NewColorableStdout()), driver.atom)
+	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()
+	zapEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zapEncoderConfig), zapcore.AddSync(colorable.NewColorableStdout()), atom)
+
+	outputDirectoryCreationError := driver.createOutputDirectory()
+	if outputDirectoryCreationError != nil {
+		return nil, outputDirectoryCreationError
+	}
+
+	driverOutputLogFilePath := path.Join(driver.outputSubdirectoryPath, fmt.Sprintf("workload_driver_%s_output.json", driver.ID()))
+
+	var core zapcore.Core
+	// Create file output as well.
+	logFile, outputFileCreationError := os.Create(driverOutputLogFilePath)
+	if outputFileCreationError != nil {
+		return nil, outputFileCreationError
+	}
+
+	writer := zapcore.AddSync(logFile)
+
+	zapFileEncoderConfig := zap.NewDevelopmentEncoderConfig()
+	zapFileEncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(zapFileEncoderConfig), writer, atom)
+	core = zapcore.NewTee(consoleCore, fileCore)
+
 	logger := zap.New(core, zap.Development())
 	if logger == nil {
 		panic("failed to create logger for workload driver")
@@ -300,9 +328,10 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	// TODO: Can we just load them in from a file once? Why do this for every single workload?
 	// Load the list of workload presets from the specified file.
 	driver.logger.Debug("Loading workload presets from file now.", zap.String("filepath", opts.WorkloadPresetsFilepath))
-	presets, err := domain.LoadWorkloadPresetsFromFile(opts.WorkloadPresetsFilepath)
-	if err != nil {
-		driver.logger.Error("Error encountered while loading workload presets from file now.", zap.String("filepath", opts.WorkloadPresetsFilepath), zap.Error(err))
+	presets, readPresetFileError := domain.LoadWorkloadPresetsFromFile(opts.WorkloadPresetsFilepath)
+	if readPresetFileError != nil {
+		driver.logger.Error("Error encountered while loading workload presets from file now.",
+			zap.String("filepath", opts.WorkloadPresetsFilepath), zap.Error(readPresetFileError))
 	}
 
 	driver.workloadPresets = make(map[string]*domain.WorkloadPreset, len(presets))
@@ -366,7 +395,7 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		driver.datasetsByCategory[datasetConfig.Type] = datasets
 	}
 
-	return driver
+	return driver, nil
 }
 
 //// GetStatisticsFileOutputPath returns the path to the statistics CSV file.
@@ -526,6 +555,7 @@ func (d *BasicWorkloadDriver) createWorkloadFromPreset(workloadRegistrationReque
 		SetRemoteStorageDefinition(workloadRegistrationRequest.RemoteStorageDefinition).
 		SetSessionsSamplePercentage(workloadRegistrationRequest.SessionsSamplePercentage).
 		SetTimeCompressTrainingDurations(d.timeCompressTrainingDurations).
+		WithFileOutput("").
 		Build()
 
 	workloadFromPreset := NewWorkloadFromPreset(basicWorkload, d.workloadPreset)
@@ -952,6 +982,41 @@ func (d *BasicWorkloadDriver) publishStatisticsReport() {
 	}
 }
 
+// createOutputDirectory creates the output directories for the workload (where the .CSV file is written).
+func (d *BasicWorkloadDriver) createOutputDirectory() error {
+	outputSubdir := time.Now().Format("01-02-2006 15:04:05")
+	outputSubdir = strings.ReplaceAll(outputSubdir, ":", "-")
+	outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.id)
+	d.outputSubdirectoryPath = filepath.Join(d.outputFileDirectory, outputSubdir)
+
+	err := os.MkdirAll(d.outputSubdirectoryPath, os.ModePerm)
+	if err != nil {
+		d.logger.Error("Failed to create parent directories for workload .CSV output.",
+			zap.String("workload_id", d.id),
+			zap.String("workload_name", d.workload.WorkloadName()),
+			zap.String("path", d.outputSubdirectoryPath),
+			zap.Error(err))
+		d.handleCriticalError(err)
+		return err
+	}
+
+	d.clientOutputDirectory = filepath.Join(d.outputSubdirectoryPath, "clients")
+	err = os.MkdirAll(d.clientOutputDirectory, os.ModePerm)
+	if err != nil {
+		d.logger.Error("Failed to create parent directories for workload client output.",
+			zap.String("workload_id", d.id),
+			zap.String("workload_name", d.workload.WorkloadName()),
+			zap.String("path", d.outputSubdirectoryPath),
+			zap.Error(err))
+		d.handleCriticalError(err)
+		return err
+	}
+
+	d.outputFilePath = filepath.Join(d.outputSubdirectoryPath, "workload_stats.csv")
+
+	return nil
+}
+
 // DriveWorkload accepts a *sync.WaitGroup that is used to notify the caller when the workload has completed.
 // This issues clock ticks as events are submitted.
 //
@@ -960,24 +1025,6 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 	var err error
 
 	if !d.OutputCsvDisabled {
-		outputSubdir := time.Now().Format("01-02-2006 15:04:05")
-		outputSubdir = strings.ReplaceAll(outputSubdir, ":", "-")
-		outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.workload.GetId())
-		outputSubdirectoryPath := filepath.Join(d.outputFileDirectory, outputSubdir)
-
-		err = os.MkdirAll(outputSubdirectoryPath, os.ModePerm)
-		if err != nil {
-			d.logger.Error("Failed to create parent directories for workload .CSV output.",
-				zap.String("workload_id", d.id),
-				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("path", outputSubdirectoryPath),
-				zap.Error(err))
-			d.handleCriticalError(err)
-			return
-		}
-
-		d.outputFilePath = filepath.Join(outputSubdirectoryPath, "workload_stats.csv")
-
 		d.outputFileMutex.Lock()
 		d.outputFile, err = os.OpenFile(d.outputFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 		d.outputFileMutex.Unlock()
@@ -986,7 +1033,7 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 			d.logger.Error("Failed to create .CSV output file for workload.",
 				zap.String("workload_id", d.id),
 				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("path", outputSubdirectoryPath),
+				zap.String("path", d.outputSubdirectoryPath),
 				zap.Error(err))
 			d.handleCriticalError(err)
 			return
@@ -1101,6 +1148,10 @@ OUTER:
 				d.workload.SetNextExpectedEventSession(evt.SessionId)
 
 				d.eventQueue.EnqueueEvent(evt)
+
+				if evt.Name == domain.EventSessionTraining || evt.Name == domain.EventSessionTrainingStarted {
+					d.trainingEventSubmitted = true
+				}
 			} else {
 				d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" does NOT occur before next tick [%v] (i.e., tick #%d). Will have to issue clock ticks until we get to event's timestamp of [%v] (i.e., tick #%d).",
 					evt.Name.String(), evt.ID, evt.SessionID(), nextTick, nextTick.Unix()/d.targetTickDurationSeconds, evt.Timestamp, evt.Timestamp.Unix()/d.targetTickDurationSeconds)
@@ -1121,6 +1172,10 @@ OUTER:
 				}
 				nextTick = d.currentTick.GetClockTime().Add(d.targetTickDuration)
 				d.eventQueue.EnqueueEvent(evt)
+
+				if evt.Name == domain.EventSessionTraining || evt.Name == domain.EventSessionTrainingStarted {
+					d.trainingEventSubmitted = true
+				}
 			}
 		case <-d.workloadEventGeneratorCompleteChan:
 			d.logger.Debug("Drivers finished generating events.",
@@ -1389,7 +1444,17 @@ func (d *BasicWorkloadDriver) issueClockTicks(timestamp time.Time) error {
 			//	zap.String("workload_id", d.id),
 			//	zap.String("workload_name", d.workload.WorkloadName()),
 			//	zap.String("workload_state", d.workload.GetState().String()))
-			time.Sleep(tickRemaining)
+
+			if !d.trainingEventSubmitted && d.schedulingPolicy != "static" && d.schedulingPolicy != "dynamic v3" && d.schedulingPolicy != "dynamic v4" {
+				// Pick the shorter of the two: 10ms or whatever the computed 'tickRemaining' quantity is.
+				sleepInterval := math.Min(float64(tickRemaining), float64(time.Millisecond*15))
+
+				// Skip quickly through the beginning of the workload before any training events are submitted.
+				time.Sleep(time.Duration(sleepInterval))
+			} else {
+				// Skip quickly through the beginning of the workload before any training events are submitted.
+				time.Sleep(tickRemaining)
+			}
 		}
 
 		tickDuration := time.Since(tickStart)
@@ -1783,6 +1848,8 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 				zap.String("model", model),
 				zap.String("dataset", dataset))
 
+			fileOutputDirectory := path.Join(d.clientOutputDirectory, fmt.Sprintf("client-%s.json", sessionId))
+
 			client := NewClientBuilder().
 				WithSessionId(sessionId).
 				WithWorkloadId(d.workload.GetId()).
@@ -1800,6 +1867,8 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 				WithNotifyCallback(d.notifyCallback).
 				WithWaitGroup(&d.clientsWaitGroup).
 				WithTimescaleAdjustmentFactor(d.timescaleAdjustmentFactor).
+				WithFileOutput(fileOutputDirectory).
+				WithMaxInitializationSleepIntervalSeconds(d.maxClientSleepDuringInitSeconds).
 				Build()
 
 			d.Clients[sessionId] = client

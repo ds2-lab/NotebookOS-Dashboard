@@ -62,8 +62,8 @@ const GetDefaultSessionFieldValue = () => {
 
 const DefaultRemoteStorageDefinition = {
     name: 'AWS S3',
-    downloadRate: 200e6,
-    uploadRate: 125e6,
+    downloadRate: 250e6,
+    uploadRate: 175e6,
     downloadRateVariancePercentage: 5,
     uploadRateVariancePercentage: 5,
     readFailureChancePercentage: 0.0,

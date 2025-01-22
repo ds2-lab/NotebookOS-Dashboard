@@ -8,7 +8,7 @@ interface Dataset {
     name: string;
 }
 
-export const Categories: 'Computer Vision (CV)' | 'Natural Language Processing (NLP)' | 'Speech'[] = [
+export const Categories: ('Computer Vision (CV)' | 'Natural Language Processing (NLP)' | 'Speech')[] = [
     'Computer Vision (CV)',
     'Natural Language Processing (NLP)',
     'Speech',

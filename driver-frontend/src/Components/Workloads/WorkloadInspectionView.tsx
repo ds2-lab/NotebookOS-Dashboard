@@ -203,22 +203,22 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                             </DescriptionListTerm>
                             <DescriptionListDescription>{getTimeElapsedString()}</DescriptionListDescription>
                         </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Workload Clock Time <UserClockIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>
-                                {props.workload?.simulation_clock_time == ''
-                                    ? 'N/A'
-                                    : props.workload?.simulation_clock_time}
-                            </DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Current Tick <Stopwatch20Icon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>{getCurrentTickField()}</DescriptionListDescription>
-                        </DescriptionListGroup>
+                        {/*<DescriptionListGroup>*/}
+                        {/*    <DescriptionListTerm>*/}
+                        {/*        Workload Clock Time <UserClockIcon />*/}
+                        {/*    </DescriptionListTerm>*/}
+                        {/*    <DescriptionListDescription>*/}
+                        {/*        {props.workload?.simulation_clock_time == ''*/}
+                        {/*            ? 'N/A'*/}
+                        {/*            : props.workload?.simulation_clock_time}*/}
+                        {/*    </DescriptionListDescription>*/}
+                        {/*</DescriptionListGroup>*/}
+                        {/*<DescriptionListGroup>*/}
+                        {/*    <DescriptionListTerm>*/}
+                        {/*        Current Tick <Stopwatch20Icon />*/}
+                        {/*    </DescriptionListTerm>*/}
+                        {/*    <DescriptionListDescription>{getCurrentTickField()}</DescriptionListDescription>*/}
+                        {/*</DescriptionListGroup>*/}
                         {/*<DescriptionListGroup>*/}
                         {/*    <DescriptionListTerm>*/}
                         {/*        Last Tick Duration (ms) <ClockIcon />*/}

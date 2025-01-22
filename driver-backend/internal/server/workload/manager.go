@@ -311,13 +311,18 @@ func (m *BasicWorkloadManager) RegisterWorkload(request *domain.WorkloadRegistra
 	defer m.mu.Unlock()
 
 	// Create a new workload driver.
-	workloadDriver := NewBasicWorkloadDriver(m.configuration, true, request.TimescaleAdjustmentFactor,
+	workloadDriver, err := NewBasicWorkloadDriver(m.configuration, true, request.TimescaleAdjustmentFactor,
 		ws, m.atom, m.callbackProvider, m.workloadJobConfiguration)
+	if err != nil {
+		m.logger.Error("Failed to create workload driver.",
+			zap.Any("workload-registration-request", request), zap.Error(err))
+		return nil, err
+	}
 
-	// Register a new workload with the workload driver.
 	workload, err := workloadDriver.RegisterWorkload(request)
 	if err != nil {
-		m.logger.Error("Failed to create and register new workload.", zap.Any("workload-registration-request", request), zap.Error(err))
+		m.logger.Error("Failed to create and register new workload.",
+			zap.Any("workload-registration-request", request), zap.Error(err))
 		return nil, err
 	}
 

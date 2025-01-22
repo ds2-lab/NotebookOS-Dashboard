@@ -4,6 +4,7 @@ import {
     CopyIcon,
     CpuIcon,
     ErrorCircleOIcon,
+    InProgressIcon,
     MemoryIcon,
     OffIcon,
     PendingIcon,
@@ -12,7 +13,7 @@ import {
     UnknownIcon,
     WarningTriangleIcon,
 } from '@patternfly/react-icons';
-import { ExpandableRowContent, Table, Tbody, Td, Th, Thead, ThProps, Tr } from '@patternfly/react-table';
+import { ExpandableRowContent, Table, Tbody, Td, Th, ThProps, Thead, Tr } from '@patternfly/react-table';
 import { GpuIcon, GpuIconAlt2 } from '@src/Assets/Icons';
 import { SessionTrainingEventTable } from '@src/Components';
 import { RoundToThreeDecimalPlaces, RoundToTwoDecimalPlaces } from '@src/Utils';
@@ -82,6 +83,14 @@ function getSessionStatusLabel(session: Session): ReactElement {
             return (
                 <Tooltip position="right" content="This session is actively-running, but it is not currently training.">
                     <Label icon={<ResourcesEmptyIcon />} color="blue">
+                        {status}
+                    </Label>
+                </Tooltip>
+            );
+        case 'training_submitted':
+            return (
+                <Tooltip position="right" content="This session is about to start actively training.">
+                    <Label icon={<InProgressIcon />} color="green">
                         {status}
                     </Label>
                 </Tooltip>

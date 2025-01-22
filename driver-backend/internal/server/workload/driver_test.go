@@ -127,6 +127,7 @@ var (
 		WorkloadOutputDirectory:                        "./workload-output",
 		WorkloadOutputIntervalSec:                      2,
 		TimeCompressTrainingDurations:                  true,
+		MaxClientSleepDuringInitSeconds:                2,
 	}
 )
 
@@ -190,7 +191,9 @@ var _ = Describe("Workload Driver Tests", func() {
 				timescaleAdjustmentFactor = 0.01667
 
 				atom = zap.NewAtomicLevelAt(zap.DebugLevel)
-				workloadDriver = workload.NewBasicWorkloadDriver(workloadDriverOpts, true, timescaleAdjustmentFactor,
+
+				var err error
+				workloadDriver, err = workload.NewBasicWorkloadDriver(workloadDriverOpts, true, timescaleAdjustmentFactor,
 					mockWebsocket, &atom, mockCallbackProvider, &domain.WorkloadJobConfiguration{
 						Models: []*domain.ModelConfig{
 							{
@@ -205,6 +208,7 @@ var _ = Describe("Workload Driver Tests", func() {
 							},
 						},
 					})
+				Expect(err).To(BeNil())
 
 				workloadDriver.OutputCsvDisabled = true
 				workloadDriver.KernelManager = mockKernelManager
@@ -606,15 +610,15 @@ var _ = Describe("Workload Driver Tests", func() {
 					firstCreateSessionAttemptWg1.Add(1)
 					firstCreateSessionAttemptWg2.Add(1)
 
-					setupFailedCreateAttempt := func(atttemptNumber int) {
+					setupFailedCreateAttempt := func(attemptNumber int) {
 						mockKernelManager.EXPECT().CreateSession(sessionId, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 							func(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *jupyter.ResourceSpec) (*jupyter.SessionConnection, error) {
-								fmt.Printf("\nKernelSessionManager::CreateSession has been called (and will fail) on attempt #%d\n", atttemptNumber)
+								fmt.Printf("\nKernelSessionManager::CreateSession has been called (and will fail) on attempt #%d\n", attemptNumber)
 
 								// Tell the main goroutine that we've called KernelSessionManager::CreateSession.
 								firstCreateSessionAttemptWg1.Done()
 
-								fmt.Printf("\nWaiting for next mocked call to KernelSessionManager::CreateSession to be set up before returning on attempt #%d\n", atttemptNumber)
+								fmt.Printf("\nWaiting for next mocked call to KernelSessionManager::CreateSession to be set up before returning on attempt #%d\n", attemptNumber)
 
 								// Wait for the main goroutine to set up the next expected call to KernelSessionManager::CreateSession.
 								firstCreateSessionAttemptWg2.Wait()
@@ -622,7 +626,7 @@ var _ = Describe("Workload Driver Tests", func() {
 								// Reset the barrier for the next time we call this.
 								firstCreateSessionAttemptWg2.Add(1)
 
-								fmt.Printf("\nReturning from KernelSessionManager::CreateSession with an error on attempt #%d\n", atttemptNumber)
+								fmt.Printf("\nReturning from KernelSessionManager::CreateSession with an error on attempt #%d\n", attemptNumber)
 
 								return nil, fmt.Errorf("insufficient hosts available")
 							})

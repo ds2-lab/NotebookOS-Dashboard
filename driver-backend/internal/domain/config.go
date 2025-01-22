@@ -32,46 +32,47 @@ var (
 // These are all parsed and converted into flag arguments using the
 // provided 'flag' package (i.e., the one that's part of the standard library).
 type Configuration struct {
-	YAML                         string `name:"yaml" description:"Path to config file in the yml format."`
-	TraceStep                    int64  `name:"trace-step" description:"Default interval, in seconds, of two consecutive trace readings."`
-	GPUTraceFile                 string `name:"gputrace" description:"File path of GPU utilization trace."`
-	GPUTraceStep                 int64  `name:"gputrace-step" description:"Interval, in seconds, of two consecutive trace readings of GPU."`
-	GPUMappingFile               string `name:"gpumap" description:"File path of GPU idx/pod map."`
-	MaxSessionCpuFile            string `name:"max-session-cpu-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the lifetime-maximum CPU utilization of each session."`        // File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max CPU used by each session.
-	MaxSessionMemFile            string `name:"max-session-mem-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the lifetime-maximum memory (in bytes) used by each session."` // // File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max memory (in bytes) used by each session.
-	MaxSessionGpuFile            string `name:"max-session-gpu-file" desciption:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the lifetime-maximum GPU utilization of each session."`         // File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max CPU used by each session.
-	MaxTaskCpuFile               string `name:"max-task-cpu-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max CPU utilization achieved within each individual training task."`
-	MaxTaskMemFile               string `name:"max-task-mem-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max memory (in bytes) used within each individual training task."`
-	MaxTaskGpuFile               string `name:"max-task-gpu-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max GPU utilization achieved within each individual training task."`
-	CPUTraceFile                 string `name:"cputrace" description:"File path of CPU counter trace."`
-	CPUTraceStep                 int64  `name:"cputrace-step" description:"Interval, in seconds, of two consecutive trace readings of CPU."`
-	CPUMappingFile               string `name:"cpumap" description:"File path of CPU idx/pod map."`
-	CPUDowntime                  string `name:"cpudown" description:"CPU trace downtime."`
-	MemTraceFile                 string `name:"memtrace" description:"File path of memory usage trace."`
-	MemTraceStep                 int64  `name:"memtrace-step" description:"Interval, in seconds, of two consecutive trace readings of memory."`
-	MemMappingFile               string `name:"memmap" description:"File path of memory idx/pod map."`
-	FromMonth                    string `name:"from-month" description:"Month the trace starts if the path of trace file contains placeholder."`
-	ToMonth                      string `name:"to-month" description:"Month the trace ends if the path of trace file contains placeholder."`
-	Output                       string `name:"o" description:"Path to output csv data."`
-	ClusterStatsOutput           string `name:"cluster-stats-output" description:"File to output cluster stats as a CSV"`
-	OutputSessions               string `name:"output-sessions" description:"Path to output all sessions."`
-	OutputTasks                  string `name:"output-tasks" description:"Path to output all tasks."`
-	OutputTaskIntervals          string `name:"output-task-intervals" description:"Path to output all task intervals."`
-	OutputReschedIntervals       string `name:"output-reschedule-intervals" description:"Path to output reschedule intervals."`
-	InspectPod                   string `name:"pod" description:"Inspect the behavior of specified pod."`
-	InspectGPU                   bool   `name:"pod-gpu" description:"Inspect the gpu readings of specified pod."`
-	InspectionClass              string `name:"pod-class" description:"The type of behavior will be inspected. Choose from trace or entity"`
-	Debug                        bool   `name:"debug" description:"Display debug logs."`
-	Verbose                      bool   `name:"v" description:"Display verbose logs."`
-	Seed                         int64  `name:"seed" description:"Random seed to reproduce simulation."`
-	LastTimestamp                int64  `name:"last-timestamp" description:"Epoch Unix Timestamp denoting the last timestamp for which events will be generated. Any events beyond that point will be discarded."`
-	EvictHostOnLastContainerStop int    `name:"evict-host-on-last-container-stop" description:"Override the default settings for whatever Scheduler you're using and force a value for this parameter. -1 to force false, 0 to leave as default for the particular scheduler, and 1 to force true."`
-	WorkloadPresetsFilepath      string `name:"workload-presets-file" description:"Path to a .YAML file containing the definitions of one or more Workload Presets."`
-	WorkloadTemplatesFilepath    string `name:"workload-templates-file" yaml:"workload-templates-file" json:"workload-templates-file"`
-	WorkloadJobConfigFilepath    string `name:"workload-job-config-file" yaml:"workload-job-config-file" json:"workload-job-config-file"`
-	ExpectedOriginPort           int    `name:"expected-origin-port" description:"Port of the expected origin for messages from the frontend."`
-	ExpectedOriginAddresses      string `name:"expected_websocket_origins" json:"expected_websocket_origins" yaml:"expected_websocket_origins" description:"Comma-separated list of addresses (without ports) passed as a single string. These are acceptable/expected origins for the websocket connection upgrader to allow."`
-	ClusterDashboardHandlerPort  int    `name:"cluster-dashboard-handler-port" description:"Port for the Cluster Dashboard handler gRPC server to listen on."`
+	YAML                            string `name:"yaml" description:"Path to config file in the yml format."`
+	TraceStep                       int64  `name:"trace-step" description:"Default interval, in seconds, of two consecutive trace readings."`
+	GPUTraceFile                    string `name:"gputrace" description:"File path of GPU utilization trace."`
+	GPUTraceStep                    int64  `name:"gputrace-step" description:"Interval, in seconds, of two consecutive trace readings of GPU."`
+	GPUMappingFile                  string `name:"gpumap" description:"File path of GPU idx/pod map."`
+	MaxSessionCpuFile               string `name:"max-session-cpu-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the lifetime-maximum CPU utilization of each session."`        // File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max CPU used by each session.
+	MaxSessionMemFile               string `name:"max-session-mem-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the lifetime-maximum memory (in bytes) used by each session."` // // File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max memory (in bytes) used by each session.
+	MaxSessionGpuFile               string `name:"max-session-gpu-file" desciption:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the lifetime-maximum GPU utilization of each session."`         // File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max CPU used by each session.
+	MaxTaskCpuFile                  string `name:"max-task-cpu-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max CPU utilization achieved within each individual training task."`
+	MaxTaskMemFile                  string `name:"max-task-mem-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max memory (in bytes) used within each individual training task."`
+	MaxTaskGpuFile                  string `name:"max-task-gpu-file" description:"File obtained during a 'pre-run' of the simulator that simply reads thru the trace data. Contains the max GPU utilization achieved within each individual training task."`
+	CPUTraceFile                    string `name:"cputrace" description:"File path of CPU counter trace."`
+	CPUTraceStep                    int64  `name:"cputrace-step" description:"Interval, in seconds, of two consecutive trace readings of CPU."`
+	CPUMappingFile                  string `name:"cpumap" description:"File path of CPU idx/pod map."`
+	CPUDowntime                     string `name:"cpudown" description:"CPU trace downtime."`
+	MemTraceFile                    string `name:"memtrace" description:"File path of memory usage trace."`
+	MemTraceStep                    int64  `name:"memtrace-step" description:"Interval, in seconds, of two consecutive trace readings of memory."`
+	MemMappingFile                  string `name:"memmap" description:"File path of memory idx/pod map."`
+	FromMonth                       string `name:"from-month" description:"Month the trace starts if the path of trace file contains placeholder."`
+	ToMonth                         string `name:"to-month" description:"Month the trace ends if the path of trace file contains placeholder."`
+	Output                          string `name:"o" description:"Path to output csv data."`
+	ClusterStatsOutput              string `name:"cluster-stats-output" description:"File to output cluster stats as a CSV"`
+	OutputSessions                  string `name:"output-sessions" description:"Path to output all sessions."`
+	OutputTasks                     string `name:"output-tasks" description:"Path to output all tasks."`
+	OutputTaskIntervals             string `name:"output-task-intervals" description:"Path to output all task intervals."`
+	OutputReschedIntervals          string `name:"output-reschedule-intervals" description:"Path to output reschedule intervals."`
+	InspectPod                      string `name:"pod" description:"Inspect the behavior of specified pod."`
+	InspectGPU                      bool   `name:"pod-gpu" description:"Inspect the gpu readings of specified pod."`
+	InspectionClass                 string `name:"pod-class" description:"The type of behavior will be inspected. Choose from trace or entity"`
+	Debug                           bool   `name:"debug" description:"Display debug logs."`
+	Verbose                         bool   `name:"v" description:"Display verbose logs."`
+	Seed                            int64  `name:"seed" description:"Random seed to reproduce simulation."`
+	LastTimestamp                   int64  `name:"last-timestamp" description:"Epoch Unix Timestamp denoting the last timestamp for which events will be generated. Any events beyond that point will be discarded."`
+	EvictHostOnLastContainerStop    int    `name:"evict-host-on-last-container-stop" description:"Override the default settings for whatever Scheduler you're using and force a value for this parameter. -1 to force false, 0 to leave as default for the particular scheduler, and 1 to force true."`
+	WorkloadPresetsFilepath         string `name:"workload-presets-file" description:"Path to a .YAML file containing the definitions of one or more Workload Presets."`
+	WorkloadTemplatesFilepath       string `name:"workload-templates-file" yaml:"workload-templates-file" json:"workload-templates-file"`
+	WorkloadJobConfigFilepath       string `name:"workload-job-config-file" yaml:"workload-job-config-file" json:"workload-job-config-file"`
+	ExpectedOriginPort              int    `name:"expected-origin-port" description:"Port of the expected origin for messages from the frontend."`
+	ExpectedOriginAddresses         string `name:"expected_websocket_origins" json:"expected_websocket_origins" yaml:"expected_websocket_origins" description:"Comma-separated list of addresses (without ports) passed as a single string. These are acceptable/expected origins for the websocket connection upgrader to allow."`
+	ClusterDashboardHandlerPort     int    `name:"cluster-dashboard-handler-port" description:"Port for the Cluster Dashboard handler gRPC server to listen on."`
+	MaxClientSleepDuringInitSeconds int    `name:"max_client_sleep_during_init_seconds" json:"max_client_sleep_during_init_seconds" yaml:"max_client_sleep_during_init_seconds" description:"The maximum amount of time that the Client should sleep for during exponential backoff when it is first being created."`
 
 	DriverTimescale float64 `name:"driver-timescale" description:"Multiplier that impacts the timescale at the Driver will operate on with respect to the trace data. For example, if each tick is 60 seconds, then a DriverTimescale value of 0.5 will mean that each tick will take 30 seconds."`
 
@@ -207,27 +208,28 @@ func GetDefaultConfig() *Configuration {
 	}
 
 	return &Configuration{
-		InCluster:                     false,
-		KernelQueryInterval:           "60s",
-		NodeQueryInterval:             "120s",
-		KubeConfig:                    kubeconfigDefaultValue,
-		GatewayAddress:                "localhost:8079",
-		KernelSpecQueryInterval:       "600s",
-		FrontendJupyterServerAddress:  "localhost:8888",
-		InternalJupyterServerAddress:  "localhost:8888",
-		JupyterServerBasePath:         "/",
-		ServerPort:                    8000,
-		WorkloadDriverKernelSpec:      "distributed",
-		PushUpdateInterval:            1,
-		ConnectToKernelTimeoutMillis:  60000,
-		WebsocketProxyPort:            8001,
-		ClusterDashboardHandlerPort:   8078,
-		ExpectedOriginPort:            9001,
-		ExpectedOriginAddresses:       "localhost,127.0.0.1",
-		TraceStep:                     60,
-		WorkloadOutputDirectory:       "./workload_output_directory",
-		WorkloadOutputIntervalSec:     2,
-		TimeCompressTrainingDurations: true,
+		InCluster:                       false,
+		KernelQueryInterval:             "60s",
+		NodeQueryInterval:               "120s",
+		KubeConfig:                      kubeconfigDefaultValue,
+		GatewayAddress:                  "localhost:8079",
+		KernelSpecQueryInterval:         "600s",
+		FrontendJupyterServerAddress:    "localhost:8888",
+		InternalJupyterServerAddress:    "localhost:8888",
+		JupyterServerBasePath:           "/",
+		ServerPort:                      8000,
+		WorkloadDriverKernelSpec:        "distributed",
+		PushUpdateInterval:              1,
+		ConnectToKernelTimeoutMillis:    60000,
+		WebsocketProxyPort:              8001,
+		ClusterDashboardHandlerPort:     8078,
+		ExpectedOriginPort:              9001,
+		ExpectedOriginAddresses:         "localhost,127.0.0.1",
+		TraceStep:                       60,
+		WorkloadOutputDirectory:         "./workload_output_directory",
+		WorkloadOutputIntervalSec:       2,
+		TimeCompressTrainingDurations:   true,
+		MaxClientSleepDuringInitSeconds: 120,
 	}
 }
 

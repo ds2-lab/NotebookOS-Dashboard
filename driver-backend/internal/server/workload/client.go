@@ -46,15 +46,35 @@ type ClientBuilder struct {
 	waitGroup                 *sync.WaitGroup
 	assignedModel             string // assignedModel is the name of the model to be assigned to the client.
 	assignedDataset           string // assignedDataset is the name of the dataset to be assigned to the client.
+	fileOutputPath            string
+	maxSleepDuringInitSec     int // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
 func NewClientBuilder() *ClientBuilder {
-	return &ClientBuilder{}
+	return &ClientBuilder{
+		maxSleepDuringInitSec:     120, // Default
+		timescaleAdjustmentFactor: 1.0, // Default
+	}
+}
+
+// WithMaxInitializationSleepIntervalSeconds is used to set the value of the maxSleepDuringInitSec field.
+// The maxSleepDuringInitSec field is the maximum amount of time that the Client should sleep for during
+// exponential backoff when it is first being created.
+func (b *ClientBuilder) WithMaxInitializationSleepIntervalSeconds(intervalSec int) *ClientBuilder {
+	b.maxSleepDuringInitSec = intervalSec
+	return b
 }
 
 func (b *ClientBuilder) WithDeepLearningModel(model string) *ClientBuilder {
 	b.assignedModel = model
+	return b
+}
+
+// WithFileOutput will instruct the Client [that is to be built] to also output its logs to a file (at the specified
+// path) in addition to outputting its logs to the console/terminal (stdout).
+func (b *ClientBuilder) WithFileOutput(path string) *ClientBuilder {
+	b.fileOutputPath = path
 	return b
 }
 
@@ -168,14 +188,40 @@ func (b *ClientBuilder) Build() *Client {
 		schedulingPolicy:          b.schedulingPolicy,
 		AssignedModel:             b.assignedModel,
 		AssignedDataset:           b.assignedDataset,
+		maxSleepDuringInitSec:     b.maxSleepDuringInitSec,
 	}
 
-	zapConfig := zap.NewDevelopmentEncoderConfig()
-	zapConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zapConfig), zapcore.AddSync(colorable.NewColorableStdout()), b.atom)
+	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()
+	zapEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zapEncoderConfig), zapcore.AddSync(colorable.NewColorableStdout()), b.atom)
+
+	var core zapcore.Core
+	if b.fileOutputPath == "" {
+		core = zapcore.NewTee(consoleCore)
+	} else {
+		//logFile, err := os.Create(b.fileOutputPath)
+		//if err != nil {
+		//	panic(err)
+		//}
+
+		writer, closeFile, err := zap.Open(b.fileOutputPath)
+		if err != nil {
+			panic(err)
+		}
+
+		zapFileEncoderConfig := zap.NewDevelopmentEncoderConfig()
+		zapFileEncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+		fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(zapFileEncoderConfig), writer, b.atom)
+		core = zapcore.NewTee(consoleCore, fileCore)
+
+		// Save a reference to the closeFunc in the Client's closeLogFileFunc field so that
+		// we can close the log file explicitly when stopping the client.
+		client.closeLogFileFunc = closeFile
+	}
+
 	logger := zap.New(core, zap.Development())
 	if logger == nil {
-		panic("failed to create logger for workload driver")
+		panic(fmt.Sprintf("failed to create logger for client %s", b.sessionId))
 	}
 	client.logger = logger
 
@@ -191,6 +237,7 @@ type Client struct {
 	Workload internalWorkload
 	Session  *domain.WorkloadTemplateSession
 
+	maxSleepDuringInitSec     int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
 	SessionId                 string                                 // SessionId is the Jupyter kernel/session ID of this Client
 	WorkloadId                string                                 // WorkloadId is the ID of the workload that the Client is a part of.
 	errorChan                 chan<- error                           // errorChan is used to notify the WorkloadDriver that an error has occurred.
@@ -221,6 +268,17 @@ type Client struct {
 	waitGroup                 *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
 	AssignedModel             string                                 // AssignedModel is the name of the model assigned to this client.
 	AssignedDataset           string                                 // AssignedDataset is the name of the dataset assigned to this client.
+	explicitlyStopped         atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
+	closeLogFileFunc          func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
+}
+
+func (c *Client) closeLogFile() error {
+	if c.closeLogFileFunc == nil {
+		return fmt.Errorf("cannot close log file; no log file open")
+	}
+
+	c.closeLogFileFunc()
+	return nil
 }
 
 // FailedToStart returns a bool that, when true, indicates that this Client completely failed to start.
@@ -267,9 +325,11 @@ func (c *Client) Run() {
 			zap.String("workload_id", c.WorkloadId),
 			zap.Error(err))
 
-		c.running.Store(0)
+		_ = c.Stop()
 		return
 	}
+
+	c.Workload.SessionCreated(c.SessionId, c.Session.Meta)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -278,6 +338,36 @@ func (c *Client) Run() {
 	c.run(&wg)
 
 	wg.Wait()
+
+	// Do some clean-up.
+	c.stop()
+}
+
+// Stop explicitly and forcibly stops the client.
+func (c *Client) Stop() error {
+	c.logger.Warn("Explicitly instructed to stop.")
+
+	// Signal to the client to stop.
+	c.explicitlyStopped.Store(1)
+
+	// Wait briefly.
+	time.Sleep(time.Millisecond * 100)
+
+	c.stop()
+
+	return nil
+}
+
+// stop performs the stopping logic for the Client without setting explicitlyStopped to 1 like Stop does.
+// Specifically, stop flushes any buffered logs before closing the log file. Finally, stop sets running to 0.
+func (c *Client) stop() {
+	// Flush any buffered logs.
+	_ = c.logger.Core().Sync()
+
+	// Close the log file.
+	_ = c.closeLogFile()
+
+	c.running.Store(0)
 }
 
 // createKernel attempts to create the kernel for the Client, possibly handling any errors that are encountered
@@ -316,7 +406,7 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 		Factor:   1.5,
 		Jitter:   1.125,
 		Steps:    10,
-		Cap:      time.Second * 120,
+		Cap:      time.Second * time.Duration(c.maxSleepDuringInitSec),
 	}
 
 	var (
@@ -351,7 +441,7 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 					zap.Time("current_tick", c.currentTick.GetClockTime()),
 					zap.Int32("num_times_enqueued", evt.GetNumTimesEnqueued()),
 					zap.Duration("total_delay", evt.TotalDelay()),
-					zap.Int("attempt_number", backoff.Steps-10+1),
+					zap.Int("attempt_number", 10-backoff.Steps+1),
 					zap.Duration("sleep_interval", sleepInterval))
 
 				// TODO: How to accurately compute the delay here? Since we're using ticks, so one minute is the
@@ -406,7 +496,7 @@ func (c *Client) initialize() error {
 		Factor:   1.25,
 		Jitter:   1.25,
 		Steps:    maximumNumberOfAttempts,
-		Cap:      time.Second * 300,
+		Cap:      time.Second * time.Duration(float64(c.maxSleepDuringInitSec)*1.5 /* slightly longer here */),
 	}
 
 	var (
@@ -512,7 +602,7 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.WorkloadId))
 
-	for c.Workload.IsInProgress() {
+	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 {
 		tickStart := time.Now()
 
 		// Increment the clock.
@@ -561,7 +651,7 @@ func (c *Client) run(wg *sync.WaitGroup) {
 		}
 	}()
 
-	for c.Workload.IsInProgress() {
+	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 {
 		select {
 		case tick := <-c.ticker.TickDelivery:
 			//c.logger.Debug("Client received tick.",
@@ -774,6 +864,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		return nil
 	}
 
+	c.Workload.TrainingStarted(c.SessionId, c.convertCurrentTickTimestampToTickNumber())
+
 	if err != nil {
 		c.logger.Error("Failed to wait for training to start.",
 			zap.String("workload_id", c.Workload.GetId()),
@@ -786,7 +878,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		return err
 	}
 
-	err = c.waitForTrainingToEnd(ctx)
+	err = c.waitForTrainingToEnd(ctx, event)
 	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
 		WithEventId(event.Id()).
 		WithSessionId(event.SessionID()).
@@ -796,7 +888,16 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithError(err)) // Will be nil on success
 
 	if err == nil {
-		c.trainingEventsHandled.Add(1)
+		trainingEventsHandled := c.trainingEventsHandled.Add(1)
+
+		c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-stopped", domain.LightGreen)),
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.Duration("time_elapsed", time.Since(startedHandlingAt)),
+			zap.Int32("training_events_handled", trainingEventsHandled),
+			zap.Int("total_training_events_for_session", len(c.Session.Trainings)),
+			zap.Float64("percent_done", float64(trainingEventsHandled)/float64(len(c.Session.Trainings))))
 	}
 
 	return err // Will be nil on success
@@ -977,18 +1078,19 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 // trainingStartTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
 // training event started being processed after the timeout interval elapses.
 func (c *Client) trainingStartTimedOut(sentRequestAt time.Time) {
+	timeElapsed := time.Since(sentRequestAt)
 	c.logger.Warn("Have not received 'training started' notification for over 1 minute. Assuming message was lost.",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
-		zap.Duration("time_elapsed", time.Since(sentRequestAt)))
+		zap.Duration("time_elapsed", timeElapsed))
 
 	c.notifyCallback(&proto.Notification{
 		Id:    uuid.NewString(),
-		Title: "Have Spent 1+ Minute(s) Waiting for 'Training Started' Notification",
+		Title: fmt.Sprintf("Have Spent Over %v Waiting for 'Training Started' Notification", timeElapsed),
 		Message: fmt.Sprintf("Submitted \"execute_request\" to kernel \"%s\" during workload \"%s\" (ID=\"%s\") "+
-			"over 1 minute ago and have not yet received 'smr_lead_task' IOPub message. Time elapsed: %v.",
-			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), time.Since(sentRequestAt)),
+			"over %v ago and have not yet received 'smr_lead_task' IOPub message.",
+			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed),
 		Panicked:         false,
 		NotificationType: domain.WarningNotification.Int32(),
 	})
@@ -1003,6 +1105,11 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time) {
 // trace step value (also in seconds).
 func (c *Client) convertTimestampToTickNumber(tick time.Time) int64 {
 	return tick.Unix() / c.targetTickDurationSeconds
+}
+
+// convertCurrentTickTimestampToTickNumber converts the current tick to what "tick number" it is.
+func (c *Client) convertCurrentTickTimestampToTickNumber() int64 {
+	return c.currentTick.GetClockTime().Unix() / c.targetTickDurationSeconds
 }
 
 // handleIOPubMessage returns the extracted text.
@@ -1031,7 +1138,7 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(conn jupyter.KernelConnection, ke
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", conn.KernelId()))
 
-	c.Workload.TrainingStarted(c.SessionId, c.convertTimestampToTickNumber(c.currentTick.GetClockTime()))
+	c.Workload.TrainingStarted(c.SessionId, c.convertCurrentTickTimestampToTickNumber())
 
 	// Use the timestamp encoded in the IOPub message to determine when the training actually began,
 	// and then delay the session by how long it took for training to begin.
@@ -1159,18 +1266,18 @@ func (c *Client) CreateExecuteRequestArguments(evt *domain.Event) (*jupyter.Requ
 	milliseconds := float64(evt.Duration.Milliseconds())
 	if c.Workload.ShouldTimeCompressTrainingDurations() {
 		milliseconds = milliseconds * c.timescaleAdjustmentFactor
-		//c.logger.Debug("Applied time-compression to training duration.",
-		//	zap.String("session_id", evt.SessionID()),
-		//	zap.Duration("original_duration", evt.Duration),
-		//	zap.Float64("updated_duration_ms", milliseconds),
-		//	zap.Float64("timescale_adjustment_factor", c.timescaleAdjustmentFactor),
-		//	zap.String("event_id", evt.Id()),
-		//	zap.String("workload_id", c.Workload.GetId()),
-		//	zap.String("workload_name", c.Workload.WorkloadName()))
+		c.logger.Debug("Applied time-compression to training duration.",
+			zap.String("session_id", evt.SessionID()),
+			zap.Duration("original_duration", evt.Duration),
+			zap.Float64("updated_duration_ms", milliseconds),
+			zap.Float64("timescale_adjustment_factor", c.timescaleAdjustmentFactor),
+			zap.String("event_id", evt.Id()),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()))
 	}
 
 	argsBuilder := jupyter.NewRequestExecuteArgsBuilder().
-		Code(TrainingCode).
+		Code(fmt.Sprintf("training_duration_millis = %d", evt.Duration.Milliseconds())).
 		Silent(false).
 		StoreHistory(true).
 		UserExpressions(nil).
@@ -1216,12 +1323,12 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return time.Minute + c.getAdjustedDuration(evt)
+		return (time.Second * 180) + c.getAdjustedDuration(evt)
 	}
 
 	if schedulingPolicy == "static" || schedulingPolicy == "dynamic-v3" || schedulingPolicy == "dynamic-v4" {
 		// There's no network I/O on the critical path, so stopping the training should be quick.
-		return (time.Second * 60) + c.getAdjustedDuration(evt)
+		return (time.Second * 180) + c.getAdjustedDuration(evt)
 	}
 
 	// Get the remote storage definition of the workload.
@@ -1232,7 +1339,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Minute * 2) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
+		return (time.Second * 180) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
 	}
 
 	// Load the session and subsequently its current resource request.
@@ -1244,7 +1351,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Minute * 2) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
+		return (time.Second * 180) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
 	}
 
 	vramBytes := resourceRequest.VRAM * 1000000000
@@ -1253,7 +1360,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 	expectedNetworkIoLatency := readTime + writeTime
 
 	// Extra 30 seconds for whatever shenanigans need to occur.
-	interval := (time.Second * 60) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
+	interval := (time.Second * 180) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
 
 	c.logger.Debug("Computed timeout interval.",
 		zap.String("workload_id", c.Workload.GetId()),
@@ -1268,7 +1375,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 }
 
 // waitForTrainingToEnd waits until we receive an "execute_request" from the kernel.
-func (c *Client) waitForTrainingToEnd(ctx context.Context) error {
+func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) error {
 	select {
 	case v := <-c.TrainingStoppedChannel:
 		{
@@ -1310,12 +1417,16 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context) error {
 						stats.TotalReplyLatencyMillis += delay
 					})
 
+					c.Workload.TrainingStopped(c.SessionId, event, c.convertCurrentTickTimestampToTickNumber())
+
 					c.logger.Debug("Session stopped training",
 						zap.String("session_id", c.SessionId),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.Int64("exec_time_millis", execTimeMillis),
-						zap.Duration("e2e_latency", e2eLatency))
+						zap.Duration("e2e_latency", e2eLatency),
+						zap.Int32("training_events_handled", c.trainingEventsHandled.Load()),
+						zap.Int("total_training_events_for_session", len(c.Session.Trainings)))
 
 					return nil
 				}
