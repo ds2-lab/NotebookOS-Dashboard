@@ -533,7 +533,13 @@ func (s *serverImpl) setupRoutes() error {
 
 	s.sugaredLogger.Debugf("Creating route groups now. (gatewayRpcClient == nil: %v)", s.gatewayRpcClient == nil)
 
-	pprof.Register(s.app, s.getPath("dev/pprof"))
+	debugPath := s.getPath("dev/pprof")
+	pprof.Register(s.app, debugPath)
+	s.logger.Debug("Registered Golang pprof path.", zap.String("path", debugPath))
+
+	secondaryDebugPath := s.getPath("debug/pprof")
+	pprof.Register(s.app, secondaryDebugPath)
+	s.logger.Debug("Registered Golang pprof path.", zap.String("path", secondaryDebugPath))
 
 	// authMiddleware.MiddlewareFunc()
 	s.app.NoRoute(func(c *gin.Context) {

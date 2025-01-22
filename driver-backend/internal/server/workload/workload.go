@@ -103,6 +103,10 @@ type BasicWorkload struct {
 	// UnsampledSessions is a sort of counterpart to the SampledSessions field.
 	UnsampledSessions map[string]interface{} `json:"-"`
 
+	// NumSessionsDiscardedDueToNoTrainingEvents is a counter that keeps track of the number
+	// of sessions that have been discarded because they do not have any training events whatsoever.
+	NumSessionsDiscardedDueToNoTrainingEvents int `json:"num_sessions_discarded_due_to_no_training_events"`
+
 	//AggregateSessionDelayMillis int64  `json:"aggregate_session_delay_ms" csv:"aggregate_session_delay_ms"`
 	Id   string `json:"id"`
 	Name string `json:"name"`
@@ -905,7 +909,7 @@ func (w *BasicWorkload) SessionDiscarded(sessionId string) error {
 }
 
 func (w *BasicWorkload) unsafeSessionDiscarded(sessionId string) error {
-	return w.workloadInstance.SessionDiscarded(sessionId)
+	return w.workloadInstance.unsafeSessionDiscarded(sessionId)
 }
 
 func (w *BasicWorkload) unsafeSetSessionSampled(sessionId string) {
@@ -920,7 +924,7 @@ func (w *BasicWorkload) unsafeSetSessionSampled(sessionId string) {
 }
 
 func (w *BasicWorkload) unsafeSetSessionDiscarded(sessionId string) {
-	err := w.SessionDiscarded(sessionId)
+	err := w.unsafeSessionDiscarded(sessionId)
 	if err != nil {
 		w.logger.Error("Failed to disable session.",
 			zap.String("workload_id", w.Id),
@@ -935,7 +939,9 @@ func (w *BasicWorkload) unsafeSetSessionDiscarded(sessionId string) {
 	w.logger.Debug("Decided to discard events targeting session.",
 		zap.String("session_id", sessionId),
 		zap.Int("num_sampled_sessions", len(w.SampledSessions)),
-		zap.Int("num_discarded_sessions", len(w.UnsampledSessions)))
+		zap.Int("num_discarded_sessions", len(w.UnsampledSessions)),
+		zap.String("workload_id", w.Id),
+		zap.String("workload_name", w.Name))
 }
 
 // IsSessionBeingSampled returns true if the specified session was selected for sampling.
@@ -972,6 +978,8 @@ func (w *BasicWorkload) unsafeIsSessionBeingSampled(sessionId string) bool {
 			w.logger.Debug("Session has 0 training events. Discarding.",
 				zap.String("workload_id", w.Id),
 				zap.String("session_id", sessionId))
+
+			w.NumSessionsDiscardedDueToNoTrainingEvents += 1
 
 			w.unsafeSetSessionDiscarded(sessionId)
 			return false

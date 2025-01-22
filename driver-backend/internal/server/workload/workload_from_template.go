@@ -193,7 +193,7 @@ func (w *Template) SessionCreated(sessionId string, metadata domain.SessionMetad
 }
 
 // SessionDiscarded is used to record that a particular session is being discarded/not sampled.
-func (w *Template) SessionDiscarded(sessionId string) error {
+func (w *Template) unsafeSessionDiscarded(sessionId string) error {
 	val, loaded := w.sessionsMap[sessionId]
 	if !loaded {
 		return fmt.Errorf("%w: \"%s\"", domain.ErrUnknownSession, sessionId)
