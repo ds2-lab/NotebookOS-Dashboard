@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -444,8 +445,9 @@ func (c *Client) getInitialResourceRequest() *jupyter.ResourceSpec {
 func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, error) {
 	initialResourceRequest := c.getInitialResourceRequest()
 
+	initialDuration := time.Second * time.Duration(math.Min(float64(c.maxSleepDuringInitSec), 20))
 	backoff := wait.Backoff{
-		Duration: time.Second * 4,
+		Duration: initialDuration,
 		Factor:   1.5,
 		Jitter:   1.125,
 		Steps:    10,
@@ -538,9 +540,10 @@ func (c *Client) initialize() error {
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.WorkloadId))
 
+	initialDuration := time.Second * time.Duration(math.Min(float64(c.maxSleepDuringInitSec), 30))
 	maximumNumberOfAttempts := 3
 	backoff := wait.Backoff{
-		Duration: time.Second * 30,
+		Duration: initialDuration,
 		Factor:   1.25,
 		Jitter:   1.25,
 		Steps:    maximumNumberOfAttempts,
