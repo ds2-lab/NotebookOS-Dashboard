@@ -1,4 +1,3 @@
-import WorkloadTickDurationChart from '@Components/Workloads/WorkloadTickDurationChart';
 import {
     Checkbox,
     DescriptionList,
@@ -7,8 +6,6 @@ import {
     DescriptionListTerm,
     Flex,
     FlexItem,
-    Text,
-    Tooltip,
 } from '@patternfly/react-core';
 import {
     BlueprintIcon,
@@ -17,16 +14,13 @@ import {
     CodeIcon,
     DiceIcon,
     MonitoringIcon,
-    RunningIcon,
-    Stopwatch20Icon,
     StopwatchIcon,
     TaskIcon,
-    UserClockIcon,
 } from '@patternfly/react-icons';
-import { GetEventLabel, WorkloadEventTable, WorkloadSessionTable } from '@src/Components';
+import { WorkloadEventTable, WorkloadSessionTable } from '@src/Components';
 import { Workload } from '@src/Data';
 import { GetToastContentWithHeaderAndBody } from '@src/Utils/toast_utils';
-import { numberWithCommas, RoundToTwoDecimalPlaces } from '@Utils/utils';
+import { RoundToNDecimalPlaces, RoundToTwoDecimalPlaces } from '@Utils/utils';
 import { uuidv4 } from 'lib0/random';
 import React from 'react';
 import toast, { Toast } from 'react-hot-toast';
@@ -102,36 +96,13 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
         return props.workload?.statistics.time_elapsed_str;
     };
 
-    // const getLastTickDuration = () => {
-    //     if (props.workload.tick_durations_milliseconds.length === 0) {
-    //         return 'N/A';
-    //     }
-    //
-    //     return RoundToThreeDecimalPlaces(
-    //         props.workload.tick_durations_milliseconds[props.workload.tick_durations_milliseconds.length - 1],
-    //     );
-    // };
-
-    // const getAverageTickDuration = () => {
-    //     if (props.workload.tick_durations_milliseconds.length === 0) {
-    //         return 'N/A';
-    //     }
-    //
-    //     return RoundToThreeDecimalPlaces(
-    //         props.workload.sum_tick_durations_millis / props.workload.tick_durations_milliseconds.length,
-    //     );
-    // };
-
-    const getCurrentTickField = () => {
-        const totalTicks: number | undefined = props.workload.statistics.total_num_ticks;
-        const currentTick: number | undefined = props.workload?.statistics.current_tick;
-
-        if (totalTicks !== undefined && totalTicks > 0) {
-            return `${numberWithCommas(currentTick)} / ${numberWithCommas(totalTicks)} (${RoundToTwoDecimalPlaces((currentTick / totalTicks) * 100)}%)`;
+    function getNumSessions(includeDiscarded: boolean): number {
+        if (includeDiscarded) {
+            return props.workload?.sessions.length;
         }
 
-        return currentTick;
-    };
+        return props.workload?.sessions.length - props.workload?.statistics.num_discarded_sessions;
+    }
 
     return (
         <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXl' }}>
@@ -170,7 +141,7 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                                 Time Adjustment Factor <ClockIcon />
                             </DescriptionListTerm>
                             <DescriptionListDescription>
-                                {props.workload?.timescale_adjustment_factor}
+                                {RoundToNDecimalPlaces(props.workload?.timescale_adjustment_factor, 6)}
                             </DescriptionListDescription>
                         </DescriptionListGroup>
                         <DescriptionListGroup>
@@ -203,69 +174,8 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                             </DescriptionListTerm>
                             <DescriptionListDescription>{getTimeElapsedString()}</DescriptionListDescription>
                         </DescriptionListGroup>
-                        {/*<DescriptionListGroup>*/}
-                        {/*    <DescriptionListTerm>*/}
-                        {/*        Workload Clock Time <UserClockIcon />*/}
-                        {/*    </DescriptionListTerm>*/}
-                        {/*    <DescriptionListDescription>*/}
-                        {/*        {props.workload?.simulation_clock_time == ''*/}
-                        {/*            ? 'N/A'*/}
-                        {/*            : props.workload?.simulation_clock_time}*/}
-                        {/*    </DescriptionListDescription>*/}
-                        {/*</DescriptionListGroup>*/}
-                        {/*<DescriptionListGroup>*/}
-                        {/*    <DescriptionListTerm>*/}
-                        {/*        Current Tick <Stopwatch20Icon />*/}
-                        {/*    </DescriptionListTerm>*/}
-                        {/*    <DescriptionListDescription>{getCurrentTickField()}</DescriptionListDescription>*/}
-                        {/*</DescriptionListGroup>*/}
-                        {/*<DescriptionListGroup>*/}
-                        {/*    <DescriptionListTerm>*/}
-                        {/*        Last Tick Duration (ms) <ClockIcon />*/}
-                        {/*    </DescriptionListTerm>*/}
-                        {/*    <DescriptionListDescription>{getLastTickDuration()}</DescriptionListDescription>*/}
-                        {/*</DescriptionListGroup>*/}
-                        {/*<DescriptionListGroup>*/}
-                        {/*    <DescriptionListTerm>*/}
-                        {/*        Average Tick Duration (ms) <ClockIcon />*/}
-                        {/*    </DescriptionListTerm>*/}
-                        {/*    <DescriptionListDescription>{getAverageTickDuration()}</DescriptionListDescription>*/}
-                        {/*</DescriptionListGroup>*/}
-                        {/*<DescriptionListGroup>*/}
-                        {/*    <DescriptionListTerm>*/}
-                        {/*        Next Expected Event <RunningIcon />*/}
-                        {/*    </DescriptionListTerm>*/}
-                        {/*    <DescriptionListDescription>*/}
-                        {/*        <Tooltip*/}
-                        {/*            content={`Event will target Session ${props.workload.statistics.next_expected_event_target}`}*/}
-                        {/*        >*/}
-                        {/*            {props.workload.statistics.next_expected_event_name !== '' ? (*/}
-                        {/*                GetEventLabel(props.workload.statistics.next_expected_event_name)*/}
-                        {/*            ) : (*/}
-                        {/*                <Text component={'p'}>N/A</Text>*/}
-                        {/*            )}*/}
-                        {/*        </Tooltip>*/}
-                        {/*    </DescriptionListDescription>*/}
-                        {/*</DescriptionListGroup>*/}
-                        {/*<DescriptionListGroup>*/}
-                        {/*    <DescriptionListTerm>*/}
-                        {/*        Next Expected Event In <ClockIcon />*/}
-                        {/*    </DescriptionListTerm>*/}
-                        {/*    <DescriptionListDescription>*/}
-                        {/*        {numberWithCommas(*/}
-                        {/*            props.workload?.statistics.next_event_expected_tick -*/}
-                        {/*                props.workload?.statistics.current_tick || 0,*/}
-                        {/*        )}{' '}*/}
-                        {/*        tick(s)*/}
-                        {/*    </DescriptionListDescription>*/}
-                        {/*</DescriptionListGroup>*/}
                     </DescriptionList>
                 </FlexItem>
-                {/*{props.showTickDurationChart && (*/}
-                {/*    <FlexItem>*/}
-                {/*        <WorkloadTickDurationChart workload={props.workload} />*/}
-                {/*    </FlexItem>*/}
-                {/*)}*/}
             </Flex>
             <FlexItem>
                 <Flex direction={{ default: 'row' }}>
@@ -289,14 +199,10 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
             <FlexItem>
                 <Flex direction={{ default: 'row' }}>
                     <FlexItem align={{ default: 'alignLeft' }}>
-                        <ClipboardCheckIcon /> {<strong>Sessions:</strong>}{' '}
-                        {props.workload?.statistics.num_sessions_created} /{' '}
-                        {props.workload?.sessions.length - props.workload?.statistics.num_discarded_sessions} (
+                        <ClipboardCheckIcon /> {<strong>Sessions: </strong>}
+                        {props.workload?.statistics.num_sessions_created} / {getNumSessions(showDiscardedSessions)} (
                         {RoundToTwoDecimalPlaces(
-                            100 *
-                                (props.workload?.statistics.num_sessions_created /
-                                    (props.workload?.sessions.length -
-                                        props.workload?.statistics.num_discarded_sessions)),
+                            100 * (getNumSessions(showDiscardedSessions) / props.workload?.sessions.length),
                         ) + '%'}
                         ) created, {props.workload?.statistics.num_active_trainings} actively training
                     </FlexItem>

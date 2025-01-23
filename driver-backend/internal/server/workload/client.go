@@ -193,6 +193,7 @@ func (b *ClientBuilder) Build() *Client {
 		TrainingStoppedChannel:           make(chan interface{}, 1),
 		Session:                          b.session,
 		kernelSessionManager:             b.kernelSessionManager,
+		sessionReadyEvent:                b.sessionReadyEvent,
 		notifyCallback:                   b.notifyCallback,
 		waitGroup:                        b.waitGroup,
 		schedulingPolicy:                 b.schedulingPolicy,
@@ -255,6 +256,7 @@ type Client struct {
 	kernelConnection                 jupyter.KernelConnection               // kernelConnection is the Client's Jupyter kernel connection. The Client uses this to send messages to its kernel.
 	sessionConnection                *jupyter.SessionConnection             // sessionConnection is the Client's Jupyter session connection.
 	kernelSessionManager             jupyter.KernelSessionManager           // kernelSessionManager is used by the Client to create its sessionConnection and subsequently its kernelConnection.
+	sessionReadyEvent                *domain.Event                          // sessionReadyEvent is the "session-ready" event that triggered the creation of this Client.
 	schedulingPolicy                 string                                 // schedulingPolicy is the name of the scheduling policy that the cluster is configured to use.
 	EventQueue                       *event_queue.SessionEventQueue         // EventQueue contains events to be processed by this Client.
 	maximumResourceSpec              *domain.ResourceRequest                // maximumResourceSpec is the maximum amount of resources this Client may use at any point in its lifetime.
@@ -356,7 +358,14 @@ func (c *Client) Run() {
 		return
 	}
 
-	c.Workload.SessionCreated(c.SessionId, c.Session.Meta)
+	c.Workload.SessionCreated(c.SessionId)
+	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
+		WithEventId(c.sessionReadyEvent.Id()).
+		WithSessionId(c.sessionReadyEvent.SessionID()).
+		WithEventName(c.sessionReadyEvent.Name).
+		WithEventTimestamp(c.sessionReadyEvent.Timestamp).
+		WithProcessedAtTime(time.Now()).
+		WithError(err))
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -496,6 +505,11 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.WorkloadId),
 			zap.Int32("num_attempts_required", c.numSessionStartAttempts.Load()))
+
+		c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("session-started", domain.LightBlue)),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId))
 	}
 
 	return sessionConnection, err

@@ -11,6 +11,8 @@ import (
 // within the frontend dashboard.
 //
 // Presets are how we run workloads from trace data (among other things).
+//
+// Deprecated: as of right now, Preset workloads are not supported. Please use Template workloads.
 type Preset struct {
 	*BasicWorkload
 
@@ -119,52 +121,53 @@ func (w *Preset) SessionDelayed(sessionId string, delayAmount time.Duration) {
 
 // SessionCreated is called when a Session is created for/in the Workload.
 // Just updates some internal metrics.
-func (w *Preset) SessionCreated(sessionId string, metadata domain.SessionMetadata) {
-	w.Statistics.NumActiveSessions += 1
-	w.Statistics.NumSessionsCreated += 1
-
-	if w.MaxUtilizationWrapper == nil {
-		panic("max utilization wrapper not set by the time sessions are being created")
-	}
-
-	maxCpu, loadedCpus := w.MaxUtilizationWrapper.CpuSessionMap[sessionId]
-	if !loadedCpus {
-		w.logger.Warn("Could not load maximum CPU value for session.", zap.String("sessionId", sessionId))
-		maxCpu = 0
-	}
-
-	maxMemory, loadedMemory := w.MaxUtilizationWrapper.MemSessionMap[sessionId]
-	if !loadedMemory {
-		w.logger.Warn("Could not load maximum MEM value for session.", zap.String("sessionId", sessionId))
-		maxMemory = 0
-	}
-
-	maxGpus, loadedGpus := w.MaxUtilizationWrapper.GpuSessionMap[sessionId]
-	if !loadedGpus {
-		w.logger.Warn("Could not load maximum GPU value for session.", zap.String("sessionId", sessionId))
-		maxGpus = 0
-	}
-
-	maxVram, loadedVram := w.MaxUtilizationWrapper.VramSessionMap[sessionId]
-	if !loadedVram {
-		w.logger.Warn("Could not load maximum VRAM value for session.", zap.String("sessionId", sessionId))
-		maxVram = 0
-	}
-
-	maxResourceRequest := domain.NewResourceRequest(maxCpu, maxMemory, maxGpus, maxVram, "ANY_GPU")
-
-	// Haven't implemented logic to add/create WorkloadSessions for preset-based workloads.
-	session := domain.NewWorkloadSession(sessionId, metadata, maxResourceRequest, time.Now(), w.atom)
-
-	session.SetCurrentResourceRequest(&domain.ResourceRequest{
-		VRAM:     metadata.GetVRAM(),
-		Cpus:     metadata.GetCpuUtilization(),
-		MemoryMB: metadata.GetMemoryUtilization(),
-		Gpus:     metadata.GetNumGPUs(),
-	})
-
-	w.Sessions = append(w.Sessions, session)
-	w.sessionsMap[sessionId] = session
+func (w *Preset) SessionCreated(sessionId string /* metadata domain.SessionMeta */) {
+	panic("Not supported")
+	//w.Statistics.NumActiveSessions += 1
+	//w.Statistics.NumSessionsCreated += 1
+	//
+	//if w.MaxUtilizationWrapper == nil {
+	//	panic("max utilization wrapper not set by the time sessions are being created")
+	//}
+	//
+	//maxCpu, loadedCpus := w.MaxUtilizationWrapper.CpuSessionMap[sessionId]
+	//if !loadedCpus {
+	//	w.logger.Warn("Could not load maximum CPU value for session.", zap.String("sessionId", sessionId))
+	//	maxCpu = 0
+	//}
+	//
+	//maxMemory, loadedMemory := w.MaxUtilizationWrapper.MemSessionMap[sessionId]
+	//if !loadedMemory {
+	//	w.logger.Warn("Could not load maximum MEM value for session.", zap.String("sessionId", sessionId))
+	//	maxMemory = 0
+	//}
+	//
+	//maxGpus, loadedGpus := w.MaxUtilizationWrapper.GpuSessionMap[sessionId]
+	//if !loadedGpus {
+	//	w.logger.Warn("Could not load maximum GPU value for session.", zap.String("sessionId", sessionId))
+	//	maxGpus = 0
+	//}
+	//
+	//maxVram, loadedVram := w.MaxUtilizationWrapper.VramSessionMap[sessionId]
+	//if !loadedVram {
+	//	w.logger.Warn("Could not load maximum VRAM value for session.", zap.String("sessionId", sessionId))
+	//	maxVram = 0
+	//}
+	//
+	//maxResourceRequest := domain.NewResourceRequest(maxCpu, maxMemory, maxGpus, maxVram, "ANY_GPU")
+	//
+	//// Haven't implemented logic to add/create WorkloadSessions for preset-based workloads.
+	//session := domain.NewWorkloadSession(sessionId, metadata, maxResourceRequest, time.Now(), w.atom)
+	//
+	//session.SetCurrentResourceRequest(&domain.ResourceRequest{
+	//	VRAM:     metadata.GetVRAM(),
+	//	Cpus:     metadata.GetCpuUtilization(),
+	//	MemoryMB: metadata.GetMemoryUtilization(),
+	//	Gpus:     metadata.GetNumGPUs(),
+	//})
+	//
+	//w.Sessions = append(w.Sessions, session)
+	//w.sessionsMap[sessionId] = session
 }
 
 // SessionDiscarded is used to record that a particular session is being discarded/not sampled.

@@ -361,7 +361,7 @@ export const NodeDataList: React.FunctionComponent<NodeDataListProps> = (props: 
                                 </React.Fragment>
                             }
                             aria-label="node-scheduling-switch"
-                            isChecked={true}
+                            isChecked={clusterNode.Enabled}
                             ouiaId="node-scheduling-switch"
                             onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) => {
                                 enableOrDisableNode(clusterNode, checked);

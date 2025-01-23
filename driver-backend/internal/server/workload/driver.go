@@ -726,15 +726,16 @@ func (d *BasicWorkloadDriver) RegisterWorkload(workloadRegistrationRequest *doma
 	switch strings.ToLower(workloadRegistrationRequest.Type) {
 	case "preset":
 		{
+			panic("Creating workloads from presets is not supported at the moment.")
 			// Preset-workload-specific workload creation and initialization steps.
-			workload, err = d.createWorkloadFromPreset(workloadRegistrationRequest)
-
-			if err != nil {
-				d.logger.Error("Failed to create workload from preset.",
-					zap.String("workload_name", workloadRegistrationRequest.WorkloadName),
-					zap.Error(err))
-				return nil, err
-			}
+			//workload, err = d.createWorkloadFromPreset(workloadRegistrationRequest)
+			//
+			//if err != nil {
+			//	d.logger.Error("Failed to create workload from preset.",
+			//		zap.String("workload_name", workloadRegistrationRequest.WorkloadName),
+			//		zap.Error(err))
+			//	return nil, err
+			//}
 		}
 	case "template":
 		{

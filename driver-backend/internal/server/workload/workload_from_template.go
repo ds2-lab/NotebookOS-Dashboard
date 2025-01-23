@@ -169,7 +169,7 @@ func (w *Template) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 
 // SessionCreated is called when a Session is created for/in the Workload.
 // Just updates some internal metrics.
-func (w *Template) SessionCreated(sessionId string, metadata domain.SessionMetadata) {
+func (w *Template) SessionCreated(sessionId string) {
 	w.Statistics.NumActiveSessions += 1
 	w.Statistics.NumSessionsCreated += 1
 
@@ -185,10 +185,10 @@ func (w *Template) SessionCreated(sessionId string, metadata domain.SessionMetad
 	}
 
 	session.SetCurrentResourceRequest(&domain.ResourceRequest{
-		VRAM:     metadata.GetVRAM(),
-		Cpus:     metadata.GetCpuUtilization(),
-		MemoryMB: metadata.GetMemoryUtilization(),
-		Gpus:     metadata.GetNumGPUs(),
+		VRAM:     session.TrainingEvents[0].VRamUsageGB,
+		Cpus:     session.TrainingEvents[0].Millicpus,
+		MemoryMB: session.TrainingEvents[0].MemUsageMB,
+		Gpus:     session.TrainingEvents[0].NumGPUs(),
 	})
 }
 

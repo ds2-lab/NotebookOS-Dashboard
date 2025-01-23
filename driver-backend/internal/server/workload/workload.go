@@ -607,7 +607,7 @@ func (w *BasicWorkload) ProcessedEvent(evt *domain.WorkloadEvent) {
 
 // SessionCreated is called when a Session is created for/in the Workload.
 // Just updates some internal metrics.
-func (w *BasicWorkload) SessionCreated(sessionId string, metadata domain.SessionMetadata) {
+func (w *BasicWorkload) SessionCreated(sessionId string) {
 	w.mu.Lock()
 	w.Statistics.NumActiveSessions += 1
 	w.Statistics.NumSessionsCreated += 1
@@ -621,7 +621,7 @@ func (w *BasicWorkload) SessionCreated(sessionId string, metadata domain.Session
 		With(prometheus.Labels{"workload_id": w.Id}).
 		Add(1)
 
-	w.workloadInstance.SessionCreated(sessionId, metadata)
+	w.workloadInstance.SessionCreated(sessionId)
 }
 
 // SessionStopped is called when a Session is stopped for/in the Workload.
