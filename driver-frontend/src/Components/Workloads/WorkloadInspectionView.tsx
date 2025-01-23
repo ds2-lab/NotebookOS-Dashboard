@@ -8,7 +8,6 @@ import {
     FlexItem,
 } from '@patternfly/react-core';
 import {
-    BlueprintIcon,
     ClipboardCheckIcon,
     ClockIcon,
     CodeIcon,
@@ -116,20 +115,6 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
             >
                 <FlexItem>
                     <DescriptionList columnModifier={{ lg: '3Col' }} displaySize={'lg'}>
-                        {props.workload?.workload_preset && (
-                            <DescriptionListGroup>
-                                <DescriptionListTerm>
-                                    Workload Preset <BlueprintIcon />{' '}
-                                </DescriptionListTerm>
-                                <DescriptionListDescription>
-                                    &quot;{props.workload?.workload_preset_name}&quot;
-                                </DescriptionListDescription>
-                            </DescriptionListGroup>
-                        )}
-                        {/* {props.workload?.workload_template && <DescriptionListGroup>
-                            <DescriptionListTerm>Workload Template <BlueprintIcon /></DescriptionListTerm>
-                            <DescriptionListDescription>&quot;{props.workload?.workload_template.name}&quot;</DescriptionListDescription>
-                        </DescriptionListGroup>} */}
                         <DescriptionListGroup>
                             <DescriptionListTerm>
                                 Seed <DiceIcon />
@@ -202,7 +187,9 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                         <ClipboardCheckIcon /> {<strong>Sessions: </strong>}
                         {props.workload?.statistics.num_sessions_created} / {getNumSessions(showDiscardedSessions)} (
                         {RoundToTwoDecimalPlaces(
-                            100 * (getNumSessions(showDiscardedSessions) / props.workload?.sessions.length),
+                            100 *
+                                (props.workload?.statistics.num_sessions_created /
+                                    getNumSessions(showDiscardedSessions)),
                         ) + '%'}
                         ) created, {props.workload?.statistics.num_active_trainings} actively training
                     </FlexItem>

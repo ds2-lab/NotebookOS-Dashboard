@@ -170,9 +170,6 @@ func (w *Template) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 // SessionCreated is called when a Session is created for/in the Workload.
 // Just updates some internal metrics.
 func (w *Template) SessionCreated(sessionId string) {
-	w.Statistics.NumActiveSessions += 1
-	w.Statistics.NumSessionsCreated += 1
-
 	val, ok := w.sessionsMap[sessionId]
 	if !ok {
 		w.logger.Error("Failed to find newly-created session in session map.", zap.String("session_id", sessionId))

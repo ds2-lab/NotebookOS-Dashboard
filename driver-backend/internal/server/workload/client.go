@@ -39,7 +39,7 @@ type ClientBuilder struct {
 	timescaleAdjustmentFactor float64
 	errorChan                 chan<- error
 	session                   *domain.WorkloadTemplateSession
-	workload                  internalWorkload
+	workload                  *Template
 	kernelSessionManager      jupyter.KernelSessionManager
 	notifyCallback            func(notification *proto.Notification)
 	schedulingPolicy          string
@@ -142,7 +142,7 @@ func (b *ClientBuilder) WithErrorChan(errorChan chan<- error) *ClientBuilder {
 	return b
 }
 
-func (b *ClientBuilder) WithWorkload(workload internalWorkload) *ClientBuilder {
+func (b *ClientBuilder) WithWorkload(workload *Template) *ClientBuilder {
 	b.workload = workload
 	return b
 }
@@ -246,7 +246,7 @@ func (b *ClientBuilder) Build() *Client {
 
 // Client encapsulates a Session and runs as a dedicated goroutine, processing events for that Session.
 type Client struct {
-	Workload internalWorkload
+	Workload *Template
 	Session  *domain.WorkloadTemplateSession
 
 	maxSleepDuringInitSec            int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
@@ -1506,7 +1506,7 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) 
 					zap.Error(err))
 
 				// We'll just return (nothing) so that the workload doesn't end.
-				return err
+				return nil
 			}
 
 			// No error attached to the context. Just log an error message without the error struct

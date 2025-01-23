@@ -176,7 +176,7 @@ type BasicWorkloadDriver struct {
 	timescaleAdjustmentFactor          float64                                    // Adjusts the timescale of the simulation. Setting this to 1 means that each tick is simulated as a whole minute. Setting this to 0.5 means each tick will be simulated for half its real time. So, if ticks are 60 seconds, and this variable is set to 0.5, then each tick will be simulated for 30 seconds before continuing to the next tick.
 	maxClientSleepDuringInitSeconds    int                                        // maxClientSleepDuringInitSeconds is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
 	websocket                          domain.ConcurrentWebSocket                 // Shared Websocket used to communicate with frontend.
-	workload                           internalWorkload                           // The workload being driven by this driver.
+	workload                           *Template                                  // The workload being driven by this driver.
 	workloadStartTime                  time.Time                                  // The time at which the workload began.
 	workloadEndTime                    time.Time                                  // The time at which the workload completed.
 	workloadGenerator                  domain.WorkloadGenerator                   // The entity generating the workload (from trace data, a preset, or a template).
@@ -720,7 +720,7 @@ func (d *BasicWorkloadDriver) RegisterWorkload(workloadRegistrationRequest *doma
 	// have properties that the user can specify and change before submitting the workload for registration.
 	var (
 		// If this is created successfully, then d.workload will be assigned the value of this variable.
-		workload internalWorkload
+		workload *Template
 		err      error // If the workload is not created successfully, then we'll return this error.
 	)
 	switch strings.ToLower(workloadRegistrationRequest.Type) {
