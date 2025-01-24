@@ -11,7 +11,7 @@ import (
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/mock_workload"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/storage"
 	"github.com/scusemua/workload-driver-react/m/v2/pkg/jupyter"
-	mock_jupyter "github.com/scusemua/workload-driver-react/m/v2/pkg/jupyter/mock"
+	mockjupyter "github.com/scusemua/workload-driver-react/m/v2/pkg/jupyter/mock"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	"math/rand"
@@ -127,9 +127,127 @@ var (
 		WorkloadOutputDirectory:                        "./workload-output",
 		WorkloadOutputIntervalSec:                      2,
 		TimeCompressTrainingDurations:                  true,
-		MaxClientSleepDuringInitSeconds:                2,
+		MaxClientSleepDuringInitSeconds:                1,
 	}
 )
+
+func notifyClientThatTrainingFailedToStart(client *workload.Client, ename string, evalue string) {
+	time.Sleep(time.Millisecond * time.Duration(randRange(4, 64)))
+
+	if ename == "" {
+		ename = "ErrInsufficientHosts"
+	}
+
+	if evalue == "" {
+		evalue = "insufficient hosts available"
+	}
+
+	executeReplyTime := time.Now()
+	executeReplyHeader := jupyter.NewKernelMessageHeaderBuilder().
+		WithSession(client.SessionId).
+		WithUsername(client.SessionId).
+		WithDate(executeReplyTime).
+		WithVersion(jupyter.VERSION).
+		WithMessageId(uuid.NewString()).
+		WithMessageType(jupyter.ExecuteReply).
+		Build()
+
+	executeRequestHeader := jupyter.NewKernelMessageHeaderBuilder().
+		WithSession(client.SessionId).
+		WithUsername(client.SessionId).
+		WithDate(time.Now().Add(time.Millisecond * -50)).
+		WithVersion(jupyter.VERSION).
+		WithMessageId(uuid.NewString()).
+		WithMessageType(jupyter.ExecuteRequest).
+		Build()
+
+	executeReplyMessage := jupyter.NewMessageBuilder().
+		WithContent(map[string]interface{}{
+			"status": "error",
+			"ename":  ename,
+			"evalue": evalue,
+		}).
+		WithHeader(executeReplyHeader).
+		WithParentHeader(executeRequestHeader).
+		Build()
+
+	go func() {
+		client.OnReceiveExecuteReply(executeReplyMessage)
+	}()
+}
+
+func notifyClientThatTrainingFinished(client *workload.Client, execStart float64, execStop float64) {
+	time.Sleep(time.Millisecond * time.Duration(randRange(4, 64)))
+
+	executeReplyTime := time.Now()
+	executeReplyHeader := jupyter.NewKernelMessageHeaderBuilder().
+		WithSession(client.SessionId).
+		WithUsername(client.SessionId).
+		WithDate(executeReplyTime).
+		WithVersion(jupyter.VERSION).
+		WithMessageId(uuid.NewString()).
+		WithMessageType(jupyter.ExecuteReply).
+		Build()
+
+	executeRequestHeader := jupyter.NewKernelMessageHeaderBuilder().
+		WithSession(client.SessionId).
+		WithUsername(client.SessionId).
+		WithDate(time.Now().Add(time.Millisecond * -50)).
+		WithVersion(jupyter.VERSION).
+		WithMessageId(uuid.NewString()).
+		WithMessageType(jupyter.ExecuteRequest).
+		Build()
+
+	executeReplyMessage := jupyter.NewMessageBuilder().
+		WithContent(map[string]interface{}{
+			"status":                         "ok",
+			"execution_start_unix_millis":    execStart,
+			"execution_finished_unix_millis": execStop,
+		}).
+		WithHeader(executeReplyHeader).
+		WithParentHeader(executeRequestHeader).
+		Build()
+
+	go func() {
+		client.OnReceiveExecuteReply(executeReplyMessage)
+	}()
+}
+
+func notifyClientThatTrainingStarted(client *workload.Client) {
+	time.Sleep(time.Millisecond * time.Duration(randRange(4, 64)))
+
+	smrLeadTaskCreationTimestamp := time.Now()
+	smrLeadTaskMessageHeader := jupyter.NewKernelMessageHeaderBuilder().
+		WithSession(client.SessionId).
+		WithUsername(client.SessionId).
+		WithDate(smrLeadTaskCreationTimestamp).
+		WithVersion(jupyter.VERSION).
+		WithMessageId(uuid.NewString()).
+		WithMessageType(workload.SmrLeadTask).
+		Build()
+
+	executeRequestMessageHeader := jupyter.NewKernelMessageHeaderBuilder().
+		WithSession(client.SessionId).
+		WithUsername(client.SessionId).
+		WithDate(time.Now().Add(time.Millisecond * -50)).
+		WithVersion(jupyter.VERSION).
+		WithMessageId(uuid.NewString()).
+		WithMessageType(jupyter.ExecuteRequest).
+		Build()
+
+	smrLeadTaskMessage := jupyter.NewMessageBuilder().
+		WithContent(map[string]interface{}{
+			"status":                           "ok",
+			"msg_created_at_unix_milliseconds": smrLeadTaskCreationTimestamp.UnixMilli(),
+		}).
+		WithHeader(smrLeadTaskMessageHeader).
+		WithParentHeader(executeRequestMessageHeader).
+		Build()
+
+	go func() {
+		client.HandleIOPubMessage(smrLeadTaskMessage)
+	}()
+}
 
 var _ = Describe("Workload Driver Tests", func() {
 	Context("Driving workloads", func() {
@@ -137,13 +255,13 @@ var _ = Describe("Workload Driver Tests", func() {
 			controller           *gomock.Controller
 			mockWebsocket        *mock_domain.MockConcurrentWebSocket
 			mockCallbackProvider *mock_workload.MockCallbackProvider
-			mockKernelManager    *mock_jupyter.MockKernelSessionManager
+			mockKernelManager    *mockjupyter.MockKernelSessionManager
 
 			managerMetadata     map[string]interface{}
 			managerMetadataLock sync.Mutex
 
 			remoteStorageDefinition   *proto.RemoteStorageDefinition
-			workloadDriver            *workload.BasicWorkloadDriver
+			workloadDriver            *workload.Driver
 			timescaleAdjustmentFactor float64
 			atom                      zap.AtomicLevel
 		)
@@ -173,6 +291,9 @@ var _ = Describe("Workload Driver Tests", func() {
 				currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
 				Expect(err).To(BeNil())
 				Expect(currWorkload).ToNot(BeNil())
+				Expect(currWorkload.IsReady()).To(BeTrue())
+				Expect(currWorkload.WorkloadName()).To(Equal("TestWorkload"))
+				Expect(currWorkload.GetId()).To(Equal(workloadDriver.ID()))
 			}
 
 			BeforeEach(func() {
@@ -180,7 +301,7 @@ var _ = Describe("Workload Driver Tests", func() {
 
 				controller = gomock.NewController(GinkgoT())
 				mockWebsocket = mock_domain.NewMockConcurrentWebSocket(controller)
-				mockKernelManager = mock_jupyter.NewMockKernelSessionManager(controller)
+				mockKernelManager = mockjupyter.NewMockKernelSessionManager(controller)
 
 				mockCallbackProvider = mock_workload.NewMockCallbackProvider(controller)
 				mockCallbackProvider.EXPECT().GetSchedulingPolicy().AnyTimes().Return("static", true)
@@ -188,7 +309,7 @@ var _ = Describe("Workload Driver Tests", func() {
 					fmt.Printf("[ERROR] Workload '%s' encountered error: %v\n", workloadId, err)
 				})
 
-				timescaleAdjustmentFactor = 0.01667
+				timescaleAdjustmentFactor = 1 / 90 // 0.01667
 
 				atom = zap.NewAtomicLevelAt(zap.DebugLevel)
 
@@ -246,7 +367,7 @@ var _ = Describe("Workload Driver Tests", func() {
 
 					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
-					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 					var firstCreateSessionAttemptWg1, firstCreateSessionAttemptWg2 sync.WaitGroup
@@ -329,22 +450,34 @@ var _ = Describe("Workload Driver Tests", func() {
 					client := <-clientChan
 					Expect(client).ToNot(BeNil())
 
-					client.TrainingStartedChannel <- struct{}{}
+					Expect(workloadDriver.GetWorkload().Statistics.NumActiveTrainings).To(Equal(int64(0)))
+
+					notifyClientThatTrainingStarted(client)
+
+					// This could theoretically fail in a race, but 5 seconds
+					// should be plenty long enough for the condition to become true.
+					Eventually(func() int64 {
+						return workloadDriver.GetWorkload().Statistics.NumActiveTrainings
+					}).
+						WithTimeout(time.Second * 2).
+						WithPolling(time.Millisecond * 250).
+						Should(Equal(int64(1)))
 
 					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
 					execStopTimeUnixMillis := time.Now().UnixMilli()
 
-					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-						Header: &jupyter.KernelMessageHeader{
-							MessageId:   uuid.NewString(),
-							MessageType: jupyter.ExecuteReply,
-							Date:        time.Now().String(),
-						},
-						Content: map[string]interface{}{
-							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
-							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-						},
-					}
+					//client.TrainingStoppedChannel <- &jupyter.Message{
+					//	Header: &jupyter.KernelMessageHeader{
+					//		MessageId:   uuid.NewString(),
+					//		MessageType: jupyter.ExecuteReply,
+					//		Date:        time.Now().String(),
+					//	},
+					//	Content: map[string]interface{}{
+					//		"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+					//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+					//	},
+					//}
+					notifyClientThatTrainingFinished(client, float64(execStartedTimeUnixMillis), float64(execStopTimeUnixMillis))
 
 					kernelStoppedWg.Wait()
 
@@ -360,7 +493,7 @@ var _ = Describe("Workload Driver Tests", func() {
 
 					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
-					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 					var kernelStartedWg sync.WaitGroup
@@ -409,7 +542,7 @@ var _ = Describe("Workload Driver Tests", func() {
 					client := <-clientChan
 					Expect(client).ToNot(BeNil())
 
-					client.TrainingStartedChannel <- fmt.Errorf("insufficient hosts available")
+					notifyClientThatTrainingFailedToStart(client, "", "")
 
 					var trainingResubmittedWg sync.WaitGroup
 					trainingResubmittedWg.Add(1)
@@ -421,24 +554,36 @@ var _ = Describe("Workload Driver Tests", func() {
 						return nil, nil
 					})
 
-					//requestExecArgs := <-requestExecArgsChan
 					trainingResubmittedWg.Wait()
-					client.TrainingStartedChannel <- struct{}{}
+
+					Expect(workloadDriver.GetWorkload().Statistics.NumActiveTrainings).To(Equal(int64(0)))
+
+					notifyClientThatTrainingStarted(client)
+
+					// This could theoretically fail in a race, but 5 seconds
+					// should be plenty long enough for the condition to become true.
+					Eventually(func() int64 {
+						return workloadDriver.GetWorkload().Statistics.NumActiveTrainings
+					}).
+						WithTimeout(time.Second * 2).
+						WithPolling(time.Millisecond * 250).
+						Should(Equal(int64(1)))
 
 					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
 					execStopTimeUnixMillis := time.Now().UnixMilli()
 
-					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-						Header: &jupyter.KernelMessageHeader{
-							MessageId:   uuid.NewString(),
-							MessageType: jupyter.ExecuteReply,
-							Date:        time.Now().String(),
-						},
-						Content: map[string]interface{}{
-							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
-							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-						},
-					}
+					//client.TrainingStoppedChannel <- &jupyter.Message{
+					//	Header: &jupyter.KernelMessageHeader{
+					//		MessageId:   uuid.NewString(),
+					//		MessageType: jupyter.ExecuteReply,
+					//		Date:        time.Now().String(),
+					//	},
+					//	Content: map[string]interface{}{
+					//		"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+					//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+					//	},
+					//}
+					notifyClientThatTrainingFinished(client, float64(execStartedTimeUnixMillis), float64(execStopTimeUnixMillis))
 
 					kernelStoppedWg.Wait()
 
@@ -454,7 +599,7 @@ var _ = Describe("Workload Driver Tests", func() {
 
 					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
-					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 					var firstCreateSessionAttemptWg1, firstCreateSessionAttemptWg2 sync.WaitGroup
@@ -535,7 +680,7 @@ var _ = Describe("Workload Driver Tests", func() {
 					client := <-clientChan
 					Expect(client).ToNot(BeNil())
 
-					client.TrainingStartedChannel <- fmt.Errorf("insufficient hosts available")
+					notifyClientThatTrainingFailedToStart(client, "", "")
 
 					var trainingResubmittedWg sync.WaitGroup
 					trainingResubmittedWg.Add(1)
@@ -547,24 +692,36 @@ var _ = Describe("Workload Driver Tests", func() {
 						return nil, nil
 					})
 
-					//requestExecArgs := <-requestExecArgsChan
 					trainingResubmittedWg.Wait()
-					client.TrainingStartedChannel <- struct{}{}
+
+					Expect(workloadDriver.GetWorkload().Statistics.NumActiveTrainings).To(Equal(int64(0)))
+
+					notifyClientThatTrainingStarted(client)
+
+					// This could theoretically fail in a race, but 5 seconds
+					// should be plenty long enough for the condition to become true.
+					Eventually(func() int64 {
+						return workloadDriver.GetWorkload().Statistics.NumActiveTrainings
+					}).
+						WithTimeout(time.Second * 2).
+						WithPolling(time.Millisecond * 250).
+						Should(Equal(int64(1)))
 
 					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
 					execStopTimeUnixMillis := time.Now().UnixMilli()
 
-					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-						Header: &jupyter.KernelMessageHeader{
-							MessageId:   uuid.NewString(),
-							MessageType: jupyter.ExecuteReply,
-							Date:        time.Now().String(),
-						},
-						Content: map[string]interface{}{
-							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
-							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-						},
-					}
+					//client.TrainingStoppedChannel <- &jupyter.Message{
+					//	Header: &jupyter.KernelMessageHeader{
+					//		MessageId:   uuid.NewString(),
+					//		MessageType: jupyter.ExecuteReply,
+					//		Date:        time.Now().String(),
+					//	},
+					//	Content: map[string]interface{}{
+					//		"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+					//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+					//	},
+					//}
+					notifyClientThatTrainingFinished(client, float64(execStartedTimeUnixMillis), float64(execStopTimeUnixMillis))
 
 					kernelStoppedWg.Wait()
 
@@ -575,12 +732,12 @@ var _ = Describe("Workload Driver Tests", func() {
 					Expect(client.TrainingEventsDelayed()).To(Equal(int32(1)))
 				})
 
-				It("Will correctly resubmit a failed 'session-started' event multiple times", func() {
+				It("Will repeatedly resubmit a failed 'session-started' event multiple times", func() {
 					sessionId := "TestSession"
 
 					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
-					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 					var kernelStoppedWg sync.WaitGroup
@@ -687,22 +844,24 @@ var _ = Describe("Workload Driver Tests", func() {
 					client := <-clientChan
 					Expect(client).ToNot(BeNil())
 
-					client.TrainingStartedChannel <- struct{}{}
+					notifyClientThatTrainingStarted(client)
 
 					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
 					execStopTimeUnixMillis := time.Now().UnixMilli()
 
-					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-						Header: &jupyter.KernelMessageHeader{
-							MessageId:   uuid.NewString(),
-							MessageType: jupyter.ExecuteReply,
-							Date:        time.Now().String(),
-						},
-						Content: map[string]interface{}{
-							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
-							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-						},
-					}
+					//client.TrainingStoppedChannel <- &jupyter.Message{
+					//	Header: &jupyter.KernelMessageHeader{
+					//		MessageId:   uuid.NewString(),
+					//		MessageType: jupyter.ExecuteReply,
+					//		Date:        time.Now().String(),
+					//	},
+					//	Content: map[string]interface{}{
+					//		"status":                         "ok",
+					//		"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+					//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+					//	},
+					//}
+					notifyClientThatTrainingFinished(client, float64(execStartedTimeUnixMillis), float64(execStopTimeUnixMillis))
 
 					kernelStoppedWg.Wait()
 
@@ -718,7 +877,7 @@ var _ = Describe("Workload Driver Tests", func() {
 
 					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 
-					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 					var kernelStartedWg sync.WaitGroup
@@ -767,7 +926,7 @@ var _ = Describe("Workload Driver Tests", func() {
 					client := <-clientChan
 					Expect(client).ToNot(BeNil())
 
-					client.TrainingStartedChannel <- fmt.Errorf("insufficient hosts available")
+					notifyClientThatTrainingFailedToStart(client, "", "")
 
 					var trainingResubmittedWg sync.WaitGroup
 					trainingResubmittedWg.Add(1)
@@ -786,29 +945,30 @@ var _ = Describe("Workload Driver Tests", func() {
 						trainingResubmittedWg.Add(1)
 
 						// Send the notification that the training failed to start.
-						client.TrainingStartedChannel <- fmt.Errorf("insufficient hosts available")
+						notifyClientThatTrainingFailedToStart(client, "", "")
 					}
 
 					// Wait for RequestExecute to be called.
 					trainingResubmittedWg.Wait()
 
 					// Send the notification that the training started correctly.
-					client.TrainingStartedChannel <- struct{}{}
+					notifyClientThatTrainingStarted(client)
 
 					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
 					execStopTimeUnixMillis := time.Now().UnixMilli()
 
-					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-						Header: &jupyter.KernelMessageHeader{
-							MessageId:   uuid.NewString(),
-							MessageType: jupyter.ExecuteReply,
-							Date:        time.Now().String(),
-						},
-						Content: map[string]interface{}{
-							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
-							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-						},
-					}
+					//client.TrainingStoppedChannel <- &jupyter.Message{
+					//	Header: &jupyter.KernelMessageHeader{
+					//		MessageId:   uuid.NewString(),
+					//		MessageType: jupyter.ExecuteReply,
+					//		Date:        time.Now().String(),
+					//	},
+					//	Content: map[string]interface{}{
+					//		"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+					//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+					//	},
+					//}
+					notifyClientThatTrainingFinished(client, float64(execStartedTimeUnixMillis), float64(execStopTimeUnixMillis))
 
 					kernelStoppedWg.Wait()
 
@@ -825,7 +985,7 @@ var _ = Describe("Workload Driver Tests", func() {
 
 					sessionIds := make([]string, 0, numSessions)
 					sessionMetadatas := make([]domain.SessionMetadata, 0, numSessions)
-					mockKernelConnections := make([]*mock_jupyter.MockKernelConnection, 0, numSessions)
+					mockKernelConnections := make([]*mockjupyter.MockKernelConnection, 0, numSessions)
 					workloadTemplateSessions := make([]*domain.WorkloadTemplateSession, 0, numSessions)
 
 					var firstCreateSessionAttemptWg, secondCreateSessionAttemptWg sync.WaitGroup
@@ -848,7 +1008,7 @@ var _ = Describe("Workload Driver Tests", func() {
 						sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 						sessionMetadatas = append(sessionMetadatas, sessionMetadata)
 
-						mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+						mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 						mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 						mockKernelConnection.EXPECT().KernelId().AnyTimes().Return(sessionId)
 
@@ -923,7 +1083,7 @@ var _ = Describe("Workload Driver Tests", func() {
 						sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 						sessionMetadatas = append(sessionMetadatas, sessionMetadata)
 
-						mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+						mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 						mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 						mockKernelConnection.EXPECT().KernelId().AnyTimes().Return(sessionId)
 
@@ -993,9 +1153,19 @@ var _ = Describe("Workload Driver Tests", func() {
 					currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
 					Expect(err).To(BeNil())
 					Expect(currWorkload).ToNot(BeNil())
+					Expect(currWorkload.IsReady()).To(BeTrue())
+					Expect(currWorkload.WorkloadName()).To(Equal("TestWorkload"))
+					Expect(currWorkload.GetId()).To(Equal(workloadDriver.ID()))
 
 					err = workloadDriver.StartWorkload()
 					Expect(err).To(BeNil())
+
+					targetWorkload := workloadDriver.GetWorkload()
+					Expect(targetWorkload).ToNot(BeNil())
+					GinkgoWriter.Printf("State of workload %s (ID=%s): %s\n",
+						targetWorkload.Name, targetWorkload.Id, targetWorkload.GetState().String())
+					Expect(targetWorkload.IsRunning()).To(BeTrue())
+					Expect(targetWorkload == currWorkload).To(BeTrue())
 
 					go workloadDriver.ProcessWorkloadEvents()
 					go workloadDriver.DriveWorkload()
@@ -1011,9 +1181,7 @@ var _ = Describe("Workload Driver Tests", func() {
 						Expect(client).ToNot(BeNil())
 						clients = append(clients, client)
 
-						go func() {
-							client.TrainingStartedChannel <- struct{}{}
-						}()
+						notifyClientThatTrainingStarted(client)
 					}
 
 					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
@@ -1026,17 +1194,18 @@ var _ = Describe("Workload Driver Tests", func() {
 						execStartTime := execStartTimes[client.SessionId]
 						execStartTimeMutex.Unlock()
 
-						client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-							Header: &jupyter.KernelMessageHeader{
-								MessageId:   uuid.NewString(),
-								MessageType: jupyter.ExecuteReply,
-								Date:        time.Now().String(),
-							},
-							Content: map[string]interface{}{
-								"execution_start_unix_millis":    float64(execStartTime),
-								"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-							},
-						}
+						//client.TrainingStoppedChannel <- &jupyter.Message{
+						//	Header: &jupyter.KernelMessageHeader{
+						//		MessageId:   uuid.NewString(),
+						//		MessageType: jupyter.ExecuteReply,
+						//		Date:        time.Now().String(),
+						//	},
+						//	Content: map[string]interface{}{
+						//		"execution_start_unix_millis":    float64(execStartTime),
+						//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+						//	},
+						//}
+						notifyClientThatTrainingFinished(client, float64(execStartTime), float64(execStopTimeUnixMillis))
 					}
 
 					kernelStoppedWg.Wait()
@@ -1062,7 +1231,7 @@ var _ = Describe("Workload Driver Tests", func() {
 					sessionId := "TestSession"
 
 					sessionMetadata := getBasicSessionMetadata(sessionId, controller)
-					mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+					mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 					mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 					var firstCreateSessionAttemptWg sync.WaitGroup
@@ -1117,22 +1286,23 @@ var _ = Describe("Workload Driver Tests", func() {
 					client := <-clientChan
 					Expect(client).ToNot(BeNil())
 
-					client.TrainingStartedChannel <- struct{}{}
+					notifyClientThatTrainingStarted(client)
 
 					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
 					execStopTimeUnixMillis := time.Now().UnixMilli()
 
-					client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-						Header: &jupyter.KernelMessageHeader{
-							MessageId:   uuid.NewString(),
-							MessageType: jupyter.ExecuteReply,
-							Date:        time.Now().String(),
-						},
-						Content: map[string]interface{}{
-							"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
-							"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-						},
-					}
+					//client.TrainingStoppedChannel <- &jupyter.Message{
+					//	Header: &jupyter.KernelMessageHeader{
+					//		MessageId:   uuid.NewString(),
+					//		MessageType: jupyter.ExecuteReply,
+					//		Date:        time.Now().String(),
+					//	},
+					//	Content: map[string]interface{}{
+					//		"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
+					//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+					//	},
+					//}
+					notifyClientThatTrainingFinished(client, float64(execStartedTimeUnixMillis), float64(execStopTimeUnixMillis))
 
 					kernelStoppedWg.Wait()
 
@@ -1148,7 +1318,7 @@ var _ = Describe("Workload Driver Tests", func() {
 
 					sessionIds := make([]string, 0, numSessions)
 					sessionMetadatas := make([]domain.SessionMetadata, 0, numSessions)
-					mockKernelConnections := make([]*mock_jupyter.MockKernelConnection, 0, numSessions)
+					mockKernelConnections := make([]*mockjupyter.MockKernelConnection, 0, numSessions)
 					workloadTemplateSessions := make([]*domain.WorkloadTemplateSession, 0, numSessions)
 
 					var firstCreateSessionAttemptWg sync.WaitGroup
@@ -1165,7 +1335,7 @@ var _ = Describe("Workload Driver Tests", func() {
 						sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 						sessionMetadatas = append(sessionMetadatas, sessionMetadata)
 
-						mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+						mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 						mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 						mockKernelConnection.EXPECT().KernelId().AnyTimes().Return(sessionId)
 
@@ -1214,6 +1384,8 @@ var _ = Describe("Workload Driver Tests", func() {
 						})
 					}
 
+					timescaleAdjustmentFactor = 1 / 90
+
 					workloadRegistrationRequest := &domain.WorkloadRegistrationRequest{
 						AdjustGpuReservations:     false,
 						WorkloadName:              "TestWorkload",
@@ -1231,15 +1403,29 @@ var _ = Describe("Workload Driver Tests", func() {
 					currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
 					Expect(err).To(BeNil())
 					Expect(currWorkload).ToNot(BeNil())
+					Expect(currWorkload.IsReady()).To(BeTrue())
+					Expect(currWorkload.WorkloadName()).To(Equal("TestWorkload"))
+					Expect(currWorkload.GetId()).To(Equal(workloadDriver.ID()))
+					Expect(currWorkload.TotalNumSessions()).To(Equal(numSessions))
 
 					err = workloadDriver.StartWorkload()
 					Expect(err).To(BeNil())
+
+					targetWorkload := workloadDriver.GetWorkload()
+					Expect(targetWorkload).ToNot(BeNil())
+					GinkgoWriter.Printf("State of workload %s (ID=%s): %s\n",
+						targetWorkload.Name, targetWorkload.Id, targetWorkload.GetState().String())
+					Expect(targetWorkload.IsRunning()).To(BeTrue())
+					Expect(targetWorkload == currWorkload).To(BeTrue())
 
 					go workloadDriver.ProcessWorkloadEvents()
 					go workloadDriver.DriveWorkload()
 
 					// Wait for KernelSessionManager::CreateSession to be called.
 					firstCreateSessionAttemptWg.Wait()
+					GinkgoWriter.Printf("State of workload %s (ID=%s): %s\n",
+						targetWorkload.Name, targetWorkload.Id, targetWorkload.GetState().String())
+					Expect(targetWorkload.IsRunning()).To(BeTrue())
 
 					clients := make([]*workload.Client, 0, numSessions)
 					for i := 0; i < numSessions; i++ {
@@ -1247,9 +1433,18 @@ var _ = Describe("Workload Driver Tests", func() {
 						Expect(client).ToNot(BeNil())
 						clients = append(clients, client)
 
-						go func() {
-							client.TrainingStartedChannel <- struct{}{}
-						}()
+						Expect(workloadDriver.GetWorkload().Statistics.NumActiveTrainings).To(Equal(int64(i)))
+
+						notifyClientThatTrainingStarted(client)
+
+						// This could theoretically fail in a race, but 5 seconds
+						// should be plenty long enough for the condition to become true.
+						Eventually(func() int64 {
+							return targetWorkload.Statistics.NumActiveTrainings
+						}).
+							WithTimeout(time.Second * 2).
+							WithPolling(time.Millisecond * 250).
+							Should(Equal(int64(i + 1)))
 					}
 
 					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
@@ -1262,17 +1457,18 @@ var _ = Describe("Workload Driver Tests", func() {
 						execStartTime := execStartTimes[client.SessionId]
 						execStartTimeMutex.Unlock()
 
-						client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-							Header: &jupyter.KernelMessageHeader{
-								MessageId:   uuid.NewString(),
-								MessageType: jupyter.ExecuteReply,
-								Date:        time.Now().String(),
-							},
-							Content: map[string]interface{}{
-								"execution_start_unix_millis":    float64(execStartTime),
-								"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-							},
-						}
+						//client.TrainingStoppedChannel <- &jupyter.Message{
+						//	Header: &jupyter.KernelMessageHeader{
+						//		MessageId:   uuid.NewString(),
+						//		MessageType: jupyter.ExecuteReply,
+						//		Date:        time.Now().String(),
+						//	},
+						//	Content: map[string]interface{}{
+						//		"execution_start_unix_millis":    float64(execStartTime),
+						//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+						//	},
+						//}
+						notifyClientThatTrainingFinished(client, float64(execStartTime), float64(execStopTimeUnixMillis))
 					}
 
 					kernelStoppedWg.Wait()
@@ -1284,16 +1480,37 @@ var _ = Describe("Workload Driver Tests", func() {
 						Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
 						Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
 					}
+
+					Expect(targetWorkload.WorkloadName()).To(Equal("TestWorkload"))
+					Expect(targetWorkload.GetId()).To(Equal(workloadDriver.ID()))
+					GinkgoWriter.Printf("State of workload %s (ID=%s): %s\n",
+						targetWorkload.Name, targetWorkload.Id, targetWorkload.GetState().String())
+					Expect(targetWorkload.IsFinished()).To(BeTrue())
+
+					sessions := targetWorkload.Sessions
+					Expect(len(sessions)).To(Equal(numSessions))
+					Expect(targetWorkload.TotalNumSessions()).To(Equal(numSessions))
+
+					statistics := targetWorkload.GetStatistics()
+					Expect(statistics).ToNot(BeNil())
+				})
+
+				It("Will correctly discard sessions with no training events when instructed to do so", func() {
+
 				})
 
 				It("Will successfully handle a workload with 16 sessions that each train multiple times", func() {
 					numSessions := 16
 					numTrainingsPerSession := []int{3, 2, 5, 4, 8, 5, 3, 9, 7, 6, 8, 2, 5, 3, 4, 7}
+					totalNumTrainings := 0
+					for _, numTrainings := range numTrainingsPerSession {
+						totalNumTrainings += numTrainings
+					}
 					firstTrainingTicks := []int{1, 5, 1, 6, 2, 3, 4, 6, 3, 4, 2, 2, 5, 1, 4, 3}
 
 					sessionIds := make([]string, 0, numSessions)
 					sessionMetadatas := make([]domain.SessionMetadata, 0, numSessions)
-					mockKernelConnections := make([]*mock_jupyter.MockKernelConnection, 0, numSessions)
+					mockKernelConnections := make([]*mockjupyter.MockKernelConnection, 0, numSessions)
 					workloadTemplateSessions := make([]*domain.WorkloadTemplateSession, 0, numSessions)
 
 					var firstCreateSessionAttemptWg sync.WaitGroup
@@ -1314,7 +1531,7 @@ var _ = Describe("Workload Driver Tests", func() {
 						sessionMetadata := getBasicSessionMetadata(sessionId, controller)
 						sessionMetadatas = append(sessionMetadatas, sessionMetadata)
 
-						mockKernelConnection := mock_jupyter.NewMockKernelConnection(controller)
+						mockKernelConnection := mockjupyter.NewMockKernelConnection(controller)
 						mockKernelConnection.EXPECT().RegisterIoPubHandler(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 						mockKernelConnection.EXPECT().KernelId().AnyTimes().Return(sessionId)
 
@@ -1420,9 +1637,19 @@ var _ = Describe("Workload Driver Tests", func() {
 					currWorkload, err := workloadDriver.RegisterWorkload(workloadRegistrationRequest)
 					Expect(err).To(BeNil())
 					Expect(currWorkload).ToNot(BeNil())
+					Expect(currWorkload.IsReady()).To(BeTrue())
+					Expect(currWorkload.WorkloadName()).To(Equal("TestWorkload"))
+					Expect(currWorkload.GetId()).To(Equal(workloadDriver.ID()))
 
 					err = workloadDriver.StartWorkload()
 					Expect(err).To(BeNil())
+
+					targetWorkload := workloadDriver.GetWorkload()
+					Expect(targetWorkload).ToNot(BeNil())
+					GinkgoWriter.Printf("State of workload %s (ID=%s): %s\n",
+						targetWorkload.Name, targetWorkload.Id, targetWorkload.GetState().String())
+					Expect(targetWorkload.IsRunning()).To(BeTrue())
+					Expect(targetWorkload == currWorkload).To(BeTrue())
 
 					go workloadDriver.ProcessWorkloadEvents()
 					go workloadDriver.DriveWorkload()
@@ -1452,7 +1679,9 @@ var _ = Describe("Workload Driver Tests", func() {
 							for j := 0; j < numTrainings; j++ {
 								training := workloadTemplateSession.TrainingEvents[j]
 								trainingDuration := training.DurationInTicks
-								client.TrainingStartedChannel <- struct{}{}
+
+								notifyClientThatTrainingStarted(client)
+
 								trainingStartTimeChannel <- time.Now()
 								fmt.Printf("Submitted training %d/%d (duration=%d ticks) for session \"%s\"\n", j+1, numTrainings, trainingDuration, workloadTemplateSession.Id)
 								time.Sleep(time.Duration(float64(trainingDuration) * float64(time.Minute) * timescaleAdjustmentFactor))
@@ -1475,17 +1704,18 @@ var _ = Describe("Workload Driver Tests", func() {
 
 								time.Sleep(time.Duration(float64(trainingDuration) * float64(time.Minute) * timescaleAdjustmentFactor))
 								execStopTimeUnixMillis := time.Now().UnixMilli()
-								client.TrainingStoppedChannel <- &jupyter.BaseKernelMessage{
-									Header: &jupyter.KernelMessageHeader{
-										MessageId:   uuid.NewString(),
-										MessageType: jupyter.ExecuteReply,
-										Date:        time.Now().String(),
-									},
-									Content: map[string]interface{}{
-										"execution_start_unix_millis":    float64(trainingStartTime.UnixMilli()),
-										"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-									},
-								}
+								//client.TrainingStoppedChannel <- &jupyter.Message{
+								//	Header: &jupyter.KernelMessageHeader{
+								//		MessageId:   uuid.NewString(),
+								//		MessageType: jupyter.ExecuteReply,
+								//		Date:        time.Now().String(),
+								//	},
+								//	Content: map[string]interface{}{
+								//		"execution_start_unix_millis":    float64(trainingStartTime.UnixMilli()),
+								//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
+								//	},
+								//}
+								notifyClientThatTrainingFinished(client, float64(trainingStartTime.UnixMilli()), float64(execStopTimeUnixMillis))
 								fmt.Printf("Submitted 'training-stopped' %d/%d for session \"%s\"\n", j+1, numTrainings, workloadTemplateSession.Id)
 								time.Sleep(time.Millisecond * 10)
 							}
@@ -1501,6 +1731,16 @@ var _ = Describe("Workload Driver Tests", func() {
 						Expect(client.TrainingEventsHandled()).To(Equal(int32(numTrainingsPerSession[idx])))
 						Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
 					}
+
+					targetWorkload = workloadDriver.GetWorkload()
+					Expect(targetWorkload).ToNot(BeNil())
+					GinkgoWriter.Printf("State of workload %s (ID=%s): %s\n",
+						targetWorkload.Name, targetWorkload.Id, targetWorkload.GetState().String())
+					Expect(targetWorkload.IsFinished()).To(BeTrue())
+					Expect(targetWorkload == currWorkload).To(BeTrue())
+					Expect(targetWorkload.Statistics.NumSubmittedTrainings).To(Equal(totalNumTrainings))
+					Expect(targetWorkload.Statistics.NumTasksExecuted).To(Equal(totalNumTrainings))
+					Expect(targetWorkload.Statistics.NumSessionsCreated).To(Equal(numSessions))
 				})
 			})
 		})

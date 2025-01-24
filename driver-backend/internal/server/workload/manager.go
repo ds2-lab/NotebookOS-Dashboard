@@ -30,17 +30,17 @@ type BasicWorkloadManager struct {
 	logger        *zap.Logger
 	sugaredLogger *zap.SugaredLogger
 
-	configuration            *domain.Configuration                                // Server-wide configuration.
-	workloadJobConfiguration *domain.WorkloadJobConfiguration                     // workloadJobConfiguration specifies which models and datasets are available during workloads.
-	pushGoroutineActive      atomic.Int32                                         // Indicates whether there is already a goroutine serving the "push" routine, which pushes updated workload data to the frontend.
-	pushUpdateInterval       time.Duration                                        // The interval at which we push updates to the workloads to the frontend.
-	workloadWebsocketHandler *WebsocketHandler                                    // Workload WebSocket handler. Accepts and processes WebSocket requests related to workloads.
-	workloadDrivers          *orderedmap.OrderedMap[string, *BasicWorkloadDriver] // Map from workload ID to the associated driver.
-	workloadsMap             *orderedmap.OrderedMap[string, domain.Workload]      // Map from workload ID to workload
-	workloads                []domain.Workload                                    // Slice of workloads. Same contents as the map, but in slice form.
-	mu                       sync.Mutex                                           // Synchronizes access to the workload drivers and the workloads themselves (both the map and the slice).
-	workloadStartedChan      chan string                                          // Channel of workload IDs. When a workload is started, its ID is submitted to this channel.
-	callbackProvider         CallbackProvider                                     // callbackProvider provides a number of functions required by the WorkloadManager, WorkloadDriver instances, or Workload instances themselves.
+	configuration            *domain.Configuration                           // Server-wide configuration.
+	workloadJobConfiguration *domain.WorkloadJobConfiguration                // workloadJobConfiguration specifies which models and datasets are available during workloads.
+	pushGoroutineActive      atomic.Int32                                    // Indicates whether there is already a goroutine serving the "push" routine, which pushes updated workload data to the frontend.
+	pushUpdateInterval       time.Duration                                   // The interval at which we push updates to the workloads to the frontend.
+	workloadWebsocketHandler *WebsocketHandler                               // Workload WebSocket handler. Accepts and processes WebSocket requests related to workloads.
+	workloadDrivers          *orderedmap.OrderedMap[string, *Driver]         // Map from workload ID to the associated driver.
+	workloadsMap             *orderedmap.OrderedMap[string, domain.Workload] // Map from workload ID to workload
+	workloads                []domain.Workload                               // Slice of workloads. Same contents as the map, but in slice form.
+	mu                       sync.Mutex                                      // Synchronizes access to the workload drivers and the workloads themselves (both the map and the slice).
+	workloadStartedChan      chan string                                     // Channel of workload IDs. When a workload is started, its ID is submitted to this channel.
+	callbackProvider         CallbackProvider                                // callbackProvider provides a number of functions required by the WorkloadManager, WorkloadDriver instances, or Workload instances themselves.
 }
 
 func init() {
@@ -82,7 +82,7 @@ func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLev
 	manager := &BasicWorkloadManager{
 		atom:                atom,
 		configuration:       configuration,
-		workloadDrivers:     orderedmap.NewOrderedMap[string, *BasicWorkloadDriver](),
+		workloadDrivers:     orderedmap.NewOrderedMap[string, *Driver](),
 		workloadsMap:        orderedmap.NewOrderedMap[string, domain.Workload](),
 		workloads:           make([]domain.Workload, 0),
 		workloadStartedChan: make(chan string, 4),
@@ -156,7 +156,7 @@ func (m *BasicWorkloadManager) GetActiveWorkloads() map[string]domain.Workload {
 
 // GetWorkloadDriver returns the workload driver associated with the given workload ID.
 // If there is no driver associated with the provided workload ID, then nil is returned.
-func (m *BasicWorkloadManager) GetWorkloadDriver(workloadId string) *BasicWorkloadDriver {
+func (m *BasicWorkloadManager) GetWorkloadDriver(workloadId string) *Driver {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

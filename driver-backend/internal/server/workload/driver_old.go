@@ -2289,10 +2289,10 @@ package workload
 //	d.trainingStoppedChannels[internalSessionId] = trainingStoppedChannel
 //	d.trainingStoppedChannelsMutex.Unlock()
 //
-//	// Create a wrapper so that we can pass more arguments to our 'onReceiveExecuteReply' method than
+//	// Create a wrapper so that we can pass more arguments to our 'OnReceiveExecuteReply' method than
 //	// just the kernel's response.
 //	handleExecuteReplyWrapper := func(response jupyter.KernelMessage) {
-//		d.onReceiveExecuteReply(response, internalSessionId, trainingStartedChannel, trainingStoppedChannel)
+//		d.OnReceiveExecuteReply(response, internalSessionId, trainingStartedChannel, trainingStoppedChannel)
 //	}
 //
 //	var executeRequestArgs *jupyter.RequestExecuteArgs
@@ -2946,7 +2946,7 @@ package workload
 //	// Create a new workload session.
 //	workloadSession := d.newSession(sessionId, meta, createdAtTime)
 //
-//	// ioPubHandler is a session-specific wrapper around the standard BasicWorkloadDriverOld::handleIOPubMessage method.
+//	// ioPubHandler is a session-specific wrapper around the standard BasicWorkloadDriverOld::HandleIOPubMessage method.
 //	// This returns true if the received IOPub message is a "stream" message and is parsed successfully.
 //	// Otherwise, this returns false.
 //	//
@@ -2954,7 +2954,7 @@ package workload
 //	ioPubHandler := func(conn jupyter.KernelConnection, kernelMessage jupyter.KernelMessage) interface{} {
 //		// Parse the IOPub message.
 //		// If it is a stream message, this will return a *parsedIoPubMessage variable.
-//		parsedIoPubMsgVal := d.handleIOPubMessage(conn, kernelMessage)
+//		parsedIoPubMsgVal := d.HandleIOPubMessage(conn, kernelMessage)
 //
 //		if parsedIoPubMsg, ok := parsedIoPubMsgVal.(*parsedIoPubMessage); ok {
 //			switch parsedIoPubMsg.Stream {
@@ -2989,12 +2989,12 @@ package workload
 //	return sessionConnection, nil
 //}
 //
-//// handleIOPubMessage returns the extracted text.
+//// HandleIOPubMessage returns the extracted text.
 //// This is expected to be called within a session-specific wrapper.
 ////
 //// If the IOPub message is a "stream" message, then this returns a *parsedIoPubMessage
 //// wrapping the name of the stream and the message text.
-//func (d *BasicWorkloadDriverOld) handleIOPubMessage(conn jupyter.KernelConnection, kernelMessage jupyter.KernelMessage) interface{} {
+//func (d *BasicWorkloadDriverOld) HandleIOPubMessage(conn jupyter.KernelConnection, kernelMessage jupyter.KernelMessage) interface{} {
 //	// We just want to extract the output from 'stream' IOPub messages.
 //	// We don't care about non-stream-type IOPub messages here, so we'll just return.
 //	messageType := kernelMessage.GetHeader().MessageType
@@ -3009,7 +3009,7 @@ package workload
 //	return d.handleIOPubSmrLeadTaskMessage(conn, kernelMessage)
 //}
 //
-//func (d *BasicWorkloadDriverOld) onReceiveExecuteReply(response jupyter.KernelMessage, sessionId string, trainingStartedChannel chan interface{}, trainingStoppedChannel chan interface{}) {
+//func (d *BasicWorkloadDriverOld) OnReceiveExecuteReply(response jupyter.KernelMessage, sessionId string, trainingStartedChannel chan interface{}, trainingStoppedChannel chan interface{}) {
 //	responseContent := response.GetContent().(map[string]interface{})
 //	if responseContent == nil {
 //		d.logger.Error("\"execute_reply\" message does not have any content...",

@@ -700,6 +700,14 @@ func (w *BasicWorkload) TrainingStarted(sessionId string, tickNumber int64) {
 	w.Statistics.NumSubmittedTrainings += 1
 	w.Statistics.NumActiveTrainings += 1
 
+	w.logger.Debug("Session has started training.",
+		zap.String("session_id", sessionId),
+		zap.String("workload_id", w.Id),
+		zap.String("workload_name", w.WorkloadName()),
+		zap.Int64("tick_number", tickNumber),
+		zap.Int64("num_submitted_trainings", w.Statistics.NumSubmittedTrainings),
+		zap.Int64("num_active_trainings", w.Statistics.NumActiveTrainings))
+
 	w.trainingStartedTimes[sessionId] = time.Now()
 	w.trainingStartedTimesTicks[sessionId] = tickNumber
 
@@ -1023,6 +1031,11 @@ func (w *BasicWorkload) SetNextExpectedEventSession(sessionId string) {
 // GetStatistics returns the Statistics struct of the internalWorkload.
 func (w *BasicWorkload) GetStatistics() *Statistics {
 	return w.Statistics
+}
+
+// TotalNumSessions returns the total number of Sessions, including any discarded Sessions.
+func (w *BasicWorkload) TotalNumSessions() int {
+	return len(w.sessionsMap)
 }
 
 // UpdateStatistics provides an atomic mechanism to update the internalWorkload's Statistics.

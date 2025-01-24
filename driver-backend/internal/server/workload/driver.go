@@ -140,8 +140,8 @@ type internalWorkload interface {
 	unsafeSetSource(source interface{}) error
 }
 
-// BasicWorkloadDriver consumes events from the Workload Generator and takes action accordingly.
-type BasicWorkloadDriver struct {
+// Driver consumes events from the Workload Generator and takes action accordingly.
+type Driver struct {
 	logger        *zap.Logger
 	sugaredLogger *zap.SugaredLogger
 	atom          *zap.AtomicLevel
@@ -241,11 +241,11 @@ type BasicWorkloadDriver struct {
 
 func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, timescaleAdjustmentFactor float64,
 	websocket domain.ConcurrentWebSocket, atom *zap.AtomicLevel, callbackProvider CallbackProvider,
-	workloadJobConfig *domain.WorkloadJobConfiguration) (*BasicWorkloadDriver, error) {
+	workloadJobConfig *domain.WorkloadJobConfiguration) (*Driver, error) {
 
 	jupyterAddress := path.Join(opts.InternalJupyterServerAddress, opts.JupyterServerBasePath)
 
-	driver := &BasicWorkloadDriver{
+	driver := &Driver{
 		id:                                 GenerateWorkloadID(8),
 		eventChan:                          make(chan *domain.Event),
 		outputFileDirectory:                opts.WorkloadOutputDirectory,
@@ -403,15 +403,15 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 }
 
 //// GetStatisticsFileOutputPath returns the path to the statistics CSV file.
-//func (d *BasicWorkloadDriver) GetStatisticsFileOutputPath() string {
+//func (d *Driver) GetStatisticsFileOutputPath() string {
 //	return d.outputFilePath
 //}
 //
-//func (d *BasicWorkloadDriver) GetOutputFile() io.ReadWriteCloser {
+//func (d *Driver) GetOutputFile() io.ReadWriteCloser {
 //	return d.outputFile
 //}
 
-func (d *BasicWorkloadDriver) GetOutputFileContents() ([]byte, error) {
+func (d *Driver) GetOutputFileContents() ([]byte, error) {
 	d.outputFileMutex.Lock()
 	defer d.outputFileMutex.Unlock()
 
@@ -460,42 +460,42 @@ func (d *BasicWorkloadDriver) GetOutputFileContents() ([]byte, error) {
 //
 // If the workload is already running, then an error is returned.
 // Likewise, if the workload was previously running but has already stopped, then an error is returned.
-func (d *BasicWorkloadDriver) StartWorkload() error {
+func (d *Driver) StartWorkload() error {
 	d.logger.Debug("Workload Driver is starting workload.", zap.String("workload-driver-id", d.id))
 	return d.workload.StartWorkload()
 }
 
 // GetErrorChan returns the channel used to report critical errors encountered while executing the workload.
-func (d *BasicWorkloadDriver) GetErrorChan() chan<- error {
+func (d *Driver) GetErrorChan() chan<- error {
 	return d.errorChan
 }
 
 // CurrentTick returns the current tick of the workload.
-func (d *BasicWorkloadDriver) CurrentTick() domain.SimulationClock {
+func (d *Driver) CurrentTick() domain.SimulationClock {
 	return d.currentTick
 }
 
 // ClockTime returns the current clock time of the workload, which will be sometime between currentTick and currentTick + tick_duration.
-func (d *BasicWorkloadDriver) ClockTime() domain.SimulationClock {
+func (d *Driver) ClockTime() domain.SimulationClock {
 	return d.clockTime
 }
 
 // WebSocket returns the WebSocket connection on which this workload was registered by a remote client and on/through which updates about the workload are reported.
-func (d *BasicWorkloadDriver) WebSocket() domain.ConcurrentWebSocket {
+func (d *Driver) WebSocket() domain.ConcurrentWebSocket {
 	return d.websocket
 }
 
 // IsSessionBeingSampled returns true if the specified session was selected for sampling.
-func (d *BasicWorkloadDriver) IsSessionBeingSampled(sessionId string) bool {
+func (d *Driver) IsSessionBeingSampled(sessionId string) bool {
 	return d.workload.IsSessionBeingSampled(sessionId)
 }
 
 // GetSampleSessionsPercentage returns the configured SampleSessionsPercentage parameter for the Workload.
-func (d *BasicWorkloadDriver) GetSampleSessionsPercentage() float64 {
+func (d *Driver) GetSampleSessionsPercentage() float64 {
 	return d.workload.GetSampleSessionsPercentage()
 }
 
-func (d *BasicWorkloadDriver) SubmitEvent(evt *domain.Event) {
+func (d *Driver) SubmitEvent(evt *domain.Event) {
 	if !d.workload.IsSessionBeingSampled(evt.SessionID()) {
 		return
 	}
@@ -509,7 +509,7 @@ func (d *BasicWorkloadDriver) SubmitEvent(evt *domain.Event) {
 	d.eventChan <- evt
 }
 
-func (d *BasicWorkloadDriver) ToggleDebugLogging(enabled bool) domain.Workload {
+func (d *Driver) ToggleDebugLogging(enabled bool) domain.Workload {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -524,20 +524,20 @@ func (d *BasicWorkloadDriver) ToggleDebugLogging(enabled bool) domain.Workload {
 	return d.workload
 }
 
-func (d *BasicWorkloadDriver) GetWorkload() domain.Workload {
+func (d *Driver) GetWorkload() *Template {
 	return d.workload
 }
 
-func (d *BasicWorkloadDriver) GetWorkloadPreset() *domain.WorkloadPreset {
+func (d *Driver) GetWorkloadPreset() *domain.WorkloadPreset {
 	return d.workloadPreset
 }
 
-func (d *BasicWorkloadDriver) GetWorkloadRegistrationRequest() *domain.WorkloadRegistrationRequest {
+func (d *Driver) GetWorkloadRegistrationRequest() *domain.WorkloadRegistrationRequest {
 	return d.workloadRegistrationRequest
 }
 
 // Create a workload that was created using a preset.
-func (d *BasicWorkloadDriver) createWorkloadFromPreset(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) (internalWorkload, error) {
+func (d *Driver) createWorkloadFromPreset(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) (internalWorkload, error) {
 	// The specified preset should be in our map of workload presets.
 	// If it isn't, then the registration request is invalid, and we'll return an error.
 	var ok bool
@@ -575,7 +575,7 @@ func (d *BasicWorkloadDriver) createWorkloadFromPreset(workloadRegistrationReque
 
 // loadWorkloadTemplateFromFile is used for workload templates that come pre-defined
 // on the server because of how large they are.
-func (d *BasicWorkloadDriver) loadWorkloadTemplateFromFile(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) error {
+func (d *Driver) loadWorkloadTemplateFromFile(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) error {
 	if workloadRegistrationRequest.TemplateFilePath == "" {
 		return ErrTemplateFilePathNotSpecified
 	}
@@ -642,7 +642,7 @@ func (d *BasicWorkloadDriver) loadWorkloadTemplateFromFile(workloadRegistrationR
 }
 
 // Create a workload that was created using a template.
-func (d *BasicWorkloadDriver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) (*Template, error) {
+func (d *Driver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) (*Template, error) {
 	// The workload request needs to have a workload template in it.
 	// If the registration request does not contain a workload template,
 	// then the request is invalid, and we'll return an error.
@@ -691,7 +691,7 @@ func (d *BasicWorkloadDriver) createWorkloadFromTemplate(workloadRegistrationReq
 
 // RegisterWorkload registers a workload with the driver.
 // Returns nil if the workload could not be registered.
-func (d *BasicWorkloadDriver) RegisterWorkload(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) (domain.Workload, error) {
+func (d *Driver) RegisterWorkload(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) (domain.Workload, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -804,7 +804,7 @@ func (d *BasicWorkloadDriver) RegisterWorkload(workloadRegistrationRequest *doma
 }
 
 // WriteError writes an error back to the client.
-func (d *BasicWorkloadDriver) WriteError(ctx *gin.Context, errorMessage string) {
+func (d *Driver) WriteError(ctx *gin.Context, errorMessage string) {
 	// Write error back to front-end.
 	msg := &domain.ErrorMessage{
 		ErrorMessage: errorMessage,
@@ -814,19 +814,19 @@ func (d *BasicWorkloadDriver) WriteError(ctx *gin.Context, errorMessage string) 
 }
 
 // IsWorkloadComplete returns true if the workload has completed; otherwise, return false.
-func (d *BasicWorkloadDriver) IsWorkloadComplete() bool {
+func (d *Driver) IsWorkloadComplete() bool {
 	return d.workload.GetState() == Finished
 }
 
 // ID returns the unique ID of this workload driver.
 // This is not necessarily the same as the workload's unique ID (TODO: or is it?).
-func (d *BasicWorkloadDriver) ID() string {
+func (d *Driver) ID() string {
 	return d.id
 }
 
 // StopWorkload stops a workload that's already running/in-progress.
 // Returns nil on success, or an error if one occurred.
-func (d *BasicWorkloadDriver) StopWorkload() error {
+func (d *Driver) StopWorkload() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -836,7 +836,7 @@ func (d *BasicWorkloadDriver) StopWorkload() error {
 
 	d.logger.Debug("Stopping workload.", zap.String("workload_id", d.id), zap.String("workload-state", string(d.workload.GetState())))
 	d.stopChan <- struct{}{}
-	d.logger.Debug("Sent 'STOP' instruction via BasicWorkloadDriver::stopChan.", zap.String("workload_id", d.id))
+	d.logger.Debug("Sent 'STOP' instruction via Driver::stopChan.", zap.String("workload_id", d.id))
 
 	endTime, err := d.workload.TerminateWorkloadPrematurely(d.clockTime.GetClockTime())
 	if err != nil {
@@ -852,12 +852,12 @@ func (d *BasicWorkloadDriver) StopWorkload() error {
 }
 
 // StopChan returns the channel used to tell the workload to stop.
-func (d *BasicWorkloadDriver) StopChan() chan<- interface{} {
+func (d *Driver) StopChan() chan<- interface{} {
 	return d.stopChan
 }
 
 // handleCriticalError is used to abort the workload due to an error from which recovery is not possible.
-func (d *BasicWorkloadDriver) handleCriticalError(err error) {
+func (d *Driver) handleCriticalError(err error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -873,7 +873,7 @@ func (d *BasicWorkloadDriver) handleCriticalError(err error) {
 
 // abortWorkload manually aborts the workload.
 // Clean up any sessions/kernels that were created.
-func (d *BasicWorkloadDriver) abortWorkload() error {
+func (d *Driver) abortWorkload() error {
 	d.logger.Warn("Aborting workload.", zap.String("workload_id", d.id))
 
 	if d.workloadGenerator == nil {
@@ -893,7 +893,7 @@ func (d *BasicWorkloadDriver) abortWorkload() error {
 //
 // incrementClockTime returns a tuple where the first element is the new time, and the second element is the difference
 // between the new time and the old time.
-func (d *BasicWorkloadDriver) incrementClockTime(time time.Time) (time.Time, time.Duration, error) {
+func (d *Driver) incrementClockTime(time time.Time) (time.Time, time.Duration, error) {
 	newTime, timeDifference, err := d.clockTime.IncreaseClockTimeTo(time)
 
 	if err != nil {
@@ -904,7 +904,7 @@ func (d *BasicWorkloadDriver) incrementClockTime(time time.Time) (time.Time, tim
 }
 
 // Start the simulation.
-func (d *BasicWorkloadDriver) bootstrapSimulation() error {
+func (d *Driver) bootstrapSimulation() error {
 	// Get the first event.
 	firstEvent := <-d.eventChan
 
@@ -938,7 +938,7 @@ func (d *BasicWorkloadDriver) bootstrapSimulation() error {
 }
 
 // publishStatisticsReport writes the current Statistics struct attached to the internalWorkload to the CSV file.
-func (d *BasicWorkloadDriver) publishStatisticsReport() {
+func (d *Driver) publishStatisticsReport() {
 	clusterStatistics, err := d.refreshClusterStatistics(true, false)
 	if err != nil {
 		d.logger.Error("Failed to refresh cluster statistics.", zap.Error(err))
@@ -989,7 +989,7 @@ func (d *BasicWorkloadDriver) publishStatisticsReport() {
 }
 
 // createOutputDirectory creates the output directories for the workload (where the .CSV file is written).
-func (d *BasicWorkloadDriver) createOutputDirectory() error {
+func (d *Driver) createOutputDirectory() error {
 	outputSubdir := time.Now().Format("01-02-2006 15:04:05")
 	outputSubdir = strings.ReplaceAll(outputSubdir, ":", "-")
 	outputSubdir = fmt.Sprintf("%s - %s", outputSubdir, d.id)
@@ -1027,7 +1027,7 @@ func (d *BasicWorkloadDriver) createOutputDirectory() error {
 // This issues clock ticks as events are submitted.
 //
 // DriveWorkload should be called from its own goroutine.
-func (d *BasicWorkloadDriver) DriveWorkload() {
+func (d *Driver) DriveWorkload() {
 	var err error
 
 	if !d.OutputCsvDisabled {
@@ -1187,7 +1187,7 @@ OUTER:
 				nextTick = d.currentTick.GetClockTime().Add(d.targetTickDuration)
 			}
 
-			// Signal to the goroutine running the BasicWorkloadDriver::ProcessWorkloadEvents method that the workload has completed successfully.
+			// Signal to the goroutine running the Driver::ProcessWorkloadEvents method that the workload has completed successfully.
 			d.workloadExecutionCompleteChan <- struct{}{}
 
 			break OUTER
@@ -1200,7 +1200,7 @@ OUTER:
 }
 
 // writeWorkloadToJsonFile writes the Workload struct to a JSON file, truncating the file if it already exists.
-func (d *BasicWorkloadDriver) writeWorkloadToJsonFile() {
+func (d *Driver) writeWorkloadToJsonFile() {
 	workloadJsonPath := filepath.Join(d.outputSubdirectoryPath, fmt.Sprintf("workload_%s.json", d.workload.GetId()))
 	d.logger.Debug("Writing Workload struct to JSON file.", zap.String("path", workloadJsonPath))
 
@@ -1233,7 +1233,7 @@ func (d *BasicWorkloadDriver) writeWorkloadToJsonFile() {
 // one more time before returning.
 //
 // Additionally, every N iterations, publishStatisticsReports will write the Workload struct to a JSON file.
-func (d *BasicWorkloadDriver) publishStatisticsReports(wg *sync.WaitGroup) {
+func (d *Driver) publishStatisticsReports(wg *sync.WaitGroup) {
 	var counter int64
 
 	interval := int64(d.workloadJsonOutputFrequency)
@@ -1264,7 +1264,7 @@ func (d *BasicWorkloadDriver) publishStatisticsReports(wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func (d *BasicWorkloadDriver) PauseWorkload() error {
+func (d *Driver) PauseWorkload() error {
 	d.pauseMutex.Lock()
 	defer d.pauseMutex.Unlock()
 
@@ -1284,7 +1284,7 @@ func (d *BasicWorkloadDriver) PauseWorkload() error {
 	return d.workload.SetPausing()
 }
 
-func (d *BasicWorkloadDriver) UnpauseWorkload() error {
+func (d *Driver) UnpauseWorkload() error {
 	d.pauseMutex.Lock()
 	defer d.pauseMutex.Unlock()
 
@@ -1307,7 +1307,7 @@ func (d *BasicWorkloadDriver) UnpauseWorkload() error {
 }
 
 // handlePause is called to check if the workload is paused and, if so, then block until we're un-paused.
-func (d *BasicWorkloadDriver) handlePause() error {
+func (d *Driver) handlePause() error {
 	d.pauseMutex.Lock()
 	defer d.pauseMutex.Unlock()
 
@@ -1385,7 +1385,7 @@ func (d *BasicWorkloadDriver) handlePause() error {
 // The given timestamp should correspond to the timestamp of the next event generated by the Workload Generator.
 // The Workload Simulation will simulate everything up until this next event is ready to process.
 // Then we will continue consuming all events for the current tick in the SimulationDriver::DriveSimulation function.
-func (d *BasicWorkloadDriver) issueClockTicks(timestamp time.Time) error {
+func (d *Driver) issueClockTicks(timestamp time.Time) error {
 	if !d.performClockTicks {
 		return nil
 	}
@@ -1545,7 +1545,7 @@ func (d *BasicWorkloadDriver) issueClockTicks(timestamp time.Time) error {
 // If the workload is able to complete successfully, then nil is returned.
 //
 // ProcessWorkload should be called from its own goroutine.
-func (d *BasicWorkloadDriver) ProcessWorkloadEvents() {
+func (d *Driver) ProcessWorkloadEvents() {
 	d.mu.Lock()
 
 	if d.workload == nil {
@@ -1679,11 +1679,11 @@ func (d *BasicWorkloadDriver) ProcessWorkloadEvents() {
 	}
 }
 
-// workloadComplete is called when the BasicWorkloadDriver receives a signal on its workloadExecutionCompleteChan
+// workloadComplete is called when the Driver receives a signal on its workloadExecutionCompleteChan
 // field informing it that the workload has completed successfully.
 //
 // workloadComplete accepts a *sync.WaitGroup that is used to notify the caller when the workload has completed.
-func (d *BasicWorkloadDriver) workloadComplete() {
+func (d *Driver) workloadComplete() {
 	d.workload.SetWorkloadCompleted()
 
 	var ok bool
@@ -1733,18 +1733,18 @@ func (d *BasicWorkloadDriver) workloadComplete() {
 //
 // Basically, you just convert the timestamp to its unix epoch timestamp (in seconds), and divide by the
 // trace step value (also in seconds).
-func (d *BasicWorkloadDriver) convertTimestampToTickNumber(tick time.Time) int64 {
+func (d *Driver) convertTimestampToTickNumber(tick time.Time) int64 {
 	return tick.Unix() / d.targetTickDurationSeconds
 }
 
 // Handle a tick during the execution of a workload.
 //
-// This should just be called by BasicWorkloadDriver::ProcessWorkloadEvents.
+// This should just be called by Driver::ProcessWorkloadEvents.
 //
 // The 'tick' parameter is the clock time of the latest tick -- the tick that we're processing here.
 //
 // This only returns critical errors.
-func (d *BasicWorkloadDriver) handleTick(tick time.Time) error {
+func (d *Driver) handleTick(tick time.Time) error {
 	_, _, err := d.currentTick.IncreaseClockTimeTo(tick)
 	if err != nil {
 		return err
@@ -1778,28 +1778,28 @@ func (d *BasicWorkloadDriver) handleTick(tick time.Time) error {
 
 // WorkloadExecutionCompleteChan returns the channel that is used to signal
 // that the workload has successfully processed all events and is complete.
-func (d *BasicWorkloadDriver) WorkloadExecutionCompleteChan() chan interface{} {
+func (d *Driver) WorkloadExecutionCompleteChan() chan interface{} {
 	return d.workloadExecutionCompleteChan
 }
 
 // WorkloadEventGeneratorCompleteChan returns the channel used to signal that the generators have submitted all events.
 // Once all remaining, already-enqueued events have been processed, the workload will be complete.
-func (d *BasicWorkloadDriver) WorkloadEventGeneratorCompleteChan() chan interface{} {
+func (d *Driver) WorkloadEventGeneratorCompleteChan() chan interface{} {
 	return d.workloadEventGeneratorCompleteChan
 }
 
 // RegisterApproximateFinalTick is used to register what is the approximate final tick of the workload
 // after iterating over all sessions and all training events.
-func (d *BasicWorkloadDriver) RegisterApproximateFinalTick(approximateFinalTick int64) {
+func (d *Driver) RegisterApproximateFinalTick(approximateFinalTick int64) {
 	d.workload.RegisterApproximateFinalTick(approximateFinalTick)
 }
 
 // EventQueue returns the event queue for this workload.
-func (d *BasicWorkloadDriver) EventQueue() *event_queue.EventQueue {
+func (d *Driver) EventQueue() *event_queue.EventQueue {
 	return d.eventQueue
 }
 
-func (d *BasicWorkloadDriver) getSchedulingPolicy() string {
+func (d *Driver) getSchedulingPolicy() string {
 	if d.schedulingPolicy != "" {
 		return d.schedulingPolicy
 	}
@@ -1819,7 +1819,7 @@ func (d *BasicWorkloadDriver) getSchedulingPolicy() string {
 // Returns the model, the model's category, and an error (that will be nil on success).
 //
 // A non-nil error is returned if there are no models configured.
-func (d *BasicWorkloadDriver) randomlySelectModel() (string, string, error) {
+func (d *Driver) randomlySelectModel() (string, string, error) {
 	if len(d.modelDatasetCategories) == 0 {
 		return "", "", fmt.Errorf("there are no models configured whatsoever")
 	}
@@ -1845,7 +1845,7 @@ func (d *BasicWorkloadDriver) randomlySelectModel() (string, string, error) {
 // Returns the dataset and an error (that will be nil on success).
 //
 // A non-nil error is returned if there are no datasets configured (for the specified category).
-func (d *BasicWorkloadDriver) randomlySelectDataset(category string) (string, error) {
+func (d *Driver) randomlySelectDataset(category string) (string, error) {
 	datasets, loaded := d.datasetsByCategory[category]
 	if !loaded {
 		return "", fmt.Errorf("no datasets configured for specified category \"%s\"", category)
@@ -1863,7 +1863,7 @@ func (d *BasicWorkloadDriver) randomlySelectDataset(category string) (string, er
 // which we'll process an event. For example, if `tick` is 19:05:00, then we will process all cluster and session
 // events with timestamps that are (a) equal to 19:05:00 or (b) come before 19:05:00. Any events with timestamps
 // that come after 19:05:00 will not be processed until the next tick.
-func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
+func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 	// Extract all the "session-ready" events for this tick.
 	for d.eventQueue.HasEventsForTick(tick) {
 		evt := d.eventQueue.Pop(tick)
@@ -1968,7 +1968,7 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 //
 // The internal ID includes the unique ID of this workload driver, in case multiple
 // workloads from the same trace are being executed concurrently.
-func (d *BasicWorkloadDriver) getInternalSessionId(traceSessionId string) string {
+func (d *Driver) getInternalSessionId(traceSessionId string) string {
 	//return fmt.Sprintf("%s-%s", traceSessionId, d.id)
 	return traceSessionId
 }
@@ -1978,7 +1978,7 @@ func (d *BasicWorkloadDriver) getInternalSessionId(traceSessionId string) string
 // this will return nil.
 //
 // id should be the internal id of the session.
-func (d *BasicWorkloadDriver) GetSession(id string) Session {
+func (d *Driver) GetSession(id string) Session {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -1993,7 +1993,7 @@ func (d *BasicWorkloadDriver) GetSession(id string) Session {
 
 // ObserveJupyterSessionCreationLatency records the latency of creating a Jupyter session
 // during the execution of a particular workload, as identified by the given workload ID.
-func (d *BasicWorkloadDriver) ObserveJupyterSessionCreationLatency(latencyMilliseconds int64, workloadId string) {
+func (d *Driver) ObserveJupyterSessionCreationLatency(latencyMilliseconds int64, workloadId string) {
 	stats := d.workload.GetStatistics()
 
 	stats.CumulativeJupyterSessionCreationLatencyMillis += latencyMilliseconds
@@ -2007,7 +2007,7 @@ func (d *BasicWorkloadDriver) ObserveJupyterSessionCreationLatency(latencyMillis
 
 // ObserveJupyterSessionTerminationLatency records the latency of terminating a Jupyter session
 // during the execution of a particular workload, as identified by the given workload ID.
-func (d *BasicWorkloadDriver) ObserveJupyterSessionTerminationLatency(latencyMilliseconds int64, workloadId string) {
+func (d *Driver) ObserveJupyterSessionTerminationLatency(latencyMilliseconds int64, workloadId string) {
 	stats := d.workload.GetStatistics()
 
 	stats.CumulativeJupyterSessionTerminationLatencyMillis += latencyMilliseconds
@@ -2021,7 +2021,7 @@ func (d *BasicWorkloadDriver) ObserveJupyterSessionTerminationLatency(latencyMil
 
 // ObserveJupyterExecuteRequestE2ELatency records the end-to-end latency of an "execute_request" message
 // during the execution of a particular workload, as identified by the given workload ID.
-func (d *BasicWorkloadDriver) ObserveJupyterExecuteRequestE2ELatency(latencyMilliseconds int64, workloadId string) {
+func (d *Driver) ObserveJupyterExecuteRequestE2ELatency(latencyMilliseconds int64, workloadId string) {
 	stats := d.workload.GetStatistics()
 
 	stats.CumulativeJupyterExecRequestTimeMillis += latencyMilliseconds
@@ -2035,7 +2035,7 @@ func (d *BasicWorkloadDriver) ObserveJupyterExecuteRequestE2ELatency(latencyMill
 
 // AddJupyterRequestExecuteTime records the time taken to process an "execute_request" for the total, aggregate,
 // cumulative time spent processing "execute_request" messages.
-func (d *BasicWorkloadDriver) AddJupyterRequestExecuteTime(latencyMilliseconds int64, kernelId string, workloadId string) {
+func (d *Driver) AddJupyterRequestExecuteTime(latencyMilliseconds int64, kernelId string, workloadId string) {
 	if metrics.PrometheusMetricsWrapperInstance != nil {
 		metrics.PrometheusMetricsWrapperInstance.AddJupyterRequestExecuteTime(latencyMilliseconds, kernelId, workloadId)
 	}

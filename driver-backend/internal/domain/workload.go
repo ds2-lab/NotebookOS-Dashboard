@@ -63,6 +63,8 @@ type Workload interface {
 	// WorkloadName Returns the name of the workload.
 	// The name is not necessarily unique and is meant to be descriptive, whereas the ID is unique.
 	WorkloadName() string
+	// TotalNumSessions returns the total number of Sessions, including any discarded Sessions.
+	TotalNumSessions() int
 
 	// GetState Returns the current state of the workload.
 	//GetState() WorkloadState
