@@ -306,6 +306,7 @@ type Client struct {
 	closeLogFileFunc                 func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
 	dropSessionsWithNoTrainingEvents bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
 	MaxCreationAttempts              int                                    // MaxCreationAttempts is the maximum number of times the Client will attempt to create its kernel before giving up.
+	handledStopEvent                 atomic.Bool                            // handledStopEvent is set to true when the client handles the 'session-stopped' event for its session.
 }
 
 func (c *Client) closeLogFile() error {
@@ -426,6 +427,10 @@ func (c *Client) stop() {
 	_ = c.closeLogFile()
 
 	c.running.Store(0)
+
+	if c.waitGroup != nil {
+		c.waitGroup.Done()
+	}
 }
 
 func (c *Client) getInitialResourceRequest() *jupyter.ResourceSpec {
@@ -671,7 +676,9 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.WorkloadId))
 
-	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 {
+	// Keep iterating as long as the workload hasn't been terminated, we've not been
+	// explicitly instructed to stop, and we haven't processed our 'session-stopped' event.
+	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 && !c.handledStopEvent.Load() {
 		tickStart := time.Now()
 
 		// Increment the clock.
@@ -723,11 +730,6 @@ func (c *Client) run(wg *sync.WaitGroup) {
 	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 {
 		select {
 		case tick := <-c.ticker.TickDelivery:
-			//c.logger.Debug("Client received tick.",
-			//	zap.String("session_id", c.SessionId),
-			//	zap.String("workload_id", c.WorkloadId),
-			//	zap.String("workload_name", c.Workload.WorkloadName()),
-			//	zap.Time("tick", tick))
 
 			err := c.handleTick(tick)
 
@@ -740,11 +742,6 @@ func (c *Client) run(wg *sync.WaitGroup) {
 }
 
 func (c *Client) handleTick(tick time.Time) error {
-	//c.logger.Debug("Serving tick.",
-	//	zap.String("session_id", c.SessionId),
-	//	zap.String("workload_id", c.WorkloadId),
-	//	zap.Time("tick", tick))
-
 	_, _, err := c.currentTick.IncreaseClockTimeTo(tick)
 	if err != nil {
 		c.logger.Error("Failed to increase CurrentTick.",
@@ -773,11 +770,6 @@ func (c *Client) handleTick(tick time.Time) error {
 	if err != nil {
 		return err
 	}
-
-	//c.logger.Debug("Finished serving tick.",
-	//	zap.String("session_id", c.SessionId),
-	//	zap.String("workload_id", c.WorkloadId),
-	//	zap.Time("tick", tick))
 
 	c.ticksHandled.Add(1)
 	c.ticker.Done()
@@ -829,12 +821,6 @@ func (c *Client) processEventsForTick(tick time.Time) error {
 
 		numEventsProcessed += 1
 	}
-
-	//c.logger.Debug("Client finished processing events for tick.",
-	//	zap.String("session_id", c.SessionId),
-	//	zap.String("workload_id", c.Workload.GetId()),
-	//	zap.Time("tick", tick),
-	//	zap.Int("num_events_processed", numEventsProcessed))
 
 	return nil
 }
@@ -1604,7 +1590,9 @@ func (c *Client) handleSessionStoppedEvent(evt *domain.Event) error {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.Error(err))
-		return err
+
+		// We won't return the error so it doesn't kill the whole workload
+		// if this one Client/session has a problem.
 	}
 
 	c.logger.Debug(domain.ColorizeText("Successfully stopped session.", domain.LightGreen),
@@ -1624,7 +1612,8 @@ func (c *Client) handleSessionStoppedEvent(evt *domain.Event) error {
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId))
 
-	c.waitGroup.Done()
+	// Even if there was an error, this Client is done.
+	c.handledStopEvent.Store(true)
 
 	return nil
 }

@@ -395,27 +395,6 @@ func (w *Workload) GetKind() Kind {
 	return w.WorkloadType
 }
 
-// IsPresetWorkload returns true if this workload was created using a preset.
-func (w *Workload) IsPresetWorkload() bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	return w.WorkloadType == PresetWorkload
-}
-
-// IsTemplateWorkload returns true if this workload was created using a template.
-func (w *Workload) IsTemplateWorkload() bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	return w.WorkloadType == TemplateWorkload
-}
-
-// IsTraceWorkload returns true if this workload was created using the trace data.
-func (w *Workload) IsTraceWorkload() bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	return w.WorkloadType == TraceWorkload
-}
-
 // GetWorkloadSource returns the "source" of the workload.
 // If this is a preset workload, return the name of the preset.
 // If this is a trace workload, return the trace information.

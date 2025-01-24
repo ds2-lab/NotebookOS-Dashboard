@@ -62,7 +62,7 @@ type WorkloadDriver interface {
 	// This issues clock ticks as events are submitted.
 	DriveWorkload()
 
-	// ProcessWorkload should be called from its own goroutine.
+	// ProcessWorkloadEvents should be called from its own goroutine.
 	//
 	// If there is a critical error that causes the workload to be terminated prematurely/aborted, then that error is returned.
 	// If the workload is able to complete successfully, then nil is returned.

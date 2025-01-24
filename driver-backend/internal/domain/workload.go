@@ -135,12 +135,6 @@ type Workload interface {
 	// TrainingStopped is Called when a training stops during/in the workload.
 	// Just updates some internal metrics.
 	TrainingStopped(sessionId string, evt *Event, tickNumber int64)
-	// IsPresetWorkload returns true if this workload was created using a preset.
-	IsPresetWorkload() bool
-	// IsTemplateWorkload Returns true if this workload was created using a template.
-	IsTemplateWorkload() bool
-	// IsTraceWorkload Returns true if this workload was created using the trace data.
-	IsTraceWorkload() bool
 	// GetWorkloadSource returns the "source" of the workload, be it a preset, a template, or some trace data.
 	// If this is a preset workload, return the name of the preset.
 	// If this is a trace workload, return the trace information.

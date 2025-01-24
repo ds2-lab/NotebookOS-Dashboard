@@ -146,6 +146,7 @@ type Driver struct {
 	sugaredLogger *zap.SugaredLogger
 	atom          *zap.AtomicLevel
 
+	statsPublisherWg                   sync.WaitGroup                             // statsPublisherWg is used to wait for the goroutine that outputs to the CSV file and retrieves statistics from the Cluster Gateway to finish
 	clockTime                          domain.SimulationClock                     // Contains the current clock time of the workload, which will be sometime between currentTick and currentTick + tick_duration.
 	clockTrigger                       *clock.Trigger                             // Trigger for the clock ticks
 	currentTick                        domain.SimulationClock                     // Contains the current tick of the workload.
@@ -977,190 +978,6 @@ func (d *Driver) createOutputDirectory() error {
 	return nil
 }
 
-// DriveWorkload accepts a *sync.WaitGroup that is used to notify the caller when the workload has completed.
-// This issues clock ticks as events are submitted.
-//
-// DriveWorkload should be called from its own goroutine.
-func (d *Driver) DriveWorkload() {
-	var err error
-
-	if d.OutputCsvDisabled {
-		d.logger.Warn("CSV output is disabled!\n\n\n")
-	}
-
-	if !d.OutputCsvDisabled {
-		d.logger.Debug("Creating or opening the output CSV file.",
-			zap.String("workload_id", d.id),
-			zap.String("workload_name", d.workload.WorkloadName()),
-			zap.String("path", d.outputFilePath))
-		d.outputFileMutex.Lock()
-		d.outputFile, err = os.OpenFile(d.outputFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-		d.outputFileMutex.Unlock()
-
-		if err != nil {
-			d.logger.Error("Failed to create .CSV output file for workload.",
-				zap.String("workload_id", d.id),
-				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("path", d.outputFilePath),
-				zap.Error(err))
-			d.handleCriticalError(err)
-			return
-		}
-
-		// Defer the closing of the output CSV file.
-		defer func() {
-			// If we didn't create the CSV file in the first place, then just return.
-			if d.OutputCsvDisabled {
-				return
-			}
-
-			// Acquire mutex, close the file, release mutex.
-			d.outputFileMutex.Lock()
-			_ = d.outputFile.Close()
-			d.outputFileMutex.Unlock()
-
-			d.logger.Debug("Closed output CSV file.", zap.String("output_file_path", d.outputFilePath))
-		}()
-
-		// First, clear the cluster statistics. This will return whatever they were before we called clear.
-		_, err = d.refreshClusterStatistics(true, true)
-		if err != nil {
-			d.logger.Error("Failed to clear and/or retrieve Cluster Statistics before beginning workload.",
-				zap.String("workload_id", d.id),
-				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("reason", err.Error()))
-			d.handleCriticalError(err)
-			return
-		}
-
-		// Fetch the freshly-cleared cluster statistics.
-		clusterStats, err := d.refreshClusterStatistics(true, false)
-		if err != nil {
-			d.logger.Error("Failed to clear and/or retrieve Cluster Statistics before beginning workload.",
-				zap.String("workload_id", d.id),
-				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("reason", err.Error()))
-			d.handleCriticalError(err)
-			return
-		}
-
-		d.workload.GetStatistics().ClusterStatistics = clusterStats
-	}
-
-	d.logger.Info("Workload Simulator has started running. Bootstrapping simulation now.",
-		zap.String("workload_id", d.id),
-		zap.String("workload_name", d.workload.WorkloadName()))
-
-	var statsPublisherWg sync.WaitGroup
-
-	if !d.OutputCsvDisabled {
-		statsPublisherWg.Add(1)
-
-		go d.publishStatisticsReports(&statsPublisherWg)
-	}
-
-	err = d.bootstrapSimulation()
-	if err != nil {
-		d.logger.Error("Failed to bootstrap workload.",
-			zap.String("workload_id", d.id),
-			zap.String("workload_name", d.workload.WorkloadName()),
-			zap.String("reason", err.Error()))
-		d.handleCriticalError(err)
-		return
-	}
-
-	d.logger.Info("The simulation has started.",
-		zap.String("workload_id", d.id),
-		zap.String("workload_name", d.workload.WorkloadName()))
-
-	nextTick := d.currentTick.GetClockTime().Add(d.targetTickDuration)
-
-OUTER:
-	for {
-		// Constantly poll for events from the Workload Generator.
-		// These events are then enqueued in the EventQueue.
-		select {
-		case evt := <-d.eventChan:
-			if !d.workload.IsInProgress() {
-				d.logger.Warn("Workload is no longer running. Aborting drive procedure.",
-					zap.String("workload_name", d.workload.WorkloadName()),
-					zap.String("workload_id", d.workload.GetId()),
-					zap.String("workload_state", d.workload.GetState().String()))
-				return
-			}
-
-			// If the event occurs during this tick, then call EnqueueEvent to enqueue the event in the EventQueue.
-			if evt.Timestamp.Before(nextTick) {
-				d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" DOES occur before next tick [%v]. Enqueuing event now (timestamp=%v).",
-					evt.Name.String(), evt.ID, evt.SessionID(), nextTick, evt.Timestamp)
-
-				d.workload.SetNextEventTick(d.convertTimestampToTickNumber(evt.Timestamp))
-				d.workload.SetNextExpectedEventName(evt.Name)
-				d.workload.SetNextExpectedEventSession(evt.SessionId)
-
-				d.eventQueue.EnqueueEvent(evt)
-
-				if evt.Name == domain.EventSessionTraining || evt.Name == domain.EventSessionTrainingStarted {
-					d.trainingEventSubmitted = true
-				}
-			} else {
-				d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" does NOT occur before next tick [%v] (i.e., tick #%d). Will have to issue clock ticks until we get to event's timestamp of [%v] (i.e., tick #%d).",
-					evt.Name.String(), evt.ID, evt.SessionID(), nextTick, nextTick.Unix()/d.targetTickDurationSeconds, evt.Timestamp, evt.Timestamp.Unix()/d.targetTickDurationSeconds)
-
-				d.workload.SetNextEventTick(d.convertTimestampToTickNumber(evt.Timestamp))
-				d.workload.SetNextExpectedEventName(evt.Name)
-				d.workload.SetNextExpectedEventSession(evt.SessionId)
-
-				// The event occurs in the next tick. Update the current tick clock, issue/perform a tick-trigger, and then process the event.
-				err = d.issueClockTicks(evt.Timestamp)
-				if err != nil {
-					d.logger.Error("Critical error occurred while attempting to increment clock time.",
-						zap.String("workload_id", d.id),
-						zap.String("workload_name", d.workload.WorkloadName()),
-						zap.String("error-message", err.Error()))
-					d.handleCriticalError(err)
-					break OUTER
-				}
-				nextTick = d.currentTick.GetClockTime().Add(d.targetTickDuration)
-				d.eventQueue.EnqueueEvent(evt)
-
-				if evt.Name == domain.EventSessionTraining || evt.Name == domain.EventSessionTrainingStarted {
-					d.trainingEventSubmitted = true
-				}
-			}
-		case <-d.workloadEventGeneratorCompleteChan:
-			d.logger.Debug("Drivers finished generating events.",
-				zap.Int("events_still_enqueued", d.eventQueue.Len()),
-				zap.String("workload_id", d.id),
-				zap.String("workload_name", d.workload.WorkloadName()))
-
-			// Continue issuing ticks until the cluster is finished.
-			for d.eventQueue.Len() > 0 {
-				err = d.issueClockTicks(nextTick)
-				if err != nil {
-					d.logger.Error("Critical error occurred while attempting to increment clock time.",
-						zap.String("workload_id", d.id),
-						zap.String("workload_name", d.workload.WorkloadName()),
-						zap.String("error-message", err.Error()))
-					d.handleCriticalError(err)
-					break OUTER
-				}
-
-				nextTick = d.currentTick.GetClockTime().Add(d.targetTickDuration)
-			}
-
-			// Signal to the goroutine running the Driver::ProcessWorkloadEvents method that the workload has completed successfully.
-			d.workloadExecutionCompleteChan <- struct{}{}
-
-			break OUTER
-		}
-	}
-
-	statsPublisherWg.Wait()
-
-	d.writeWorkloadToJsonFile()
-}
-
 // writeWorkloadToJsonFile writes the Workload struct to a JSON file, truncating the file if it already exists.
 func (d *Driver) writeWorkloadToJsonFile() {
 	workloadJsonPath := filepath.Join(d.outputSubdirectoryPath, fmt.Sprintf("workload_%s.json", d.workload.GetId()))
@@ -1195,7 +1012,7 @@ func (d *Driver) writeWorkloadToJsonFile() {
 // one more time before returning.
 //
 // Additionally, every N iterations, publishStatisticsReports will write the Workload struct to a JSON file.
-func (d *Driver) publishStatisticsReports(wg *sync.WaitGroup) {
+func (d *Driver) publishStatisticsReports() {
 	var counter int64
 
 	interval := int64(d.workloadJsonOutputFrequency)
@@ -1223,7 +1040,7 @@ func (d *Driver) publishStatisticsReports(wg *sync.WaitGroup) {
 	// Publish one last statistics report, which will also fetch the Cluster Statistics one last time.
 	d.publishStatisticsReport()
 
-	wg.Done()
+	d.statsPublisherWg.Done()
 }
 
 func (d *Driver) PauseWorkload() error {
@@ -1500,6 +1317,188 @@ func (d *Driver) issueClockTicks(timestamp time.Time) error {
 	return nil
 }
 
+// DriveWorkload accepts a *sync.WaitGroup that is used to notify the caller when the workload has completed.
+// This issues clock ticks as events are submitted.
+//
+// DriveWorkload should be called from its own goroutine.
+func (d *Driver) DriveWorkload() {
+	var err error
+
+	if d.OutputCsvDisabled {
+		d.logger.Warn("CSV output is disabled!\n\n\n")
+	}
+
+	if !d.OutputCsvDisabled {
+		d.logger.Debug("Creating or opening the output CSV file.",
+			zap.String("workload_id", d.id),
+			zap.String("workload_name", d.workload.WorkloadName()),
+			zap.String("path", d.outputFilePath))
+		d.outputFileMutex.Lock()
+		d.outputFile, err = os.OpenFile(d.outputFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+		d.outputFileMutex.Unlock()
+
+		if err != nil {
+			d.logger.Error("Failed to create .CSV output file for workload.",
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.String("path", d.outputFilePath),
+				zap.Error(err))
+			d.handleCriticalError(err)
+			return
+		}
+
+		// Defer the closing of the output CSV file.
+		defer func() {
+			// If we didn't create the CSV file in the first place, then just return.
+			if d.OutputCsvDisabled {
+				return
+			}
+
+			// Acquire mutex, close the file, release mutex.
+			d.outputFileMutex.Lock()
+			_ = d.outputFile.Close()
+			d.outputFileMutex.Unlock()
+
+			d.logger.Debug("Closed output CSV file.", zap.String("output_file_path", d.outputFilePath))
+		}()
+
+		// First, clear the cluster statistics. This will return whatever they were before we called clear.
+		_, err = d.refreshClusterStatistics(true, true)
+		if err != nil {
+			d.logger.Error("Failed to clear and/or retrieve Cluster Statistics before beginning workload.",
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.String("reason", err.Error()))
+			d.handleCriticalError(err)
+			return
+		}
+
+		// Fetch the freshly-cleared cluster statistics.
+		clusterStats, err := d.refreshClusterStatistics(true, false)
+		if err != nil {
+			d.logger.Error("Failed to clear and/or retrieve Cluster Statistics before beginning workload.",
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.String("reason", err.Error()))
+			d.handleCriticalError(err)
+			return
+		}
+
+		d.workload.GetStatistics().ClusterStatistics = clusterStats
+	}
+
+	d.logger.Info("Workload Simulator has started running. Bootstrapping simulation now.",
+		zap.String("workload_id", d.id),
+		zap.String("workload_name", d.workload.WorkloadName()))
+
+	if !d.OutputCsvDisabled {
+		d.statsPublisherWg.Add(1)
+
+		go d.publishStatisticsReports()
+	}
+
+	err = d.bootstrapSimulation()
+	if err != nil {
+		d.logger.Error("Failed to bootstrap workload.",
+			zap.String("workload_id", d.id),
+			zap.String("workload_name", d.workload.WorkloadName()),
+			zap.String("reason", err.Error()))
+		d.handleCriticalError(err)
+		return
+	}
+
+	d.logger.Info("The simulation has started.",
+		zap.String("workload_id", d.id),
+		zap.String("workload_name", d.workload.WorkloadName()))
+
+	nextTick := d.currentTick.GetClockTime().Add(d.targetTickDuration)
+
+OUTER:
+	for d.workload.IsInProgress() {
+		// Constantly poll for events from the Workload Generator.
+		// These events are then enqueued in the EventQueue.
+		select {
+		case evt := <-d.eventChan:
+			if !d.workload.IsInProgress() {
+				d.logger.Warn("Workload is no longer running. Aborting drive procedure.",
+					zap.String("workload_name", d.workload.WorkloadName()),
+					zap.String("workload_id", d.workload.GetId()),
+					zap.String("workload_state", d.workload.GetState().String()))
+				return
+			}
+
+			// If the event occurs during this tick, then call EnqueueEvent to enqueue the event in the EventQueue.
+			if evt.Timestamp.Before(nextTick) {
+				d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" DOES occur before next tick [%v]. Enqueuing event now (timestamp=%v).",
+					evt.Name.String(), evt.ID, evt.SessionID(), nextTick, evt.Timestamp)
+
+				d.workload.SetNextEventTick(d.convertTimestampToTickNumber(evt.Timestamp))
+				d.workload.SetNextExpectedEventName(evt.Name)
+				d.workload.SetNextExpectedEventSession(evt.SessionId)
+
+				d.eventQueue.EnqueueEvent(evt)
+
+				if evt.Name == domain.EventSessionTraining || evt.Name == domain.EventSessionTrainingStarted {
+					d.trainingEventSubmitted = true
+				}
+			} else {
+				d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" does NOT occur before next tick [%v] (i.e., tick #%d). Will have to issue clock ticks until we get to event's timestamp of [%v] (i.e., tick #%d).",
+					evt.Name.String(), evt.ID, evt.SessionID(), nextTick, nextTick.Unix()/d.targetTickDurationSeconds, evt.Timestamp, evt.Timestamp.Unix()/d.targetTickDurationSeconds)
+
+				d.workload.SetNextEventTick(d.convertTimestampToTickNumber(evt.Timestamp))
+				d.workload.SetNextExpectedEventName(evt.Name)
+				d.workload.SetNextExpectedEventSession(evt.SessionId)
+
+				// The event occurs in the next tick. Update the current tick clock, issue/perform a tick-trigger, and then process the event.
+				err = d.issueClockTicks(evt.Timestamp)
+				if err != nil {
+					d.logger.Error("Critical error occurred while attempting to increment clock time.",
+						zap.String("workload_id", d.id),
+						zap.String("workload_name", d.workload.WorkloadName()),
+						zap.String("error-message", err.Error()))
+					d.handleCriticalError(err)
+					break OUTER
+				}
+				nextTick = d.currentTick.GetClockTime().Add(d.targetTickDuration)
+				d.eventQueue.EnqueueEvent(evt)
+
+				if evt.Name == domain.EventSessionTraining || evt.Name == domain.EventSessionTrainingStarted {
+					d.trainingEventSubmitted = true
+				}
+			}
+		case <-d.workloadEventGeneratorCompleteChan:
+			d.logger.Debug("Drivers finished generating events.",
+				zap.Int("events_still_enqueued", d.eventQueue.Len()),
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()))
+
+			// Continue issuing ticks until the cluster is finished.
+			for d.eventQueue.Len() > 0 && d.workload.IsInProgress() {
+				err = d.issueClockTicks(nextTick)
+				if err != nil {
+					d.logger.Error("Critical error occurred while attempting to increment clock time.",
+						zap.String("workload_id", d.id),
+						zap.String("workload_name", d.workload.WorkloadName()),
+						zap.String("error-message", err.Error()))
+					d.handleCriticalError(err)
+					break OUTER
+				}
+
+				nextTick = d.currentTick.GetClockTime().Add(d.targetTickDuration)
+			}
+
+			// Signal to the goroutine running the Driver::ProcessWorkloadEvents method that the workload has completed successfully.
+			d.workloadExecutionCompleteChan <- struct{}{}
+
+			break OUTER
+		}
+	}
+
+	d.statsPublisherWg.Wait()
+
+	d.writeWorkloadToJsonFile()
+}
+
 // ProcessWorkloadEvents accepts a *sync.WaitGroup that is used to notify the caller when the workload has completed.
 // This processes events in response to clock ticks.
 //
@@ -1543,31 +1542,15 @@ func (d *Driver) ProcessWorkloadEvents() {
 	d.workloadGenerator = generator.NewWorkloadGenerator(d.opts, d.atom, d)
 	d.mu.Unlock()
 
-	if d.workload.IsTemplateWorkload() {
-		go func() {
-			err := d.workloadGenerator.GenerateTemplateWorkload(d, d.workloadSessions, d.workloadRegistrationRequest)
-			if err != nil {
-				d.logger.Error("Failed to drive/generate templated workload.",
-					zap.String("workload_id", d.id),
-					zap.String("workload_name", d.workload.WorkloadName()),
-					zap.Error(err))
-			}
-		}()
-	} else if d.workload.IsPresetWorkload() {
-		panic("Not supported anymore.")
-		//go func() {
-		//	presetWorkload := d.workload.(*Preset)
-		//	err := d.workloadGenerator.GeneratePresetWorkload(d, presetWorkload, presetWorkload.WorkloadPreset, d.workloadRegistrationRequest)
-		//	if err != nil {
-		//		d.logger.Error("Failed to drive/generate preset workload.",
-		//			zap.String("workload_id", d.id),
-		//			zap.String("workload_name", d.workload.WorkloadName()),
-		//			zap.Error(err))
-		//	}
-		//}()
-	} else {
-		panic(fmt.Sprintf("Workload is of presently-unsuporrted type: \"%s\" -- cannot generate workload.", d.workload.GetKind()))
-	}
+	go func() {
+		err := d.workloadGenerator.GenerateTemplateWorkload(d, d.workloadSessions, d.workloadRegistrationRequest)
+		if err != nil {
+			d.logger.Error("Failed to drive/generate templated workload.",
+				zap.String("workload_id", d.id),
+				zap.String("workload_name", d.workload.WorkloadName()),
+				zap.Error(err))
+		}
+	}()
 
 	d.logger.Info("The Workload Driver has started running.",
 		zap.String("workload_id", d.id),
@@ -1646,6 +1629,8 @@ func (d *Driver) ProcessWorkloadEvents() {
 //
 // workloadComplete accepts a *sync.WaitGroup that is used to notify the caller when the workload has completed.
 func (d *Driver) workloadComplete() {
+	d.statsPublisherWg.Wait()
+
 	d.workload.SetWorkloadCompleted()
 
 	var ok bool
@@ -1914,9 +1899,6 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 
 			client.EventQueue.Push(evt)
 		}
-
-		// TODO: Enqueue event with respective client.
-		//		 SessionReadyEvents will require a new client.
 	}
 
 	// Wait for all the goroutines to complete before returning.
