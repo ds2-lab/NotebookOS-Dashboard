@@ -486,6 +486,25 @@ var _ = Describe("Workload Driver Tests", func() {
 					Expect(client.NumSessionStartAttempts()).To(Equal(int32(2)))
 					Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
 					Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
+
+					targetWorkload := workloadDriver.GetWorkload()
+					Expect(targetWorkload).ToNot(BeNil())
+					GinkgoWriter.Printf("State of workload %s (ID=%s): %s\n",
+						targetWorkload.Name, targetWorkload.Id, targetWorkload.GetState().String())
+					Expect(targetWorkload.IsFinished()).To(BeTrue())
+					Expect(targetWorkload.Statistics.NumSubmittedTrainings).To(Equal(int64(1)))
+					Expect(targetWorkload.Statistics.NumTasksExecuted).To(Equal(int64(1)))
+					Expect(targetWorkload.Statistics.NumSessionsCreated).To(Equal(int64(1)))
+
+					totalNumTrainings := 1 // each trains once
+					numSessions := 1
+					// totalNumTrainings twice because training-started and training-ended are counted separately.
+					// numSessions twice because session-started and session-stopped are counted separately.
+					// + 1 for workload started, + 1 for workload ended
+					numEventsProcessed := totalNumTrainings + totalNumTrainings + numSessions + numSessions + 1 + 1
+					Expect(targetWorkload.Statistics.NumEventsProcessed).To(Equal(int64(numEventsProcessed)))
+					Expect(targetWorkload.Statistics.NumActiveTrainings).To(Equal(int64(0)))
+					Expect(targetWorkload.Statistics.NumActiveSessions).To(Equal(int64(0)))
 				})
 
 				It("Will correctly resubmit failed a 'training-started' event", func() {
@@ -592,6 +611,26 @@ var _ = Describe("Workload Driver Tests", func() {
 					Expect(client.NumSessionStartAttempts()).To(Equal(int32(1)))
 					Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
 					Expect(client.TrainingEventsDelayed()).To(Equal(int32(1)))
+
+					targetWorkload := workloadDriver.GetWorkload()
+					Expect(targetWorkload).ToNot(BeNil())
+					GinkgoWriter.Printf("State of workload %s (ID=%s): %s\n",
+						targetWorkload.Name, targetWorkload.Id, targetWorkload.GetState().String())
+					Expect(targetWorkload.IsFinished()).To(BeTrue())
+					Expect(targetWorkload.Statistics.NumSubmittedTrainings).To(Equal(int64(2)))
+					Expect(targetWorkload.Statistics.NumTasksExecuted).To(Equal(int64(1)))
+					Expect(targetWorkload.Statistics.NumSessionsCreated).To(Equal(int64(1)))
+
+					totalNumTrainings := 1 // each trains once
+					numSessions := 1
+					// totalNumTrainings twice because training-started and training-ended are counted separately.
+					// numSessions twice because session-started and session-stopped are counted separately.
+					// + 1 for workload started, + 1 for workload ended
+					// + 1 for the failed 'training-started', which counts as being processed despite failing
+					numEventsProcessed := totalNumTrainings + totalNumTrainings + numSessions + numSessions + 1 + 1 + 1
+					Expect(targetWorkload.Statistics.NumEventsProcessed).To(Equal(int64(numEventsProcessed)))
+					Expect(targetWorkload.Statistics.NumActiveTrainings).To(Equal(int64(0)))
+					Expect(targetWorkload.Statistics.NumActiveSessions).To(Equal(int64(0)))
 				})
 
 				It("Will correctly resubmit both a failed 'session-started' event and a failed 'training' event", func() {
@@ -1291,17 +1330,6 @@ var _ = Describe("Workload Driver Tests", func() {
 					time.Sleep(time.Second * time.Duration(8*timescaleAdjustmentFactor))
 					execStopTimeUnixMillis := time.Now().UnixMilli()
 
-					//client.TrainingStoppedChannel <- &jupyter.Message{
-					//	Header: &jupyter.KernelMessageHeader{
-					//		MessageId:   uuid.NewString(),
-					//		MessageType: jupyter.ExecuteReply,
-					//		Date:        time.Now().String(),
-					//	},
-					//	Content: map[string]interface{}{
-					//		"execution_start_unix_millis":    float64(execStartedTimeUnixMillis),
-					//		"execution_finished_unix_millis": float64(execStopTimeUnixMillis),
-					//	},
-					//}
 					notifyClientThatTrainingFinished(client, float64(execStartedTimeUnixMillis), float64(execStopTimeUnixMillis))
 
 					kernelStoppedWg.Wait()
@@ -1311,6 +1339,26 @@ var _ = Describe("Workload Driver Tests", func() {
 					Expect(client.NumSessionStartAttempts()).To(Equal(int32(1)))
 					Expect(client.TrainingEventsHandled()).To(Equal(int32(1)))
 					Expect(client.TrainingEventsDelayed()).To(Equal(int32(0)))
+
+					targetWorkload := workloadDriver.GetWorkload()
+					Expect(targetWorkload).ToNot(BeNil())
+					GinkgoWriter.Printf("State of workload %s (ID=%s): %s\n",
+						targetWorkload.Name, targetWorkload.Id, targetWorkload.GetState().String())
+					Expect(targetWorkload.IsFinished()).To(BeTrue())
+					Expect(targetWorkload.Statistics.NumSubmittedTrainings).To(Equal(int64(1)))
+					Expect(targetWorkload.Statistics.NumTasksExecuted).To(Equal(int64(1)))
+					Expect(targetWorkload.Statistics.NumSessionsCreated).To(Equal(int64(1)))
+
+					totalNumTrainings := 1 // each trains once
+					numSessions := 1
+					// totalNumTrainings twice because training-started and training-ended are counted separately.
+					// numSessions twice because session-started and session-stopped are counted separately.
+					// + 1 for workload started, + 1 for workload ended
+					numEventsProcessed := totalNumTrainings + totalNumTrainings + numSessions + numSessions + 1 + 1
+					Expect(targetWorkload.Statistics.NumEventsProcessed).To(Equal(int64(numEventsProcessed)))
+					Expect(targetWorkload.Statistics.NumSubmittedTrainings).To(Equal(int64(totalNumTrainings)))
+					Expect(targetWorkload.Statistics.NumActiveTrainings).To(Equal(int64(0)))
+					Expect(targetWorkload.Statistics.NumActiveSessions).To(Equal(int64(0)))
 				})
 
 				It("Will successfully handle a workload with 16 sessions that each train a single time", func() {
@@ -1493,6 +1541,16 @@ var _ = Describe("Workload Driver Tests", func() {
 
 					statistics := targetWorkload.GetStatistics()
 					Expect(statistics).ToNot(BeNil())
+
+					totalNumTrainings := numSessions // each trains once
+					// totalNumTrainings twice because training-started and training-ended are counted separately.
+					// numSessions twice because session-started and session-stopped are counted separately.
+					// + 1 for workload started, + 1 for workload ended
+					numEventsProcessed := totalNumTrainings + totalNumTrainings + numSessions + numSessions + 1 + 1
+					Expect(statistics.NumEventsProcessed).To(Equal(int64(numEventsProcessed)))
+					Expect(statistics.NumSubmittedTrainings).To(Equal(int64(totalNumTrainings)))
+					Expect(statistics.NumActiveTrainings).To(Equal(int64(0)))
+					Expect(statistics.NumActiveSessions).To(Equal(int64(0)))
 				})
 
 				It("Will correctly discard sessions with no training events when instructed to do so", func() {
@@ -1741,6 +1799,15 @@ var _ = Describe("Workload Driver Tests", func() {
 					Expect(targetWorkload.Statistics.NumSubmittedTrainings).To(Equal(int64(totalNumTrainings)))
 					Expect(targetWorkload.Statistics.NumTasksExecuted).To(Equal(int64(totalNumTrainings)))
 					Expect(targetWorkload.Statistics.NumSessionsCreated).To(Equal(int64(numSessions)))
+
+					// totalNumTrainings twice because training-started and training-ended are counted separately.
+					// numSessions twice because session-started and session-stopped are counted separately.
+					// + 1 for workload started, + 1 for workload ended
+					numEventsProcessed := totalNumTrainings + totalNumTrainings + numSessions + numSessions + 1 + 1
+					Expect(targetWorkload.Statistics.NumEventsProcessed).To(Equal(int64(numEventsProcessed)))
+					Expect(targetWorkload.Statistics.NumSubmittedTrainings).To(Equal(int64(totalNumTrainings)))
+					Expect(targetWorkload.Statistics.NumActiveTrainings).To(Equal(int64(0)))
+					Expect(targetWorkload.Statistics.NumActiveSessions).To(Equal(int64(0)))
 				})
 			})
 		})
