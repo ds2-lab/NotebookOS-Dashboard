@@ -154,7 +154,7 @@ function getSessionStatusLabel(session: Session): ReactElement {
 // This example is trivial since our data objects just contain strings, but if the data was more complex
 // this would be a place to return simplified string or number versions of each column to sort by.
 function getSortableRowValues(session: Session): (string | number | Date)[] {
-    const { id, state, trainings, trainings_completed, current_resource_request, max_resource_request } = session;
+    const { id, state, current_tick_number, trainings, trainings_completed, current_resource_request, max_resource_request } = session;
 
     let status: string = state;
     if (session.discarded) {
@@ -164,6 +164,7 @@ function getSortableRowValues(session: Session): (string | number | Date)[] {
     return [
         id,
         status,
+        current_tick_number,
         trainings_completed,
         trainings.length - trainings_completed,
         current_resource_request.cpus,
@@ -397,8 +398,8 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                             />
                         </Tooltip>
                     </Td>
-                    <Td dataLabel={tableColumns.currentTickNumber}>{session.current_tick_number}</Td>
                     <Td dataLabel={tableColumns.status}>{getSessionStatusLabel(session)}</Td>
+                    <Td dataLabel={tableColumns.currentTickNumber}>{session.current_tick_number}</Td>
                     <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.remainingExecutions}>{getRemainingTrainings(session)}</Td>
