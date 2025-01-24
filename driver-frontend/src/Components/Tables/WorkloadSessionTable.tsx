@@ -1,9 +1,24 @@
 import { Session, Workload } from '@Data/Workload';
-import { Button, Card, CardBody, Label, Pagination, Text, Tooltip } from '@patternfly/react-core';
+import {
+    Button,
+    Card,
+    CardBody,
+    DescriptionList,
+    DescriptionListDescription,
+    DescriptionListGroup,
+    DescriptionListTerm,
+    Flex,
+    FlexItem,
+    Label,
+    Pagination,
+    Popover,
+    Tooltip,
+} from '@patternfly/react-core';
 import {
     CopyIcon,
     CpuIcon,
     ErrorCircleOIcon,
+    InfoCircleIcon,
     InProgressIcon,
     MemoryIcon,
     OffIcon,
@@ -13,7 +28,7 @@ import {
     UnknownIcon,
     WarningTriangleIcon,
 } from '@patternfly/react-icons';
-import { ExpandableRowContent, Table, Tbody, Td, Th, ThProps, Thead, Tr } from '@patternfly/react-table';
+import { ExpandableRowContent, Table, Tbody, Td, Th, Thead, ThProps, Tr } from '@patternfly/react-table';
 import { GpuIcon, GpuIconAlt2 } from '@src/Assets/Icons';
 import { SessionTrainingEventTable } from '@src/Components';
 import { RoundToThreeDecimalPlaces, RoundToTwoDecimalPlaces } from '@src/Utils';
@@ -22,8 +37,9 @@ import React, { ReactElement } from 'react';
 const tableColumns = {
     id: 'ID',
     status: 'Status',
+    currentTickNumber: 'Curr. Tick',
     completedExecutions: 'Completed Executions',
-    remainingExecutions: 'RemainingExecutions',
+    remainingExecutions: 'Remaining Executions',
     millicpus: 'Millicpus',
     memory: 'Memory (MB)',
     gpus: 'GPUs',
@@ -35,13 +51,12 @@ const tableColumns = {
 const sessions_table_columns: string[] = [
     'ID',
     'Status',
+    'Tick',
     'Completed Exec.',
     'Remaining Exec.',
     'Millicpus',
-    'DRAM (MB)',
+    'RAM (MB)',
     'GPUs',
-    // 'Current vGPUs',
-    // 'Max vGPUs',
     'VRAM (GB)',
 ];
 
@@ -294,6 +309,40 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         />
     );
 
+    const getSessionPopoverContent = (session: Session) => {
+        return (
+            <React.Fragment>
+                <DescriptionList columnModifier={{ lg: '3Col' }} displaySize={'lg'}>
+                    <DescriptionListGroup>
+                        <DescriptionListTerm>Start Tick</DescriptionListTerm>
+                        <DescriptionListDescription>{session.start_tick}</DescriptionListDescription>
+                    </DescriptionListGroup>
+                    <DescriptionListGroup>
+                        <DescriptionListTerm>Stop Tick</DescriptionListTerm>
+                        <DescriptionListDescription>{session.stop_tick}</DescriptionListDescription>
+                    </DescriptionListGroup>
+                    {session.current_tick_number > 0 && (
+                        <DescriptionListGroup>
+                            <DescriptionListTerm>Current Tick</DescriptionListTerm>
+                            <DescriptionListDescription>{session.current_tick_number}</DescriptionListDescription>
+                        </DescriptionListGroup>
+                    )}
+                </DescriptionList>
+            </React.Fragment>
+        );
+    };
+
+    const getSessionPopoverHeader = (session: Session) => {
+        return (
+            <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                <FlexItem>
+                    <InfoCircleIcon />
+                </FlexItem>
+                <FlexItem>Session {session.id}</FlexItem>
+            </Flex>
+        );
+    };
+
     const getTableRow = (rowIndex: number): ReactElement | undefined => {
         const session: Session = sortedSessions[rowIndex];
 
@@ -318,7 +367,17 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         }
                     />
                     <Td dataLabel={tableColumns.id}>
-                        <Text component={'small'}>{session.id}</Text>
+                        <Popover
+                            alertSeverityVariant="info"
+                            headerComponent="h1"
+                            hasAutoWidth={true}
+                            headerContent={getSessionPopoverHeader(session)}
+                            bodyContent={getSessionPopoverContent(session)}
+                        >
+                            <Button variant={'link'} isInline>
+                                {session.id}
+                            </Button>
+                        </Popover>
                         <Tooltip
                             content={showCopySuccessContent ? doneCopyText : copyText}
                             position={'right'}
@@ -338,7 +397,9 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                             />
                         </Tooltip>
                     </Td>
+                    <Td dataLabel={tableColumns.currentTickNumber}>{session.current_tick_number}</Td>
                     <Td dataLabel={tableColumns.status}>{getSessionStatusLabel(session)}</Td>
+                    <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.remainingExecutions}>{getRemainingTrainings(session)}</Td>
                     <Td dataLabel={tableColumns.millicpus}>
@@ -365,15 +426,6 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         {'/'}
                         {RoundToThreeDecimalPlaces(session?.max_resource_request.gpus)}
                     </Td>
-                    {/*<Td dataLabel={tableColumns.currentGpus}>*/}
-                    {/*    <GpuIcon />*/}
-                    {/*    {session?.current_resource_request.gpus ? session?.current_resource_request.gpus : 0}*/}
-                    {/*</Td>*/}
-
-                    {/*<Td dataLabel={tableColumns.maxGpus}>*/}
-                    {/*    <GpuIcon />*/}
-                    {/*    {RoundToThreeDecimalPlaces(session?.max_resource_request.gpus)}*/}
-                    {/*</Td>*/}
                     <Td dataLabel={tableColumns.vram}>
                         <GpuIconAlt2 />
                         {session?.current_resource_request.vram

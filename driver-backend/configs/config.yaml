@@ -10,7 +10,7 @@ gateway-address: localhost:8079
 cluster-dashboard-handler-port: 8078
 websocket-proxy-port: 8077
 base-url: "/"
-workload-output-interval-seconds: 2
+workload-output-interval-seconds: 1
 workload-output-json-frequency: 5
 apply-time-compression-to-training-durations: true
 drop_sessions_with_no_trainings: true

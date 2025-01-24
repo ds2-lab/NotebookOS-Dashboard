@@ -195,43 +195,6 @@ interface Workload {
     workload_preset_key: string;
 }
 
-// interface Workload {
-//     id: string;
-//     name: string;
-//     workload_state: string;
-//     workload_preset: WorkloadPreset;
-//     workload_preset_name: string;
-//     workload_preset_key: string;
-//     workload_template: WorkloadTemplate;
-//     registered_time: string; // Timestamp of when the workload was registered.
-//     start_time: string;
-//     time_elapsed: number;
-//     time_elapsed_str: string;
-//     num_tasks_executed: number;
-//     seed: number;
-//     num_active_sessions: number;
-//     num_sessions_created: number;
-//     num_events_processed: number;
-//     num_active_trainings: number;
-//     debug_logging_enabled: boolean;
-//     error_message: string;
-//     timescale_adjustment_factor: number;
-//     sessions_sample_percentage: number;
-//     events_processed: WorkloadEvent[];
-//     sessions: Session[];
-//     num_sampled_sessions: number;
-//     num_discarded_sessions: number;
-//     total_num_sessions: number;
-//     simulation_clock_time: string;
-//     current_tick: number;
-//     total_num_ticks: number;
-//     next_expected_event_name: string;
-//     next_expected_event_target: string;
-//     next_event_expected_tick: number;
-//     tick_durations_milliseconds: number[];
-//     sum_tick_durations_millis: number;
-// }
-
 export function IsPaused(workload: Workload) {
     return workload.statistics.workload_state == WorkloadStatePaused;
 }
@@ -403,6 +366,7 @@ interface Session {
     error_message: string; // If the session encountered an error message, then we can store it here.
     stderr_io_pub_messages: string[];
     stdout_io_pub_messages: string[];
+    current_tick_number: number;
 }
 
 interface TrainingEvent {
