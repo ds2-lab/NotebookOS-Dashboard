@@ -177,7 +177,7 @@ func (w *Workload) InitializeFromTemplate(sourceSessions []*domain.WorkloadTempl
 
 	w.WorkloadType = TemplateWorkload
 
-	err := w.SetSource(sourceSessions)
+	err := w.unsafeSetSource(sourceSessions)
 	if err != nil {
 		return err
 	}
@@ -311,12 +311,9 @@ func (w *Workload) GetSimulationClockTimeStr() string {
 	return w.SimulationClockTimeStr
 }
 
-// SetSource sets the source of the workload, namely a template or a preset.
+// unsafeSetSource sets the source of the workload, namely a template or a preset.
 // This defers the execution of the method to the `Workload::workload` field.
-func (w *Workload) SetSource(source interface{}) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
+func (w *Workload) unsafeSetSource(source interface{}) error {
 	if source == nil {
 		panic("Cannot use nil source for Template")
 	}

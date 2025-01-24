@@ -151,8 +151,6 @@ type Workload interface {
 	GetTimescaleAdjustmentFactor() float64
 	// GetProcessedEvents Returns the events processed during this workload (so far).
 	GetProcessedEvents() []*WorkloadEvent
-	// SetSource Sets the source of the workload, namely a template or a preset.
-	SetSource(interface{}) error
 	// GetCurrentTick Returns the current tick.
 	GetCurrentTick() int64
 	// GetSimulationClockTimeStr Returns the simulation clock time.
