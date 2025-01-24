@@ -12,15 +12,16 @@ import (
 
 // Builder is the builder for the Workload struct.
 type Builder struct {
-	Id                            string                         `json:"workload_id"`
-	WorkloadName                  string                         `json:"workload_name"`
-	Seed                          int64                          `json:"seed"`
-	DebugLoggingEnabled           bool                           `json:"debug_logging"`
-	TimescaleAdjustmentFactor     float64                        `json:"timescale_adjustment_factor"`
-	SessionsSamplePercentage      float64                        `json:"sessions_sample_percentage"`
-	TimeCompressTrainingDurations bool                           `json:"time_compress_training_durations"`
-	RemoteStorageDefinition       *proto.RemoteStorageDefinition `json:"remote-storage-definition"`
-	FileOutputPath                string                         `json:"file_output_path"`
+	Id                               string                         `json:"workload_id"`
+	WorkloadName                     string                         `json:"workload_name"`
+	Seed                             int64                          `json:"seed"`
+	DebugLoggingEnabled              bool                           `json:"debug_logging"`
+	TimescaleAdjustmentFactor        float64                        `json:"timescale_adjustment_factor"`
+	SessionsSamplePercentage         float64                        `json:"sessions_sample_percentage"`
+	TimeCompressTrainingDurations    bool                           `json:"time_compress_training_durations"`
+	RemoteStorageDefinition          *proto.RemoteStorageDefinition `json:"remote-storage-definition"`
+	FileOutputPath                   string                         `json:"file_output_path"`
+	DropSessionsWithNoTrainingEvents bool                           `json:"drop_sessions_with_no_training_events"`
 
 	atom   *zap.AtomicLevel
 	logger *zap.Logger
@@ -94,6 +95,12 @@ func (b *Builder) SetSessionsSamplePercentage(percentage float64) *Builder {
 	return b
 }
 
+// SetDropSessionsWithNoTrainingEvents sets the dropSessionsWithNoTrainingEvents flag.
+func (b *Builder) SetDropSessionsWithNoTrainingEvents(shouldDrop bool) *Builder {
+	b.DropSessionsWithNoTrainingEvents = shouldDrop
+	return b
+}
+
 // SetTimeCompressTrainingDurations sets the timeCompressTrainingDurations flag.
 func (b *Builder) SetTimeCompressTrainingDurations(timeCompressTrainingDurations bool) *Builder {
 	b.TimeCompressTrainingDurations = timeCompressTrainingDurations
@@ -120,21 +127,22 @@ func (b *Builder) Build() *BasicWorkload {
 		zap.String("workload_config", b.String()))
 
 	workload := &BasicWorkload{
-		Id:                            b.Id, // Same ID as the driver.
-		Name:                          b.WorkloadName,
-		Seed:                          b.Seed,
-		DebugLoggingEnabled:           b.DebugLoggingEnabled,
-		TimescaleAdjustmentFactor:     b.TimescaleAdjustmentFactor,
-		WorkloadType:                  UnspecifiedWorkload,
-		atom:                          b.atom,
-		sessionsMap:                   make(map[string]interface{}),
-		trainingStartedTimes:          make(map[string]time.Time),
-		trainingStartedTimesTicks:     make(map[string]int64),
-		RemoteStorageDefinition:       b.RemoteStorageDefinition,
-		SampledSessions:               make(map[string]interface{}),
-		UnsampledSessions:             make(map[string]interface{}),
-		Statistics:                    NewStatistics(b.SessionsSamplePercentage),
-		TimeCompressTrainingDurations: b.TimeCompressTrainingDurations,
+		Id:                               b.Id, // Same ID as the driver.
+		Name:                             b.WorkloadName,
+		Seed:                             b.Seed,
+		DebugLoggingEnabled:              b.DebugLoggingEnabled,
+		TimescaleAdjustmentFactor:        b.TimescaleAdjustmentFactor,
+		WorkloadType:                     UnspecifiedWorkload,
+		atom:                             b.atom,
+		sessionsMap:                      make(map[string]interface{}),
+		trainingStartedTimes:             make(map[string]time.Time),
+		trainingStartedTimesTicks:        make(map[string]int64),
+		RemoteStorageDefinition:          b.RemoteStorageDefinition,
+		SampledSessions:                  make(map[string]interface{}),
+		UnsampledSessions:                make(map[string]interface{}),
+		Statistics:                       NewStatistics(b.SessionsSamplePercentage),
+		TimeCompressTrainingDurations:    b.TimeCompressTrainingDurations,
+		DropSessionsWithNoTrainingEvents: b.DropSessionsWithNoTrainingEvents,
 	}
 
 	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()

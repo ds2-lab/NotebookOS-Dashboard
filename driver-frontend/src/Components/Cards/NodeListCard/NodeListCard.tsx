@@ -375,6 +375,30 @@ export const NodeListCard: React.FunctionComponent<NodeListProps> = (props: Node
         </React.Fragment>
     );
 
+    function getNumDisabledNodes(): number {
+        let numDisabled: number = 0;
+
+        nodes.forEach((node: ClusterNode) => {
+            if (!node.Enabled) {
+                numDisabled += 1;
+            }
+        });
+
+        return numDisabled;
+    }
+
+    function getNumEnabledNodes(): number {
+        let numEnabled: number = 0;
+
+        nodes.forEach((node: ClusterNode) => {
+            if (node.Enabled) {
+                numEnabled += 1;
+            }
+        });
+
+        return numEnabled;
+    }
+
     return (
         <div>
             <Card
@@ -393,8 +417,10 @@ export const NodeListCard: React.FunctionComponent<NodeListProps> = (props: Node
                     <CardTitle>
                         <Title headingLevel="h1" size="xl">
                             {resourceModeToggled
-                                ? `Nodes (Resource View): ${nodes.length}`
-                                : `Nodes (Detailed View): ${nodes.length}`}
+                                ? `Nodes (Resource View): ${nodes.length} (${getNumEnabledNodes()} Enabled,
+                                ${getNumDisabledNodes()} Disabled)`
+                                : `Nodes (Detailed View): ${nodes.length} (${getNumEnabledNodes()} Enabled,
+                                ${getNumDisabledNodes()} Disabled)`}
                         </Title>
                     </CardTitle>
                 </CardHeader>

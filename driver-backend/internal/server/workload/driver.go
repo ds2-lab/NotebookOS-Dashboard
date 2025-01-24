@@ -176,7 +176,7 @@ type BasicWorkloadDriver struct {
 	timescaleAdjustmentFactor          float64                                    // Adjusts the timescale of the simulation. Setting this to 1 means that each tick is simulated as a whole minute. Setting this to 0.5 means each tick will be simulated for half its real time. So, if ticks are 60 seconds, and this variable is set to 0.5, then each tick will be simulated for 30 seconds before continuing to the next tick.
 	maxClientSleepDuringInitSeconds    int                                        // maxClientSleepDuringInitSeconds is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
 	websocket                          domain.ConcurrentWebSocket                 // Shared Websocket used to communicate with frontend.
-	workload                           internalWorkload                           // The workload being driven by this driver.
+	workload                           *Template                                  // The workload being driven by this driver.
 	workloadStartTime                  time.Time                                  // The time at which the workload began.
 	workloadEndTime                    time.Time                                  // The time at which the workload completed.
 	workloadGenerator                  domain.WorkloadGenerator                   // The entity generating the workload (from trace data, a preset, or a template).
@@ -201,7 +201,9 @@ type BasicWorkloadDriver struct {
 	trainingStoppedChannels            map[string]chan interface{}                // trainingStartedChannels are channels used to notify that training has ended
 	trainingStoppedChannelsMutex       sync.Mutex                                 // trainingStoppedChannelsMutex ensures atomic access to the trainingStoppedChannels
 	workloadOutputInterval             time.Duration                              // workloadOutputInterval defines how often we should collect and write workload output statistics to the CSV file
+	workloadJsonOutputFrequency        int                                        // workloadJsonOutputFrequency determines how many iterations of statistics publishing must occur before the Workload struct is re-written to a JSON file.
 	timeCompressTrainingDurations      bool                                       // timeCompressTrainingDurations indicates whether the Workload's TimescaleAdjustmentFactor should be used to compress the duration of training events.
+	DropSessionsWithNoTrainingEvents   bool                                       // DropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
 	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
 	Clients                            map[string]*Client
 	clientsWaitGroup                   sync.WaitGroup
@@ -285,6 +287,8 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		modelsByCategory:                   make(map[string][]string),
 		datasetsByCategory:                 make(map[string][]string),
 		maxClientSleepDuringInitSeconds:    opts.MaxClientSleepDuringInitSeconds,
+		workloadJsonOutputFrequency:        opts.WorkloadJsonOutputFrequency,
+		DropSessionsWithNoTrainingEvents:   opts.DropSessionsWithNoTrainings,
 	}
 
 	driver.pauseCond = sync.NewCond(&driver.pauseMutex)
@@ -674,6 +678,7 @@ func (d *BasicWorkloadDriver) createWorkloadFromTemplate(workloadRegistrationReq
 		SetTimeCompressTrainingDurations(d.timeCompressTrainingDurations).
 		SetRemoteStorageDefinition(workloadRegistrationRequest.RemoteStorageDefinition).
 		SetSessionsSamplePercentage(workloadRegistrationRequest.SessionsSamplePercentage).
+		SetDropSessionsWithNoTrainingEvents(d.DropSessionsWithNoTrainingEvents).
 		Build()
 
 	workloadFromTemplate, err := NewWorkloadFromTemplate(basicWorkload, workloadRegistrationRequest.Sessions)
@@ -715,21 +720,22 @@ func (d *BasicWorkloadDriver) RegisterWorkload(workloadRegistrationRequest *doma
 	// have properties that the user can specify and change before submitting the workload for registration.
 	var (
 		// If this is created successfully, then d.workload will be assigned the value of this variable.
-		workload internalWorkload
+		workload *Template
 		err      error // If the workload is not created successfully, then we'll return this error.
 	)
 	switch strings.ToLower(workloadRegistrationRequest.Type) {
 	case "preset":
 		{
+			panic("Creating workloads from presets is not supported at the moment.")
 			// Preset-workload-specific workload creation and initialization steps.
-			workload, err = d.createWorkloadFromPreset(workloadRegistrationRequest)
-
-			if err != nil {
-				d.logger.Error("Failed to create workload from preset.",
-					zap.String("workload_name", workloadRegistrationRequest.WorkloadName),
-					zap.Error(err))
-				return nil, err
-			}
+			//workload, err = d.createWorkloadFromPreset(workloadRegistrationRequest)
+			//
+			//if err != nil {
+			//	d.logger.Error("Failed to create workload from preset.",
+			//		zap.String("workload_name", workloadRegistrationRequest.WorkloadName),
+			//		zap.Error(err))
+			//	return nil, err
+			//}
 		}
 	case "template":
 		{
@@ -1039,6 +1045,21 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 			return
 		}
 
+		// Defer the closing of the output CSV file.
+		defer func() {
+			// If we didn't create the CSV file in the first place, then just return.
+			if d.OutputCsvDisabled {
+				return
+			}
+
+			// Acquire mutex, close the file, release mutex.
+			d.outputFileMutex.Lock()
+			_ = d.outputFile.Close()
+			d.outputFileMutex.Unlock()
+
+			d.logger.Debug("Closed output CSV file.", zap.String("output_file_path", d.outputFilePath))
+		}()
+
 		// First, clear the cluster statistics. This will return whatever they were before we called clear.
 		_, err = d.refreshClusterStatistics(true, true)
 		if err != nil {
@@ -1047,10 +1068,6 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 				zap.String("workload_name", d.workload.WorkloadName()),
 				zap.String("reason", err.Error()))
 			d.handleCriticalError(err)
-
-			d.outputFileMutex.Lock()
-			_ = d.outputFile.Close()
-			d.outputFileMutex.Unlock()
 			return
 		}
 
@@ -1062,10 +1079,6 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 				zap.String("workload_name", d.workload.WorkloadName()),
 				zap.String("reason", err.Error()))
 			d.handleCriticalError(err)
-
-			d.outputFileMutex.Lock()
-			_ = d.outputFile.Close()
-			d.outputFileMutex.Unlock()
 			return
 		}
 
@@ -1081,18 +1094,7 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 	if !d.OutputCsvDisabled {
 		statsPublisherWg.Add(1)
 
-		go func(wg *sync.WaitGroup) {
-			for d.workload.IsInProgress() {
-				d.publishStatisticsReport()
-
-				time.Sleep(d.workloadOutputInterval)
-			}
-
-			// Publish one last statistics report, which will also fetch the Cluster Statistics one last time.
-			d.publishStatisticsReport()
-
-			statsPublisherWg.Done()
-		}(&statsPublisherWg)
+		go d.publishStatisticsReports(&statsPublisherWg)
 	}
 
 	err = d.bootstrapSimulation()
@@ -1102,13 +1104,6 @@ func (d *BasicWorkloadDriver) DriveWorkload() {
 			zap.String("workload_name", d.workload.WorkloadName()),
 			zap.String("reason", err.Error()))
 		d.handleCriticalError(err)
-
-		if !d.OutputCsvDisabled {
-			d.outputFileMutex.Lock()
-			_ = d.outputFile.Close()
-			d.outputFileMutex.Unlock()
-		}
-
 		return
 	}
 
@@ -1129,12 +1124,6 @@ OUTER:
 					zap.String("workload_name", d.workload.WorkloadName()),
 					zap.String("workload_id", d.workload.GetId()),
 					zap.String("workload_state", d.workload.GetState().String()))
-
-				if !d.OutputCsvDisabled {
-					d.outputFileMutex.Lock()
-					_ = d.outputFile.Close()
-					d.outputFileMutex.Unlock()
-				}
 				return
 			}
 
@@ -1207,11 +1196,72 @@ OUTER:
 
 	statsPublisherWg.Wait()
 
-	if !d.OutputCsvDisabled {
-		d.outputFileMutex.Lock()
-		_ = d.outputFile.Close()
-		d.outputFileMutex.Unlock()
+	d.writeWorkloadToJsonFile()
+}
+
+// writeWorkloadToJsonFile writes the Workload struct to a JSON file, truncating the file if it already exists.
+func (d *BasicWorkloadDriver) writeWorkloadToJsonFile() {
+	workloadJsonPath := filepath.Join(d.outputSubdirectoryPath, fmt.Sprintf("workload_%s.json", d.workload.GetId()))
+	d.logger.Debug("Writing Workload struct to JSON file.", zap.String("path", workloadJsonPath))
+
+	jsonFile, err := os.OpenFile(workloadJsonPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
+	if err != nil {
+		d.logger.Error("Failed to create JSON file for workload.",
+			zap.String("path", workloadJsonPath), zap.Error(err))
+		return
 	}
+
+	defer jsonFile.Close()
+
+	encoder := json.NewEncoder(jsonFile)
+	encoder.SetIndent("", "  ")
+
+	err = encoder.Encode(d.workload)
+	if err != nil {
+		d.logger.Error("Failed to write workload to JSON file.",
+			zap.String("path", workloadJsonPath), zap.Error(err))
+		return
+	}
+}
+
+// publishStatisticsReports runs as a loop, routinely writing the current Workload statistics to a file.
+//
+// publishStatisticsReports will stop when the Workload is no longer in progress -- that is, when
+// d.workload.IsInProgress() returns false.
+//
+// Once d.workload.IsInProgress() returns false, publishStatisticsReports will write the statistics to the file
+// one more time before returning.
+//
+// Additionally, every N iterations, publishStatisticsReports will write the Workload struct to a JSON file.
+func (d *BasicWorkloadDriver) publishStatisticsReports(wg *sync.WaitGroup) {
+	var counter int64
+
+	interval := int64(d.workloadJsonOutputFrequency)
+
+	// Write the workload struct to a JSON file.
+	d.writeWorkloadToJsonFile()
+
+	// Keep iterating as long as the workload is still in progress.
+	for d.workload.IsInProgress() {
+		d.publishStatisticsReport()
+
+		// Check if we should write the workload struct to a JSON file yet.
+		if counter%interval == 0 {
+			// Write the workload struct to a JSON file.
+			d.writeWorkloadToJsonFile()
+		}
+
+		// Increment the counter.
+		counter += 1
+
+		// Go to sleep for a little bit.
+		time.Sleep(d.workloadOutputInterval)
+	}
+
+	// Publish one last statistics report, which will also fetch the Cluster Statistics one last time.
+	d.publishStatisticsReport()
+
+	wg.Done()
 }
 
 func (d *BasicWorkloadDriver) PauseWorkload() error {
@@ -1869,6 +1919,7 @@ func (d *BasicWorkloadDriver) enqueueEventsForTick(tick time.Time) error {
 				WithTimescaleAdjustmentFactor(d.timescaleAdjustmentFactor).
 				WithFileOutput(fileOutputDirectory).
 				WithMaxInitializationSleepIntervalSeconds(d.maxClientSleepDuringInitSeconds).
+				WithDropSessionsWithNoTrainingEvents(d.DropSessionsWithNoTrainingEvents).
 				Build()
 
 			d.Clients[sessionId] = client

@@ -9,6 +9,7 @@ import {
 } from '@patternfly/react-icons';
 import { GetWorkloadStatusLabel, GetWorkloadStatusTooltip, IsWorkloadFinished, Workload } from '@src/Data';
 import { WorkloadContext } from '@src/Providers';
+import { RoundToNDecimalPlaces } from '@src/Utils';
 import React from 'react';
 
 interface IWorkloadDescriptiveIcons {
@@ -69,7 +70,7 @@ export const WorkloadDescriptiveIcons: React.FunctionComponent<IWorkloadDescript
             <FlexItem>
                 <Tooltip content={'Timescale Adjustment Factor.'} position="bottom">
                     <React.Fragment>
-                        <ClockIcon /> {props.workload.timescale_adjustment_factor}
+                        <ClockIcon /> {RoundToNDecimalPlaces(props.workload.timescale_adjustment_factor, 6)}
                     </React.Fragment>
                 </Tooltip>
             </FlexItem>

@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -39,7 +40,7 @@ type ClientBuilder struct {
 	timescaleAdjustmentFactor float64
 	errorChan                 chan<- error
 	session                   *domain.WorkloadTemplateSession
-	workload                  internalWorkload
+	workload                  *Template
 	kernelSessionManager      jupyter.KernelSessionManager
 	notifyCallback            func(notification *proto.Notification)
 	schedulingPolicy          string
@@ -47,7 +48,12 @@ type ClientBuilder struct {
 	assignedModel             string // assignedModel is the name of the model to be assigned to the client.
 	assignedDataset           string // assignedDataset is the name of the dataset to be assigned to the client.
 	fileOutputPath            string
-	maxSleepDuringInitSec     int // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
+
+	// maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
+	maxSleepDuringInitSec int
+
+	// dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
+	dropSessionsWithNoTrainingEvents bool
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
@@ -137,7 +143,7 @@ func (b *ClientBuilder) WithErrorChan(errorChan chan<- error) *ClientBuilder {
 	return b
 }
 
-func (b *ClientBuilder) WithWorkload(workload internalWorkload) *ClientBuilder {
+func (b *ClientBuilder) WithWorkload(workload *Template) *ClientBuilder {
 	b.workload = workload
 	return b
 }
@@ -149,6 +155,11 @@ func (b *ClientBuilder) WithSession(session *domain.WorkloadTemplateSession) *Cl
 
 func (b *ClientBuilder) WithNotifyCallback(notifyCallback func(notification *proto.Notification)) *ClientBuilder {
 	b.notifyCallback = notifyCallback
+	return b
+}
+
+func (b *ClientBuilder) WithDropSessionsWithNoTrainingEvents(shouldDrop bool) *ClientBuilder {
+	b.dropSessionsWithNoTrainingEvents = shouldDrop
 	return b
 }
 
@@ -172,23 +183,25 @@ func (b *ClientBuilder) Build() *Client {
 			Gpus:     sessionMeta.GetMaxSessionGPUs(),
 			VRAM:     sessionMeta.GetMaxSessionVRAM(),
 		},
-		currentTick:               clock.NewSimulationClockFromTime(b.startingTick),
-		currentTime:               clock.NewSimulationClockFromTime(b.startingTick),
-		targetTickDurationSeconds: b.targetTickDurationSeconds,
-		timescaleAdjustmentFactor: b.timescaleAdjustmentFactor,
-		targetTickDuration:        time.Second * time.Duration(b.targetTickDurationSeconds),
-		clockTrigger:              clock.NewTrigger(),
-		errorChan:                 b.errorChan,
-		TrainingStartedChannel:    make(chan interface{}, 1),
-		TrainingStoppedChannel:    make(chan interface{}, 1),
-		Session:                   b.session,
-		kernelSessionManager:      b.kernelSessionManager,
-		notifyCallback:            b.notifyCallback,
-		waitGroup:                 b.waitGroup,
-		schedulingPolicy:          b.schedulingPolicy,
-		AssignedModel:             b.assignedModel,
-		AssignedDataset:           b.assignedDataset,
-		maxSleepDuringInitSec:     b.maxSleepDuringInitSec,
+		currentTick:                      clock.NewSimulationClockFromTime(b.startingTick),
+		currentTime:                      clock.NewSimulationClockFromTime(b.startingTick),
+		targetTickDurationSeconds:        b.targetTickDurationSeconds,
+		timescaleAdjustmentFactor:        b.timescaleAdjustmentFactor,
+		targetTickDuration:               time.Second * time.Duration(b.targetTickDurationSeconds),
+		clockTrigger:                     clock.NewTrigger(),
+		errorChan:                        b.errorChan,
+		TrainingStartedChannel:           make(chan interface{}, 1),
+		TrainingStoppedChannel:           make(chan interface{}, 1),
+		Session:                          b.session,
+		kernelSessionManager:             b.kernelSessionManager,
+		sessionReadyEvent:                b.sessionReadyEvent,
+		notifyCallback:                   b.notifyCallback,
+		waitGroup:                        b.waitGroup,
+		schedulingPolicy:                 b.schedulingPolicy,
+		AssignedModel:                    b.assignedModel,
+		AssignedDataset:                  b.assignedDataset,
+		maxSleepDuringInitSec:            b.maxSleepDuringInitSec,
+		dropSessionsWithNoTrainingEvents: b.dropSessionsWithNoTrainingEvents,
 	}
 
 	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()
@@ -234,42 +247,44 @@ func (b *ClientBuilder) Build() *Client {
 
 // Client encapsulates a Session and runs as a dedicated goroutine, processing events for that Session.
 type Client struct {
-	Workload internalWorkload
+	Workload *Template
 	Session  *domain.WorkloadTemplateSession
 
-	maxSleepDuringInitSec     int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
-	SessionId                 string                                 // SessionId is the Jupyter kernel/session ID of this Client
-	WorkloadId                string                                 // WorkloadId is the ID of the workload that the Client is a part of.
-	errorChan                 chan<- error                           // errorChan is used to notify the WorkloadDriver that an error has occurred.
-	kernelConnection          jupyter.KernelConnection               // kernelConnection is the Client's Jupyter kernel connection. The Client uses this to send messages to its kernel.
-	sessionConnection         *jupyter.SessionConnection             // sessionConnection is the Client's Jupyter session connection.
-	kernelSessionManager      jupyter.KernelSessionManager           // kernelSessionManager is used by the Client to create its sessionConnection and subsequently its kernelConnection.
-	schedulingPolicy          string                                 // schedulingPolicy is the name of the scheduling policy that the cluster is configured to use.
-	EventQueue                *event_queue.SessionEventQueue         // EventQueue contains events to be processed by this Client.
-	maximumResourceSpec       *domain.ResourceRequest                // maximumResourceSpec is the maximum amount of resources this Client may use at any point in its lifetime.
-	targetTickDurationSeconds int64                                  // targetTickDurationSeconds is how long each tick was in the trace data used to generate this workload
-	targetTickDuration        time.Duration                          // targetTickDuration is how long each tick is supposed to last. This is the tick interval/step rate of the simulation.
-	timescaleAdjustmentFactor float64                                // timescaleAdjustmentFactor controls the amount/degree of time compression that is used/applied.
-	currentTick               domain.SimulationClock                 // currentTick maintains the time for this Client.
-	currentTime               domain.SimulationClock                 // currentTime contains the current clock time of the workload, which will be sometime between currentTick and currentTick + TickDuration.
-	ticker                    *clock.Ticker                          // ticker delivers ticks, which drives this Client's workload. Each time a tick is received, the Client will process events for that tick.
-	clockTrigger              *clock.Trigger                         // clockTrigger is a trigger for the clock ticks
-	logger                    *zap.Logger                            // logger is how the Client prints log messages.
-	running                   atomic.Int32                           // running indicates whether this Client is actively processing events.
-	ticksHandled              atomic.Int64                           // ticksHandled is the number of ticks handled by this Client.
-	failedToStart             atomic.Bool                            // failedToStart indicates that this Client completely failed to start -- it never succeeded in creating its kernel/session.
-	numSessionStartAttempts   atomic.Int32                           // numSessionStartAttempts counts the number of attempts that were required when initially creating the session/kernel before the session/kernel was successfully created.
-	trainingEventsHandled     atomic.Int32                           // trainingEventsHandled is the number of training events successfully processed by this Client.
-	trainingEventsDelayed     atomic.Int32                           // trainingEventsDelayed returns the number of times that a training event was delayed after failing to start. The same training event can be delayed multiple times, and each of those delays is counted independently.
-	lastTrainingSubmittedAt   time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
-	TrainingStartedChannel    chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
-	TrainingStoppedChannel    chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
-	notifyCallback            func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
-	waitGroup                 *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
-	AssignedModel             string                                 // AssignedModel is the name of the model assigned to this client.
-	AssignedDataset           string                                 // AssignedDataset is the name of the dataset assigned to this client.
-	explicitlyStopped         atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
-	closeLogFileFunc          func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
+	maxSleepDuringInitSec            int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
+	SessionId                        string                                 // SessionId is the Jupyter kernel/session ID of this Client
+	WorkloadId                       string                                 // WorkloadId is the ID of the workload that the Client is a part of.
+	errorChan                        chan<- error                           // errorChan is used to notify the WorkloadDriver that an error has occurred.
+	kernelConnection                 jupyter.KernelConnection               // kernelConnection is the Client's Jupyter kernel connection. The Client uses this to send messages to its kernel.
+	sessionConnection                *jupyter.SessionConnection             // sessionConnection is the Client's Jupyter session connection.
+	kernelSessionManager             jupyter.KernelSessionManager           // kernelSessionManager is used by the Client to create its sessionConnection and subsequently its kernelConnection.
+	sessionReadyEvent                *domain.Event                          // sessionReadyEvent is the "session-ready" event that triggered the creation of this Client.
+	schedulingPolicy                 string                                 // schedulingPolicy is the name of the scheduling policy that the cluster is configured to use.
+	EventQueue                       *event_queue.SessionEventQueue         // EventQueue contains events to be processed by this Client.
+	maximumResourceSpec              *domain.ResourceRequest                // maximumResourceSpec is the maximum amount of resources this Client may use at any point in its lifetime.
+	targetTickDurationSeconds        int64                                  // targetTickDurationSeconds is how long each tick was in the trace data used to generate this workload
+	targetTickDuration               time.Duration                          // targetTickDuration is how long each tick is supposed to last. This is the tick interval/step rate of the simulation.
+	timescaleAdjustmentFactor        float64                                // timescaleAdjustmentFactor controls the amount/degree of time compression that is used/applied.
+	currentTick                      domain.SimulationClock                 // currentTick maintains the time for this Client.
+	currentTime                      domain.SimulationClock                 // currentTime contains the current clock time of the workload, which will be sometime between currentTick and currentTick + TickDuration.
+	ticker                           *clock.Ticker                          // ticker delivers ticks, which drives this Client's workload. Each time a tick is received, the Client will process events for that tick.
+	clockTrigger                     *clock.Trigger                         // clockTrigger is a trigger for the clock ticks
+	logger                           *zap.Logger                            // logger is how the Client prints log messages.
+	running                          atomic.Int32                           // running indicates whether this Client is actively processing events.
+	ticksHandled                     atomic.Int64                           // ticksHandled is the number of ticks handled by this Client.
+	failedToStart                    atomic.Bool                            // failedToStart indicates that this Client completely failed to start -- it never succeeded in creating its kernel/session.
+	numSessionStartAttempts          atomic.Int32                           // numSessionStartAttempts counts the number of attempts that were required when initially creating the session/kernel before the session/kernel was successfully created.
+	trainingEventsHandled            atomic.Int32                           // trainingEventsHandled is the number of training events successfully processed by this Client.
+	trainingEventsDelayed            atomic.Int32                           // trainingEventsDelayed returns the number of times that a training event was delayed after failing to start. The same training event can be delayed multiple times, and each of those delays is counted independently.
+	lastTrainingSubmittedAt          time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
+	TrainingStartedChannel           chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
+	TrainingStoppedChannel           chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
+	notifyCallback                   func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
+	waitGroup                        *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
+	AssignedModel                    string                                 // AssignedModel is the name of the model assigned to this client.
+	AssignedDataset                  string                                 // AssignedDataset is the name of the dataset assigned to this client.
+	explicitlyStopped                atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
+	closeLogFileFunc                 func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
+	dropSessionsWithNoTrainingEvents bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
 }
 
 func (c *Client) closeLogFile() error {
@@ -279,6 +294,12 @@ func (c *Client) closeLogFile() error {
 
 	c.closeLogFileFunc()
 	return nil
+}
+
+// TotalNumTrainings returns the total number of training events that will ultimately be processed by
+// the kernel associated with this Client.
+func (c *Client) TotalNumTrainings() int {
+	return len(c.Session.TrainingEvents)
 }
 
 // FailedToStart returns a bool that, when true, indicates that this Client completely failed to start.
@@ -318,6 +339,15 @@ func (c *Client) Run() {
 		return
 	}
 
+	if len(c.Session.TrainingEvents) == 0 && c.dropSessionsWithNoTrainingEvents {
+		c.logger.Warn("Session has 0 trainings. Exiting.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.WorkloadId))
+
+		_ = c.Stop()
+		return
+	}
+
 	err := c.initialize()
 	if err != nil {
 		c.logger.Error("Failed to initialize client.",
@@ -329,7 +359,14 @@ func (c *Client) Run() {
 		return
 	}
 
-	c.Workload.SessionCreated(c.SessionId, c.Session.Meta)
+	c.Workload.SessionCreated(c.SessionId)
+	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
+		WithEventId(c.sessionReadyEvent.Id()).
+		WithSessionId(c.sessionReadyEvent.SessionID()).
+		WithEventName(c.sessionReadyEvent.Name).
+		WithEventTimestamp(c.sessionReadyEvent.Timestamp).
+		WithProcessedAtTime(time.Now()).
+		WithError(err))
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -370,13 +407,12 @@ func (c *Client) stop() {
 	c.running.Store(0)
 }
 
-// createKernel attempts to create the kernel for the Client, possibly handling any errors that are encountered
-// if the errors are something we can deal with. If not, they're returned, and the workload explodes.
-func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, error) {
+func (c *Client) getInitialResourceRequest() *jupyter.ResourceSpec {
 	var initialResourceRequest *jupyter.ResourceSpec
+
 	if c.schedulingPolicy == "static" || c.schedulingPolicy == "dynamic-v3" || c.schedulingPolicy == "dynamic-v4" {
 		// Try to get the first training event of the session, and just reserve those resources.
-		firstTrainingEvent := c.Session.Trainings[0]
+		firstTrainingEvent := c.Session.TrainingEvents[0]
 
 		if firstTrainingEvent != nil {
 			initialResourceRequest = &jupyter.ResourceSpec{
@@ -401,8 +437,17 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 		}
 	}
 
+	return initialResourceRequest
+}
+
+// createKernel attempts to create the kernel for the Client, possibly handling any errors that are encountered
+// if the errors are something we can deal with. If not, they're returned, and the workload explodes.
+func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, error) {
+	initialResourceRequest := c.getInitialResourceRequest()
+
+	initialDuration := time.Second * time.Duration(math.Min(float64(c.maxSleepDuringInitSec), 20))
 	backoff := wait.Backoff{
-		Duration: time.Second * 4,
+		Duration: initialDuration,
 		Factor:   1.5,
 		Jitter:   1.125,
 		Steps:    10,
@@ -462,6 +507,11 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.WorkloadId),
 			zap.Int32("num_attempts_required", c.numSessionStartAttempts.Load()))
+
+		c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("session-started", domain.LightBlue)),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId))
 	}
 
 	return sessionConnection, err
@@ -490,9 +540,10 @@ func (c *Client) initialize() error {
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.WorkloadId))
 
+	initialDuration := time.Second * time.Duration(math.Min(float64(c.maxSleepDuringInitSec), 30))
 	maximumNumberOfAttempts := 3
 	backoff := wait.Backoff{
-		Duration: time.Second * 30,
+		Duration: initialDuration,
 		Factor:   1.25,
 		Jitter:   1.25,
 		Steps:    maximumNumberOfAttempts,
@@ -897,8 +948,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.Duration("time_elapsed", time.Since(startedHandlingAt)),
 			zap.Int32("training_events_handled", trainingEventsHandled),
-			zap.Int("total_training_events_for_session", len(c.Session.Trainings)),
-			zap.Float64("percent_done", float64(trainingEventsHandled)/float64(len(c.Session.Trainings))),
+			zap.Int("total_training_events_for_session", len(c.Session.TrainingEvents)),
+			zap.Float64("percent_done", float64(trainingEventsHandled)/float64(len(c.Session.TrainingEvents))),
 			zap.Time("tick", tick),
 			zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)))
 	}
@@ -1429,7 +1480,7 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) 
 						zap.Int64("exec_time_millis", execTimeMillis),
 						zap.Duration("e2e_latency", e2eLatency),
 						zap.Int32("training_events_handled", c.trainingEventsHandled.Load()),
-						zap.Int("total_training_events_for_session", len(c.Session.Trainings)))
+						zap.Int("total_training_events_for_session", c.TotalNumTrainings()))
 
 					return nil
 				}
@@ -1458,7 +1509,7 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) 
 					zap.Error(err))
 
 				// We'll just return (nothing) so that the workload doesn't end.
-				return err
+				return nil
 			}
 
 			// No error attached to the context. Just log an error message without the error struct

@@ -103,6 +103,10 @@ type BasicWorkload struct {
 	// UnsampledSessions is a sort of counterpart to the SampledSessions field.
 	UnsampledSessions map[string]interface{} `json:"-"`
 
+	// NumSessionsDiscardedDueToNoTrainingEvents is a counter that keeps track of the number
+	// of sessions that have been discarded because they do not have any training events whatsoever.
+	NumSessionsDiscardedDueToNoTrainingEvents int `json:"num_sessions_discarded_due_to_no_training_events"`
+
 	//AggregateSessionDelayMillis int64  `json:"aggregate_session_delay_ms" csv:"aggregate_session_delay_ms"`
 	Id   string `json:"id"`
 	Name string `json:"name"`
@@ -137,6 +141,10 @@ type BasicWorkload struct {
 	trainingStartedTimesTicks map[string]int64       // Mapping from Session ID to the tick at which it began training.
 	seedSet                   bool                   // Flag keeping track of whether we've already set the seed for this workload.
 	sessionsSet               bool                   // Flag keeping track of whether we've already set the sessions for this workload.
+
+	// DropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it
+	// finds it has no training events.
+	DropSessionsWithNoTrainingEvents bool
 
 	// OnError is a callback passed to WorkloadDrivers (via the WorkloadManager).
 	// If a critical error occurs during the execution of the workload, then this handler is called.
@@ -599,7 +607,7 @@ func (w *BasicWorkload) ProcessedEvent(evt *domain.WorkloadEvent) {
 
 // SessionCreated is called when a Session is created for/in the Workload.
 // Just updates some internal metrics.
-func (w *BasicWorkload) SessionCreated(sessionId string, metadata domain.SessionMetadata) {
+func (w *BasicWorkload) SessionCreated(sessionId string) {
 	w.mu.Lock()
 	w.Statistics.NumActiveSessions += 1
 	w.Statistics.NumSessionsCreated += 1
@@ -613,7 +621,7 @@ func (w *BasicWorkload) SessionCreated(sessionId string, metadata domain.Session
 		With(prometheus.Labels{"workload_id": w.Id}).
 		Add(1)
 
-	w.workloadInstance.SessionCreated(sessionId, metadata)
+	w.workloadInstance.SessionCreated(sessionId)
 }
 
 // SessionStopped is called when a Session is stopped for/in the Workload.
@@ -689,7 +697,7 @@ func (w *BasicWorkload) TrainingStarted(sessionId string, tickNumber int64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.Statistics.NumSubmittedTrainings -= 1
+	w.Statistics.NumSubmittedTrainings += 1
 	w.Statistics.NumActiveTrainings += 1
 
 	w.trainingStartedTimes[sessionId] = time.Now()
@@ -901,7 +909,7 @@ func (w *BasicWorkload) SessionDiscarded(sessionId string) error {
 }
 
 func (w *BasicWorkload) unsafeSessionDiscarded(sessionId string) error {
-	return w.workloadInstance.SessionDiscarded(sessionId)
+	return w.workloadInstance.unsafeSessionDiscarded(sessionId)
 }
 
 func (w *BasicWorkload) unsafeSetSessionSampled(sessionId string) {
@@ -916,7 +924,7 @@ func (w *BasicWorkload) unsafeSetSessionSampled(sessionId string) {
 }
 
 func (w *BasicWorkload) unsafeSetSessionDiscarded(sessionId string) {
-	err := w.SessionDiscarded(sessionId)
+	err := w.unsafeSessionDiscarded(sessionId)
 	if err != nil {
 		w.logger.Error("Failed to disable session.",
 			zap.String("workload_id", w.Id),
@@ -931,7 +939,9 @@ func (w *BasicWorkload) unsafeSetSessionDiscarded(sessionId string) {
 	w.logger.Debug("Decided to discard events targeting session.",
 		zap.String("session_id", sessionId),
 		zap.Int("num_sampled_sessions", len(w.SampledSessions)),
-		zap.Int("num_discarded_sessions", len(w.UnsampledSessions)))
+		zap.Int("num_discarded_sessions", len(w.UnsampledSessions)),
+		zap.String("workload_id", w.Id),
+		zap.String("workload_name", w.Name))
 }
 
 // IsSessionBeingSampled returns true if the specified session was selected for sampling.
@@ -951,6 +961,31 @@ func (w *BasicWorkload) IsSessionBeingSampled(sessionId string) bool {
 }
 
 func (w *BasicWorkload) unsafeIsSessionBeingSampled(sessionId string) bool {
+	// First, check if we're discarding sessions with no training events.
+	// If we are, then just discard the session.
+	if w.DropSessionsWithNoTrainingEvents {
+		type TrainingEventProvider interface {
+			GetTrainings() []*domain.TrainingEvent
+		}
+
+		val := w.sessionsMap[sessionId]
+		session, ok := val.(TrainingEventProvider)
+		if !ok {
+			panic(fmt.Sprintf("Unexpected session: %v", session))
+		}
+
+		if len(session.GetTrainings()) == 0 {
+			w.logger.Debug("Session has 0 training events. Discarding.",
+				zap.String("workload_id", w.Id),
+				zap.String("session_id", sessionId))
+
+			w.NumSessionsDiscardedDueToNoTrainingEvents += 1
+
+			w.unsafeSetSessionDiscarded(sessionId)
+			return false
+		}
+	}
+
 	// Check if we've already decided to discard events for this session.
 	_, discarded := w.UnsampledSessions[sessionId]
 	if discarded {

@@ -1450,7 +1450,7 @@ var _ = Describe("Workload Driver Tests", func() {
 							trainingStartTimeChannel := trainingStartTimeChannels[sessionIndex]
 							workloadTemplateSession := workloadTemplateSessions[sessionIndex]
 							for j := 0; j < numTrainings; j++ {
-								training := workloadTemplateSession.Trainings[j]
+								training := workloadTemplateSession.TrainingEvents[j]
 								trainingDuration := training.DurationInTicks
 								client.TrainingStartedChannel <- struct{}{}
 								trainingStartTimeChannel <- time.Now()
@@ -1468,7 +1468,7 @@ var _ = Describe("Workload Driver Tests", func() {
 
 							for j := 0; j < numTrainings; j++ {
 								workloadTemplateSession := workloadTemplateSessions[sessionIndex]
-								training := workloadTemplateSession.Trainings[j]
+								training := workloadTemplateSession.TrainingEvents[j]
 								trainingDuration := training.DurationInTicks
 
 								trainingStartTime := <-trainingStartTimeChannel

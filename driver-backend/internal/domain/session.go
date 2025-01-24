@@ -310,12 +310,11 @@ func (s *BasicWorkloadSession) GetTrainings() []*TrainingEvent {
 type WorkloadTemplateSession struct {
 	*BasicWorkloadSession
 
-	StartTick         int              `json:"start_tick"`
-	StopTick          int              `json:"stop_tick"`
-	Trainings         []*TrainingEvent `json:"trainings"`
-	NumTrainingEvents int              `json:"num_training_events"`
-	TotalExecTime     int64            `json:"total_exec_time"`
-	ExecutionTimes    []int64          `json:"-"`
+	StartTick         int     `json:"start_tick"`
+	StopTick          int     `json:"stop_tick"`
+	NumTrainingEvents int     `json:"num_training_events"`
+	TotalExecTime     int64   `json:"total_exec_time"`
+	ExecutionTimes    []int64 `json:"-"`
 }
 
 func NewWorkloadTemplateSession(session *BasicWorkloadSession, startTick int, stopTick int) *WorkloadTemplateSession {
@@ -323,7 +322,6 @@ func NewWorkloadTemplateSession(session *BasicWorkloadSession, startTick int, st
 		BasicWorkloadSession: session,
 		StartTick:            startTick,
 		StopTick:             stopTick,
-		Trainings:            make([]*TrainingEvent, 0),
 		NumTrainingEvents:    0,
 		TotalExecTime:        0,
 		ExecutionTimes:       make([]int64, 0),
@@ -347,10 +345,6 @@ func (t *WorkloadTemplateSession) GetStopTick() int {
 	return t.StopTick
 }
 
-func (t *WorkloadTemplateSession) GetTrainings() []*TrainingEvent {
-	return t.Trainings
-}
-
 // AddTraining appends a new training event and is intended to be used only during unit tests.
 func (t *WorkloadTemplateSession) AddTraining(startTick int, durationTicks int, millicpus float64, memMb float64, vramGb float64, gpuUtils []float64) {
 	gpuUtilizations := make([]GpuUtilization, 0, len(gpuUtils))
@@ -362,7 +356,7 @@ func (t *WorkloadTemplateSession) AddTraining(startTick int, durationTicks int, 
 	}
 
 	trainingEvent := &TrainingEvent{
-		TrainingIndex:   len(t.Trainings),
+		TrainingIndex:   len(t.TrainingEvents),
 		Millicpus:       millicpus,
 		MemUsageMB:      memMb,
 		VRamUsageGB:     vramGb,
@@ -371,7 +365,7 @@ func (t *WorkloadTemplateSession) AddTraining(startTick int, durationTicks int, 
 		DurationInTicks: durationTicks,
 	}
 
-	t.Trainings = append(t.Trainings, trainingEvent)
+	t.TrainingEvents = append(t.TrainingEvents, trainingEvent)
 	t.NumTrainingEvents += 1
 }
 

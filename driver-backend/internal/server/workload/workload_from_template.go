@@ -138,8 +138,8 @@ func (w *Template) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			return domain.ErrMissingMaxResourceRequest
 		}
 
-		if session.NumTrainingEvents == 0 && len(session.Trainings) > 0 {
-			session.NumTrainingEvents = len(session.Trainings)
+		if session.NumTrainingEvents == 0 && len(session.TrainingEvents) > 0 {
+			session.NumTrainingEvents = len(session.TrainingEvents)
 		}
 
 		// Need to set this before calling unsafeIsSessionBeingSampled.
@@ -169,10 +169,7 @@ func (w *Template) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 
 // SessionCreated is called when a Session is created for/in the Workload.
 // Just updates some internal metrics.
-func (w *Template) SessionCreated(sessionId string, metadata domain.SessionMetadata) {
-	w.Statistics.NumActiveSessions += 1
-	w.Statistics.NumSessionsCreated += 1
-
+func (w *Template) SessionCreated(sessionId string) {
 	val, ok := w.sessionsMap[sessionId]
 	if !ok {
 		w.logger.Error("Failed to find newly-created session in session map.", zap.String("session_id", sessionId))
@@ -185,15 +182,15 @@ func (w *Template) SessionCreated(sessionId string, metadata domain.SessionMetad
 	}
 
 	session.SetCurrentResourceRequest(&domain.ResourceRequest{
-		VRAM:     metadata.GetVRAM(),
-		Cpus:     metadata.GetCpuUtilization(),
-		MemoryMB: metadata.GetMemoryUtilization(),
-		Gpus:     metadata.GetNumGPUs(),
+		VRAM:     session.TrainingEvents[0].VRamUsageGB,
+		Cpus:     session.TrainingEvents[0].Millicpus,
+		MemoryMB: session.TrainingEvents[0].MemUsageMB,
+		Gpus:     session.TrainingEvents[0].NumGPUs(),
 	})
 }
 
 // SessionDiscarded is used to record that a particular session is being discarded/not sampled.
-func (w *Template) SessionDiscarded(sessionId string) error {
+func (w *Template) unsafeSessionDiscarded(sessionId string) error {
 	val, loaded := w.sessionsMap[sessionId]
 	if !loaded {
 		return fmt.Errorf("%w: \"%s\"", domain.ErrUnknownSession, sessionId)
@@ -226,9 +223,9 @@ func (w *Template) getSessionTrainingEvent(sessionId string, trainingIndex int) 
 	}
 
 	session := val.(*domain.WorkloadTemplateSession)
-	if trainingIndex > len(session.Trainings) {
+	if trainingIndex > len(session.TrainingEvents) {
 		return nil
 	}
 
-	return session.Trainings[trainingIndex]
+	return session.TrainingEvents[trainingIndex]
 }

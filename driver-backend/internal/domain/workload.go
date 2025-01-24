@@ -121,7 +121,7 @@ type Workload interface {
 	ProcessedEvent(*WorkloadEvent)
 	// SessionCreated is Called when a Session is created for/in the Workload.
 	// Just updates some internal metrics.
-	SessionCreated(sessionId string, metadata SessionMetadata)
+	SessionCreated(sessionId string)
 	// SessionStopped is Called when a Session is stopped for/in the Workload.
 	// Just updates some internal metrics.
 	SessionStopped(sessionId string, evt *Event)

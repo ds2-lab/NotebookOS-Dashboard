@@ -18,6 +18,7 @@ import {
     Popover,
     Switch,
     TextInput,
+    Tooltip,
     ValidatedOptions,
 } from '@patternfly/react-core';
 import HelpIcon from '@patternfly/react-icons/dist/esm/icons/help-icon';
@@ -468,7 +469,7 @@ export const RegisterWorkloadFromPresetForm: React.FunctionComponent<IRegisterWo
                                                 seconds. Alternatively, setting this quantity to 2.0 will instruct the
                                                 Workload Driver to spend 120 seconds on each tick. Setting the quantity
                                                 to 0.5 will instruct the Workload Driver to spend 30 seconds on each
-                                                tick.
+                                                tick. <br /> <br /> Current value: {timescaleAdjustmentFactor}
                                             </div>
                                         }
                                     >
@@ -483,25 +484,29 @@ export const RegisterWorkloadFromPresetForm: React.FunctionComponent<IRegisterWo
                                     </Popover>
                                 }
                             >
-                                <NumberInput
-                                    value={timescaleAdjustmentFactor}
-                                    onMinus={() =>
-                                        setTimescaleAdjustmentFactor((timescaleAdjustmentFactor || 0) - 0.25)
-                                    }
-                                    onChange={(event: React.FormEvent<HTMLInputElement>) => {
-                                        const value = (event.target as HTMLInputElement).value;
-                                        setTimescaleAdjustmentFactor(value === '' ? value : +value);
-                                    }}
-                                    onPlus={() => setTimescaleAdjustmentFactor((timescaleAdjustmentFactor || 0) + 0.25)}
-                                    inputName="timescale-adjustment-factor-input"
-                                    inputAriaLabel="timescale-adjustment-factor-input"
-                                    minusBtnAriaLabel="minus"
-                                    plusBtnAriaLabel="plus"
-                                    validated={validateTimescaleAdjustmentFactor()}
-                                    widthChars={4}
-                                    min={0}
-                                    max={10}
-                                />
+                                <Tooltip content={timescaleAdjustmentFactor} position={'bottom'}>
+                                    <NumberInput
+                                        value={timescaleAdjustmentFactor}
+                                        onMinus={() =>
+                                            setTimescaleAdjustmentFactor((timescaleAdjustmentFactor || 0) - 0.25)
+                                        }
+                                        onChange={(event: React.FormEvent<HTMLInputElement>) => {
+                                            const value = (event.target as HTMLInputElement).value;
+                                            setTimescaleAdjustmentFactor(value === '' ? value : +value);
+                                        }}
+                                        onPlus={() =>
+                                            setTimescaleAdjustmentFactor((timescaleAdjustmentFactor || 0) + 0.25)
+                                        }
+                                        inputName="timescale-adjustment-factor-input"
+                                        inputAriaLabel="timescale-adjustment-factor-input"
+                                        minusBtnAriaLabel="minus"
+                                        plusBtnAriaLabel="plus"
+                                        validated={validateTimescaleAdjustmentFactor()}
+                                        widthChars={4}
+                                        min={0}
+                                        max={10}
+                                    />
+                                </Tooltip>
                             </FormGroup>
                         </GridItem>
                         <GridItem span={4}>{sampleSessionsPercentFormGroup}</GridItem>
