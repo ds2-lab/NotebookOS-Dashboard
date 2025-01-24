@@ -226,9 +226,6 @@ func (s *serverImpl) RefreshAndClearClusterStatistics(update bool, clear bool) (
 	}
 
 	requestId := uuid.NewString()
-	//s.logger.Debug("Retrieving cluster statistics.",
-	//	zap.String("request_id", requestId),
-	//	zap.Bool("update", update))
 
 	resp, err := s.gatewayRpcClient.ClusterStatistics(context.Background(), &proto.ClusterStatisticsRequest{
 		RequestId:   requestId,
