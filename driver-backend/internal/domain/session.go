@@ -315,6 +315,7 @@ type WorkloadTemplateSession struct {
 	NumTrainingEvents int     `json:"num_training_events"`
 	TotalExecTime     int64   `json:"total_exec_time"`
 	ExecutionTimes    []int64 `json:"-"`
+	CurrentTickNumber int64   `json:"current_tick_number"`
 }
 
 func NewWorkloadTemplateSession(session *BasicWorkloadSession, startTick int, stopTick int) *WorkloadTemplateSession {

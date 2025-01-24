@@ -742,6 +742,8 @@ func (c *Client) run(wg *sync.WaitGroup) {
 }
 
 func (c *Client) handleTick(tick time.Time) error {
+	c.Session.CurrentTickNumber = c.convertTimestampToTickNumber(tick)
+
 	_, _, err := c.currentTick.IncreaseClockTimeTo(tick)
 	if err != nil {
 		c.logger.Error("Failed to increase CurrentTick.",
