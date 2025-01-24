@@ -176,7 +176,7 @@ type Driver struct {
 	timescaleAdjustmentFactor          float64                                    // Adjusts the timescale of the simulation. Setting this to 1 means that each tick is simulated as a whole minute. Setting this to 0.5 means each tick will be simulated for half its real time. So, if ticks are 60 seconds, and this variable is set to 0.5, then each tick will be simulated for 30 seconds before continuing to the next tick.
 	maxClientSleepDuringInitSeconds    int                                        // maxClientSleepDuringInitSeconds is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
 	websocket                          domain.ConcurrentWebSocket                 // Shared Websocket used to communicate with frontend.
-	workload                           *Template                                  // The workload being driven by this driver.
+	workload                           *Workload                                  // The workload being driven by this driver.
 	workloadStartTime                  time.Time                                  // The time at which the workload began.
 	workloadEndTime                    time.Time                                  // The time at which the workload completed.
 	workloadGenerator                  domain.WorkloadGenerator                   // The entity generating the workload (from trace data, a preset, or a template).
@@ -524,7 +524,7 @@ func (d *Driver) ToggleDebugLogging(enabled bool) domain.Workload {
 	return d.workload
 }
 
-func (d *Driver) GetWorkload() *Template {
+func (d *Driver) GetWorkload() *Workload {
 	return d.workload
 }
 
@@ -534,43 +534,6 @@ func (d *Driver) GetWorkloadPreset() *domain.WorkloadPreset {
 
 func (d *Driver) GetWorkloadRegistrationRequest() *domain.WorkloadRegistrationRequest {
 	return d.workloadRegistrationRequest
-}
-
-// Create a workload that was created using a preset.
-func (d *Driver) createWorkloadFromPreset(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) (internalWorkload, error) {
-	// The specified preset should be in our map of workload presets.
-	// If it isn't, then the registration request is invalid, and we'll return an error.
-	var ok bool
-	if d.workloadPreset, ok = d.workloadPresets[workloadRegistrationRequest.Key]; !ok {
-		d.logger.Error("Could not find workload preset with specified key.", zap.String("key", workloadRegistrationRequest.Key))
-		return nil, ErrWorkloadPresetNotFound
-	}
-
-	d.logger.Debug("Creating new workload from preset.",
-		zap.String("workload_name", workloadRegistrationRequest.WorkloadName),
-		zap.String("workload-preset-name", d.workloadPreset.GetName()))
-
-	basicWorkload := NewBuilder(d.atom).
-		SetID(d.id).
-		SetWorkloadName(workloadRegistrationRequest.WorkloadName).
-		SetSeed(workloadRegistrationRequest.Seed).
-		EnableDebugLogging(workloadRegistrationRequest.DebugLogging).
-		SetTimescaleAdjustmentFactor(workloadRegistrationRequest.TimescaleAdjustmentFactor).
-		SetRemoteStorageDefinition(workloadRegistrationRequest.RemoteStorageDefinition).
-		SetSessionsSamplePercentage(workloadRegistrationRequest.SessionsSamplePercentage).
-		SetTimeCompressTrainingDurations(d.timeCompressTrainingDurations).
-		WithFileOutput("").
-		Build()
-
-	workloadFromPreset := NewWorkloadFromPreset(basicWorkload, d.workloadPreset)
-
-	err := workloadFromPreset.SetSource(d.workloadPreset)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return workloadFromPreset, nil
 }
 
 // loadWorkloadTemplateFromFile is used for workload templates that come pre-defined
@@ -642,7 +605,7 @@ func (d *Driver) loadWorkloadTemplateFromFile(workloadRegistrationRequest *domai
 }
 
 // Create a workload that was created using a template.
-func (d *Driver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) (*Template, error) {
+func (d *Driver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.WorkloadRegistrationRequest) (*Workload, error) {
 	// The workload request needs to have a workload template in it.
 	// If the registration request does not contain a workload template,
 	// then the request is invalid, and we'll return an error.
@@ -681,12 +644,12 @@ func (d *Driver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.
 		SetDropSessionsWithNoTrainingEvents(d.DropSessionsWithNoTrainingEvents).
 		Build()
 
-	workloadFromTemplate, err := NewWorkloadFromTemplate(basicWorkload, workloadRegistrationRequest.Sessions)
+	err := basicWorkload.InitializeFromTemplate(workloadRegistrationRequest.Sessions)
 	if err != nil {
 		return nil, err
 	}
 
-	return workloadFromTemplate, nil
+	return basicWorkload, nil
 }
 
 // RegisterWorkload registers a workload with the driver.
@@ -720,22 +683,13 @@ func (d *Driver) RegisterWorkload(workloadRegistrationRequest *domain.WorkloadRe
 	// have properties that the user can specify and change before submitting the workload for registration.
 	var (
 		// If this is created successfully, then d.workload will be assigned the value of this variable.
-		workload *Template
+		workload *Workload
 		err      error // If the workload is not created successfully, then we'll return this error.
 	)
 	switch strings.ToLower(workloadRegistrationRequest.Type) {
 	case "preset":
 		{
 			panic("Creating workloads from presets is not supported at the moment.")
-			// Preset-workload-specific workload creation and initialization steps.
-			//workload, err = d.createWorkloadFromPreset(workloadRegistrationRequest)
-			//
-			//if err != nil {
-			//	d.logger.Error("Failed to create workload from preset.",
-			//		zap.String("workload_name", workloadRegistrationRequest.WorkloadName),
-			//		zap.Error(err))
-			//	return nil, err
-			//}
 		}
 	case "template":
 		{

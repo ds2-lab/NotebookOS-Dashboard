@@ -43,7 +43,7 @@ type ClientBuilder struct {
 	timescaleAdjustmentFactor float64
 	errorChan                 chan<- error
 	session                   *domain.WorkloadTemplateSession
-	workload                  *Template
+	workload                  *Workload
 	kernelSessionManager      jupyter.KernelSessionManager
 	notifyCallback            func(notification *proto.Notification)
 	schedulingPolicy          string
@@ -151,7 +151,7 @@ func (b *ClientBuilder) WithErrorChan(errorChan chan<- error) *ClientBuilder {
 	return b
 }
 
-func (b *ClientBuilder) WithWorkload(workload *Template) *ClientBuilder {
+func (b *ClientBuilder) WithWorkload(workload *Workload) *ClientBuilder {
 	b.workload = workload
 	return b
 }
@@ -267,7 +267,7 @@ func (b *ClientBuilder) Build() *Client {
 
 // Client encapsulates a Session and runs as a dedicated goroutine, processing events for that Session.
 type Client struct {
-	Workload *Template
+	Workload *Workload
 	Session  *domain.WorkloadTemplateSession
 
 	maxSleepDuringInitSec            int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.

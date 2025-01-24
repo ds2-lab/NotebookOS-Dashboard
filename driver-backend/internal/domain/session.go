@@ -79,7 +79,7 @@ func (s SessionState) String() string {
 	return string(s)
 }
 
-// BasicWorkloadSession corresponds to the `Session` struct defined in `web/app/Data/BasicWorkload.tsx`.
+// BasicWorkloadSession corresponds to the `Session` struct defined in `web/app/Data/Workload.tsx`.
 // Used by the frontend when submitting workloads created from templates (as opposed to presets).
 type BasicWorkloadSession struct {
 	logger        *zap.Logger
@@ -369,7 +369,7 @@ func (t *WorkloadTemplateSession) AddTraining(startTick int, durationTicks int, 
 	t.NumTrainingEvents += 1
 }
 
-// TrainingEvent corresponds to the `TrainingEvent` struct defined in `web/app/Data/BasicWorkload.tsx`.
+// TrainingEvent corresponds to the `TrainingEvent` struct defined in `web/app/Data/Workload.tsx`.
 // Used by the frontend when submitting workloads created from templates (as opposed to presets).
 type TrainingEvent struct {
 	TrainingIndex   int              `json:"training_index"`
