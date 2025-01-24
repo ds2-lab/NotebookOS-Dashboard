@@ -697,7 +697,6 @@ func (w *BasicWorkload) TrainingStarted(sessionId string, tickNumber int64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.Statistics.NumSubmittedTrainings += 1
 	w.Statistics.NumActiveTrainings += 1
 
 	w.logger.Debug("Session has started training.",
