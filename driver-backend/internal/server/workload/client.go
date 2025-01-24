@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"math"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -27,6 +28,8 @@ var (
 	// ErrClientNotRunning  = errors.New("cannot stop client as it is not running")
 
 	ErrInvalidFirstEvent = errors.New("client received invalid first event")
+
+	SmrLeadTask jupyter.MessageType = "smr_lead_task"
 )
 
 // ClientBuilder constructs a Client instance step-by-step.
@@ -40,7 +43,7 @@ type ClientBuilder struct {
 	timescaleAdjustmentFactor float64
 	errorChan                 chan<- error
 	session                   *domain.WorkloadTemplateSession
-	workload                  *Template
+	workload                  *Workload
 	kernelSessionManager      jupyter.KernelSessionManager
 	notifyCallback            func(notification *proto.Notification)
 	schedulingPolicy          string
@@ -49,11 +52,16 @@ type ClientBuilder struct {
 	assignedDataset           string // assignedDataset is the name of the dataset to be assigned to the client.
 	fileOutputPath            string
 
-	// maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
+	// maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential
+	// backoff when it is first being created.
 	maxSleepDuringInitSec int
 
-	// dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
+	// dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately
+	// if it finds it has no training events.
 	dropSessionsWithNoTrainingEvents bool
+
+	// maxCreationAttempts is the maximum number of times the Client will attempt to create its kernel before giving up.
+	maxCreationAttempts int
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
@@ -143,7 +151,7 @@ func (b *ClientBuilder) WithErrorChan(errorChan chan<- error) *ClientBuilder {
 	return b
 }
 
-func (b *ClientBuilder) WithWorkload(workload *Template) *ClientBuilder {
+func (b *ClientBuilder) WithWorkload(workload *Workload) *ClientBuilder {
 	b.workload = workload
 	return b
 }
@@ -168,9 +176,20 @@ func (b *ClientBuilder) WithWaitGroup(waitGroup *sync.WaitGroup) *ClientBuilder 
 	return b
 }
 
+// WithMaxCreationAttempts allows specification of the ClientBuilder's maxCreationAttempts parameter, which is the
+// maximum number of times the Client will attempt to create its kernel before giving up.
+func (b *ClientBuilder) WithMaxCreationAttempts(maxCreationAttempts int) *ClientBuilder {
+	b.maxCreationAttempts = maxCreationAttempts
+	return b
+}
+
 // Build constructs the Client instance.
 func (b *ClientBuilder) Build() *Client {
 	sessionMeta := b.sessionReadyEvent.Data.(domain.SessionMetadata)
+
+	if b.maxCreationAttempts <= 0 {
+		b.maxCreationAttempts = 3
+	}
 
 	client := &Client{
 		SessionId:  b.sessionId,
@@ -202,6 +221,7 @@ func (b *ClientBuilder) Build() *Client {
 		AssignedDataset:                  b.assignedDataset,
 		maxSleepDuringInitSec:            b.maxSleepDuringInitSec,
 		dropSessionsWithNoTrainingEvents: b.dropSessionsWithNoTrainingEvents,
+		MaxCreationAttempts:              b.maxCreationAttempts,
 	}
 
 	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()
@@ -247,7 +267,7 @@ func (b *ClientBuilder) Build() *Client {
 
 // Client encapsulates a Session and runs as a dedicated goroutine, processing events for that Session.
 type Client struct {
-	Workload *Template
+	Workload *Workload
 	Session  *domain.WorkloadTemplateSession
 
 	maxSleepDuringInitSec            int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
@@ -285,6 +305,7 @@ type Client struct {
 	explicitlyStopped                atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
 	closeLogFileFunc                 func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
 	dropSessionsWithNoTrainingEvents bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
+	MaxCreationAttempts              int                                    // MaxCreationAttempts is the maximum number of times the Client will attempt to create its kernel before giving up.
 }
 
 func (c *Client) closeLogFile() error {
@@ -445,7 +466,7 @@ func (c *Client) getInitialResourceRequest() *jupyter.ResourceSpec {
 func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, error) {
 	initialResourceRequest := c.getInitialResourceRequest()
 
-	initialDuration := time.Second * time.Duration(math.Min(float64(c.maxSleepDuringInitSec), 20))
+	initialDuration := time.Millisecond * time.Duration(math.Min(float64(c.maxSleepDuringInitSec*1000)*0.10, 20_000))
 	backoff := wait.Backoff{
 		Duration: initialDuration,
 		Factor:   1.5,
@@ -540,14 +561,14 @@ func (c *Client) initialize() error {
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.WorkloadId))
 
-	initialDuration := time.Second * time.Duration(math.Min(float64(c.maxSleepDuringInitSec), 30))
+	initialDuration := time.Millisecond * time.Duration(math.Min(float64(c.maxSleepDuringInitSec*1000)*0.10, 30_000))
 	maximumNumberOfAttempts := 3
 	backoff := wait.Backoff{
 		Duration: initialDuration,
 		Factor:   1.25,
 		Jitter:   1.25,
 		Steps:    maximumNumberOfAttempts,
-		Cap:      time.Second * time.Duration(float64(c.maxSleepDuringInitSec)*1.5 /* slightly longer here */),
+		Cap:      time.Second * time.Duration(float64(c.maxSleepDuringInitSec)),
 	}
 
 	var (
@@ -560,7 +581,7 @@ func (c *Client) initialize() error {
 	//
 	// The delay/backoff interval in this outer retry loop is significantly longer than the inner retry loop
 	// found within createKernel.
-	for sessionConnection == nil && backoff.Steps > 0 {
+	for sessionConnection == nil && backoff.Steps >= 0 {
 		sessionConnection, err = c.createKernel(evt)
 
 		// If the session connection was created successfully, then exit the loop.
@@ -570,9 +591,6 @@ func (c *Client) initialize() error {
 
 		// Get the next sleep interval.
 		sleepInterval := backoff.Step()
-
-		// Put the event back in the queue.
-		c.EventQueue.Push(evt)
 
 		c.logger.Warn("Failed to create kernel/session.",
 			zap.String("session_id", c.SessionId),
@@ -596,7 +614,7 @@ func (c *Client) initialize() error {
 
 	c.sessionConnection = sessionConnection
 
-	// ioPubHandler is a session-specific wrapper around the standard BasicWorkloadDriver::handleIOPubMessage method.
+	// ioPubHandler is a session-specific wrapper around the standard Driver::HandleIOPubMessage method.
 	// This returns true if the received IOPub message is a "stream" message and is parsed successfully.
 	// Otherwise, this returns false.
 	//
@@ -604,7 +622,7 @@ func (c *Client) initialize() error {
 	ioPubHandler := func(conn jupyter.KernelConnection, kernelMessage jupyter.KernelMessage) interface{} {
 		// Parse the IOPub message.
 		// If it is a stream message, this will return a *parsedIoPubMessage variable.
-		parsedIoPubMsgVal := c.handleIOPubMessage(conn, kernelMessage)
+		parsedIoPubMsgVal := c.HandleIOPubMessage(kernelMessage)
 
 		if parsedIoPubMsg, ok := parsedIoPubMsgVal.(*parsedIoPubMessage); ok {
 			switch parsedIoPubMsg.Stream {
@@ -916,8 +934,6 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		return nil
 	}
 
-	c.Workload.TrainingStarted(c.SessionId, c.convertCurrentTickTimestampToTickNumber())
-
 	if err != nil {
 		c.logger.Error("Failed to wait for training to start.",
 			zap.String("workload_id", c.Workload.GetId()),
@@ -959,7 +975,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 
 // submitTrainingToKernel submits a training event to be processed/executed by the kernel.
 func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.Time, err error) {
-	c.logger.Debug("Client received training event.",
+	c.logger.Debug("Client is submitting training event to kernel now.",
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1014,7 +1030,10 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 	return sentRequestAt, nil
 }
 
-func (c *Client) onReceiveExecuteReply(response jupyter.KernelMessage) {
+// OnReceiveExecuteReply is called when an "execute_reply" message is received by the associated kernel.
+//
+// OnReceiveExecuteReply is exported so that it can be called in unit tests.
+func (c *Client) OnReceiveExecuteReply(response jupyter.KernelMessage) {
 	responseContent := response.GetContent().(map[string]interface{})
 	if responseContent == nil {
 		c.logger.Error("\"execute_reply\" message does not have any content...",
@@ -1112,7 +1131,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 			default:
 				{
 					startLatency := time.Since(sentRequestAt)
-					c.logger.Debug(domain.ColorizeText("Session started training.", domain.Green),
+					c.logger.Debug(domain.ColorizeText("Kernel started training.", domain.Green),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
@@ -1166,12 +1185,12 @@ func (c *Client) convertCurrentTickTimestampToTickNumber() int64 {
 	return c.currentTick.GetClockTime().Unix() / c.targetTickDurationSeconds
 }
 
-// handleIOPubMessage returns the extracted text.
+// HandleIOPubMessage returns the extracted text.
 // This is expected to be called within a session-specific wrapper.
 //
 // If the IOPub message is a "stream" message, then this returns a *parsedIoPubMessage
 // wrapping the name of the stream and the message text.
-func (c *Client) handleIOPubMessage(conn jupyter.KernelConnection, kernelMessage jupyter.KernelMessage) interface{} {
+func (c *Client) HandleIOPubMessage(kernelMessage jupyter.KernelMessage) interface{} {
 	// We just want to extract the output from 'stream' IOPub messages.
 	// We don't care about non-stream-type IOPub messages here, so we'll just return.
 	messageType := kernelMessage.GetHeader().MessageType
@@ -1180,17 +1199,17 @@ func (c *Client) handleIOPubMessage(conn jupyter.KernelConnection, kernelMessage
 	}
 
 	if messageType == "stream" {
-		return c.handleIOPubStreamMessage(conn, kernelMessage)
+		return c.handleIOPubStreamMessage(kernelMessage)
 	}
 
-	return c.handleIOPubSmrLeadTaskMessage(conn, kernelMessage)
+	return c.handleIOPubSmrLeadTaskMessage(kernelMessage)
 }
 
-func (c *Client) handleIOPubSmrLeadTaskMessage(conn jupyter.KernelConnection, kernelMessage jupyter.KernelMessage) string {
+func (c *Client) handleIOPubSmrLeadTaskMessage(kernelMessage jupyter.KernelMessage) string {
 	c.logger.Debug("Received 'smr_lead_task' message from kernel.",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
-		zap.String("session_id", conn.KernelId()))
+		zap.String("session_id", c.SessionId))
 
 	c.Workload.TrainingStarted(c.SessionId, c.convertCurrentTickTimestampToTickNumber())
 
@@ -1204,50 +1223,91 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(conn jupyter.KernelConnection, ke
 		c.logger.Error("Could not recover unix millisecond timestamp from \"smr_lead_task\" IOPub message.",
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
-			zap.String("session_id", conn.KernelId()),
+			zap.String("session_id", c.SessionId),
 			zap.Any("message_content", content))
+
+		c.notifyCallback(&proto.Notification{
+			Id:    uuid.NewString(),
+			Title: fmt.Sprintf("Failed to Extract Message Creation Time from \"smr_lead_task\" IOPub Message"),
+			Message: fmt.Sprintf("Client %s failed to extract \"msg_created_at_unix_milliseconds\" entry from "+
+				"content of \"smr_lead_task\" IOPub message \"%s\".", c.SessionId, kernelMessage.GetHeader().MessageId),
+			Panicked:         false,
+			NotificationType: domain.ErrorNotification.Int32(),
+		})
 
 		panic("Could not recover unix millisecond timestamp from \"smr_lead_task\" IOPub message.")
 	}
 
-	trainingStartedAt = int64(val.(float64))
-
-	delayMilliseconds := trainingStartedAt - c.lastTrainingSubmittedAt.UnixMilli()
-	if delayMilliseconds < 0 {
-		c.logger.Error("Computed invalid delay between training submission and training start...",
+	switch val.(type) {
+	case float64:
+		{
+			trainingStartedAt = int64(val.(float64))
+		}
+	case float32:
+		{
+			trainingStartedAt = int64(val.(float32))
+		}
+	case int64:
+		{
+			trainingStartedAt = val.(int64)
+		}
+	case int32:
+		{
+			trainingStartedAt = int64(val.(int32))
+		}
+	case int:
+		{
+			trainingStartedAt = int64(val.(int))
+		}
+	default:
+		c.logger.Error("Unexpected type of \"msg_created_at_unix_milliseconds\" value found in content of \"smr_lead_task\" IOPub message",
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
-			zap.String("session_id", conn.KernelId()),
-			zap.Time("sent_execute_request_at", c.lastTrainingSubmittedAt),
-			zap.Int64("training_started_at", trainingStartedAt),
-			zap.Int64("computed_delay_millis", delayMilliseconds))
+			zap.String("session_id", c.SessionId),
+			zap.String("message_id", kernelMessage.GetHeader().MessageId),
+			zap.String("type", reflect.TypeOf(val).Name()))
 
-		delayMilliseconds = 0
+		trainingStartedAt = -1
 	}
 
-	c.Workload.UpdateStatistics(func(stats *Statistics) {
-		stats.JupyterTrainingStartLatenciesDashboardMillis = append(
-			stats.JupyterTrainingStartLatenciesDashboardMillis, float64(delayMilliseconds))
+	if trainingStartedAt > 0 {
+		delayMilliseconds := trainingStartedAt - c.lastTrainingSubmittedAt.UnixMilli()
+		if delayMilliseconds < 0 {
+			c.logger.Error("Computed invalid delay between training submission and training start...",
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("session_id", c.SessionId),
+				zap.Time("sent_execute_request_at", c.lastTrainingSubmittedAt),
+				zap.Int64("training_started_at", trainingStartedAt),
+				zap.Int64("computed_delay_millis", delayMilliseconds))
 
-		stats.JupyterTrainingStartLatencyDashboardMillis += float64(delayMilliseconds)
-	})
+			delayMilliseconds = 0
+		}
 
-	c.logger.Debug("Computed training-started delay for session.",
-		zap.String("workload_id", c.Workload.GetId()),
-		zap.String("workload_name", c.Workload.WorkloadName()),
-		zap.String("session_id", conn.KernelId()),
-		zap.Time("sent_execute_request_at", c.lastTrainingSubmittedAt),
-		zap.Int64("training_started_at", trainingStartedAt),
-		zap.Int64("computed_delay", delayMilliseconds))
+		c.Workload.UpdateStatistics(func(stats *Statistics) {
+			stats.JupyterTrainingStartLatenciesDashboardMillis = append(
+				stats.JupyterTrainingStartLatenciesDashboardMillis, float64(delayMilliseconds))
 
-	c.incurDelay(time.Millisecond * time.Duration(delayMilliseconds))
+			stats.JupyterTrainingStartLatencyDashboardMillis += float64(delayMilliseconds)
+		})
+
+		c.logger.Debug("Computed training-started delay for session.",
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId),
+			zap.Time("sent_execute_request_at", c.lastTrainingSubmittedAt),
+			zap.Int64("training_started_at", trainingStartedAt),
+			zap.Int64("computed_delay_milliseconds", delayMilliseconds))
+
+		c.incurDelay(time.Millisecond * time.Duration(delayMilliseconds))
+	}
 
 	c.TrainingStartedChannel <- struct{}{}
 
 	return c.SessionId
 }
 
-func (c *Client) handleIOPubStreamMessage(conn jupyter.KernelConnection, kernelMessage jupyter.KernelMessage) interface{} {
+func (c *Client) handleIOPubStreamMessage(kernelMessage jupyter.KernelMessage) interface{} {
 	content := kernelMessage.GetContent().(map[string]interface{})
 
 	var (
@@ -1262,13 +1322,18 @@ func (c *Client) handleIOPubStreamMessage(conn jupyter.KernelConnection, kernelM
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.Any("content", content), zap.Any("message", kernelMessage),
-			zap.String("session_id", conn.KernelId()))
+			zap.String("session_id", c.SessionId))
 		return nil
 	}
 
 	text, ok = content["text"].(string)
 	if !ok {
-		c.logger.Warn("Content of IOPub message did not contain an entry with key \"text\" and value of type string.", zap.String("workload_id", c.Workload.GetId()), zap.String("workload_name", c.Workload.WorkloadName()), zap.Any("content", content), zap.Any("message", kernelMessage), zap.String("session_id", conn.KernelId()))
+		c.logger.Warn("Content of IOPub message did not contain an entry with key \"text\" and value of type string.",
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.Any("content", content),
+			zap.Any("message", kernelMessage),
+			zap.String("session_id", c.SessionId))
 		return nil
 	}
 
@@ -1338,7 +1403,7 @@ func (c *Client) CreateExecuteRequestArguments(evt *domain.Event) (*jupyter.Requ
 		AllowStdin(true).
 		StopOnError(false).
 		AwaitResponse(false).
-		OnResponseCallback(c.onReceiveExecuteReply).
+		OnResponseCallback(c.OnReceiveExecuteReply).
 		AddMetadata("resource_request", resourceRequest).
 		AddMetadata("training_duration_millis", milliseconds)
 

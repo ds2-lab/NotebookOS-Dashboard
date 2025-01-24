@@ -121,12 +121,12 @@ func (b *Builder) WithFileOutput(path string) *Builder {
 }
 
 // Build creates a Workload instance with the specified values.
-func (b *Builder) Build() *BasicWorkload {
+func (b *Builder) Build() *Workload {
 	b.logger.Debug("Building workload.",
 		zap.String("workload_id", b.Id),
 		zap.String("workload_config", b.String()))
 
-	workload := &BasicWorkload{
+	workload := &Workload{
 		Id:                               b.Id, // Same ID as the driver.
 		Name:                             b.WorkloadName,
 		Seed:                             b.Seed,

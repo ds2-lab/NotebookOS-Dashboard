@@ -63,6 +63,8 @@ type Workload interface {
 	// WorkloadName Returns the name of the workload.
 	// The name is not necessarily unique and is meant to be descriptive, whereas the ID is unique.
 	WorkloadName() string
+	// TotalNumSessions returns the total number of Sessions, including any discarded Sessions.
+	TotalNumSessions() int
 
 	// GetState Returns the current state of the workload.
 	//GetState() WorkloadState
@@ -149,8 +151,6 @@ type Workload interface {
 	GetTimescaleAdjustmentFactor() float64
 	// GetProcessedEvents Returns the events processed during this workload (so far).
 	GetProcessedEvents() []*WorkloadEvent
-	// SetSource Sets the source of the workload, namely a template or a preset.
-	SetSource(interface{}) error
 	// GetCurrentTick Returns the current tick.
 	GetCurrentTick() int64
 	// GetSimulationClockTimeStr Returns the simulation clock time.

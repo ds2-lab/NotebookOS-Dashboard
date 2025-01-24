@@ -417,7 +417,7 @@ func (conn *BasicKernelConnection) sendAck(msg KernelMessage, channel KernelSock
 	content["sender-identity"] = fmt.Sprintf("GoJupyter-%s", conn.kernelId)
 
 	ackMessage, _ := conn.createKernelMessage(AckMessage, channel, content)
-	ackMessage.(*BaseKernelMessage).ParentHeader = msg.GetParentHeader()
+	ackMessage.(*Message).ParentHeader = msg.GetParentHeader()
 
 	firstPart := fmt.Sprintf(LightBlueStyle.Render("Sending ACK for %v \"%v\""), channel, msg.GetParentHeader().MessageType)
 	secondPart := fmt.Sprintf("(MsgId=%v)", LightPurpleStyle.Render(msg.GetParentHeader().MessageId))
@@ -497,6 +497,28 @@ func (conn *BasicKernelConnection) handleExecuteRequestResponse(request KernelMe
 	return response
 }
 
+// CreateExecuteRequestMessage creates an "execute_request" message and an associated response channel
+// from the given RequestExecuteArgs.
+func (conn *BasicKernelConnection) CreateExecuteRequestMessage(args *RequestExecuteArgs) (KernelMessage, chan KernelMessage) {
+	content := args.StripNonstandardArguments()
+
+	message, responseChan := conn.createKernelMessage(ExecuteRequest, ShellChannel, content)
+
+	if args.ExtraArguments != nil && args.ExtraArguments.RequestMetadata != nil {
+		for key, value := range args.ExtraArguments.RequestMetadata {
+			conn.logger.Debug("Adding metadata entry to \"execute_request\" message.",
+				zap.String("kernel_id", conn.kernelId),
+				zap.String("message_id", message.GetHeader().MessageId),
+				zap.String("metadata_key", key),
+				zap.Any("metadata_value", value))
+
+			message.AddMetadata(key, value)
+		}
+	}
+
+	return message, responseChan
+}
+
 // RequestExecute sends an `execute_request` message.
 //
 // #### Notes
@@ -514,21 +536,7 @@ func (conn *BasicKernelConnection) handleExecuteRequestResponse(request KernelMe
 // - stopOnError (bool): Whether to the abort execution queue on an error. The default is `false`.
 // - waitForResponse (bool): Whether to wait for a response from the kernel, or just return immediately.
 func (conn *BasicKernelConnection) RequestExecute(args *RequestExecuteArgs) (KernelMessage, error) {
-	content := args.StripNonstandardArguments()
-
-	message, responseChan := conn.createKernelMessage(ExecuteRequest, ShellChannel, content)
-
-	if args.ExtraArguments != nil && args.ExtraArguments.RequestMetadata != nil {
-		for key, value := range args.ExtraArguments.RequestMetadata {
-			conn.logger.Debug("Adding metadata entry to \"execute_request\" message.",
-				zap.String("kernel_id", conn.kernelId),
-				zap.String("message_id", message.GetHeader().MessageId),
-				zap.String("metadata_key", key),
-				zap.Any("metadata_value", value))
-
-			message.GetMetadata()[key] = value
-		}
-	}
+	message, responseChan := conn.CreateExecuteRequestMessage(args)
 
 	sentAt := time.Now()
 	err := conn.sendMessage(message)
@@ -679,7 +687,7 @@ func (conn *BasicKernelConnection) Username() string {
 // decoded result, or an error if one occurred.
 //
 // - WebSocket protocol: https://jupyter-server.readthedocs.io/en/latest/developers/websocket-protocols.html
-func (conn *BasicKernelConnection) decodeKernelMessage(buf []byte) (*BaseKernelMessage, error) {
+func (conn *BasicKernelConnection) decodeKernelMessage(buf []byte) (*Message, error) {
 	//conn.logger.Debug("Decoding message from kernel.",
 	//	zap.String("kernel_id", conn.kernelId),
 	//	zap.Int("size", len(buf)),
@@ -689,7 +697,7 @@ func (conn *BasicKernelConnection) decodeKernelMessage(buf []byte) (*BaseKernelM
 
 	// Decode JSON from the buffer.
 	// This will usually work, but if the message has buffers attached to it, then it won't.
-	var msg *BaseKernelMessage
+	var msg *Message
 	if err := json.Unmarshal(buf, &msg); err == nil {
 		//conn.logger.Debug("Successfully deserialized Jupyter message without having to parse any of it as binary.",
 		//	zap.String("message_id", msg.Header.MessageId),
@@ -785,7 +793,7 @@ func (conn *BasicKernelConnection) serveMessages() {
 			continue
 		}
 
-		var kernelMessage *BaseKernelMessage
+		var kernelMessage *Message
 		kernelMessage, err = conn.decodeKernelMessage(data)
 
 		if err == io.EOF {
@@ -933,15 +941,9 @@ func (conn *BasicKernelConnection) defaultHandleIOPubMessage(kernelMessage Kerne
 	return
 }
 
-// RangeOverMetadata atomically iterates over the BasicKernelConnection's metadata mapping, calling the provided
-// function for each key-value pair in the metadata mapping.
-//
-// If the provided function returns false, then the iteration will stop, and RangeOverMetadata will return.
-func (conn *BasicKernelConnection) RangeOverMetadata(f func(key string, value interface{}) bool) {
-	conn.metadataMutex.Lock()
-	defer conn.metadataMutex.Unlock()
-
-	for key, value := range conn.metadata {
+// RangeOverMap iterates over a map with arbitrary key/value types.
+func RangeOverMap[K comparable, V any](f func(key K, value V) bool, dict map[K]V) {
+	for key, value := range dict {
 		shouldContinue := f(key, value)
 
 		if !shouldContinue {
@@ -954,39 +956,61 @@ func (conn *BasicKernelConnection) RangeOverMetadata(f func(key string, value in
 // the provided function for each key-value pair in the metadata mapping.
 //
 // If the provided function returns false, then the iteration will stop, and RangeOverMetadata will return.
-func (conn *BasicKernelConnection) RangeOverSerializedMetadata(f func(key string, value interface{}) bool) {
+func (conn *BasicKernelConnection) RangeOverSerializedMetadata(f func(key string, value string) bool) {
 	conn.metadataMutex.Lock()
 	defer conn.metadataMutex.Unlock()
 
-	for key, value := range conn.serializedMetadata {
-		shouldContinue := f(key, value)
+	RangeOverMap[string, string](f, conn.serializedMetadata)
+}
 
-		if !shouldContinue {
-			return
-		}
-	}
+// RangeOverMetadata atomically iterates over the BasicKernelConnection's metadata mapping, calling
+// the provided function for each key-value pair in the metadata mapping.
+//
+// If the provided function returns false, then the iteration will stop, and RangeOverMetadata will return.
+func (conn *BasicKernelConnection) RangeOverMetadata(f func(key string, value interface{}) bool) {
+	conn.metadataMutex.Lock()
+	defer conn.metadataMutex.Unlock()
+
+	RangeOverMap[string, interface{}](f, conn.metadata)
 }
 
 func (conn *BasicKernelConnection) createKernelMessage(messageType MessageType, channel KernelSocketChannel, content interface{}) (KernelMessage, chan KernelMessage) {
 	messageId := conn.getNextMessageId()
-	header := &KernelMessageHeader{
-		Date:        time.Now().UTC().Format(JavascriptISOString),
-		MessageId:   messageId,
-		MessageType: messageType,
-		Session:     conn.clientId,
-		Username:    conn.clientId,
-		Version:     VERSION,
-	}
+
+	header := NewKernelMessageHeaderBuilder().
+		WithDate(time.Now()).
+		WithMessageId(messageId).
+		WithMessageType(messageType).
+		WithSession(conn.clientId).
+		WithUsername(conn.username).
+		WithVersion(VERSION).
+		Build()
 
 	if content == nil {
 		content = make(map[string]interface{})
 	}
 
-	metadata := make(map[string]interface{})
-	// Add all the registered metadata to the dictionary.
-	conn.RangeOverSerializedMetadata(func(key string, value interface{}) bool {
-		marshalledValue, err := json.Marshal(value)
+	messageMetadata := make(map[string]interface{})
 
+	// Add all the registered metadata to the dictionary.
+	conn.RangeOverSerializedMetadata(func(key string, value string) bool {
+		messageMetadata[key] = value
+		conn.logger.Debug("Added metadata to Jupyter kernel message.",
+			zap.String("message_id", messageId),
+			zap.String("message_type", messageType.String()),
+			zap.String("metadata_key", key),
+			zap.Any("metadata_value", value))
+
+		return true
+	})
+
+	conn.RangeOverMetadata(func(key string, value interface{}) bool {
+		if _, loaded := messageMetadata[key]; loaded {
+			// It's already added. Skip it.
+			return true
+		}
+
+		marshalledValue, err := json.Marshal(value)
 		if err != nil {
 			conn.logger.Error("Failed to serialize piece of metadata while creating kernel message.",
 				zap.String("message_id", messageId),
@@ -997,7 +1021,7 @@ func (conn *BasicKernelConnection) createKernelMessage(messageType MessageType, 
 			return true
 		}
 
-		metadata[key] = string(marshalledValue)
+		messageMetadata[key] = marshalledValue
 		conn.logger.Debug("Added metadata to Jupyter kernel message.",
 			zap.String("message_id", messageId),
 			zap.String("message_type", messageType.String()),
@@ -1007,17 +1031,14 @@ func (conn *BasicKernelConnection) createKernelMessage(messageType MessageType, 
 		return true
 	})
 
-	metadata[KernelIdMetadataKey] = conn.kernelId
-	metadata[SendTimestampMetadataKey] = time.Now().UnixMilli()
-
-	message := &BaseKernelMessage{
-		Channel:      channel,
-		Header:       header,
-		Content:      content,
-		Metadata:     metadata,
-		Buffers:      make([][]byte, 0),
-		ParentHeader: &KernelMessageHeader{},
-	}
+	message := NewMessageBuilder().
+		WithChannel(channel).
+		WithHeader(header).
+		WithContent(content).
+		WithMetadataDictionary(messageMetadata).
+		WithMetadata(KernelIdMetadataKey, conn.kernelId).
+		WithMetadata(SendTimestampMetadataKey, time.Now().UnixMilli()).
+		Build()
 
 	var responseChannel chan KernelMessage
 	if channel == ShellChannel || channel == ControlChannel {

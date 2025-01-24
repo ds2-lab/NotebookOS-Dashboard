@@ -4,6 +4,7 @@ import (
 	"github.com/scusemua/workload-driver-react/m/v2/internal/domain"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/mock_domain"
 	"go.uber.org/mock/gomock"
+	"math/rand/v2"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -47,6 +48,14 @@ func getBasicSessionMetadataWithSpec(sessionId string, spec domain.ResourceReque
 	sessionMetadata.EXPECT().GetCurrentTrainingMaxVRAM().AnyTimes().Return(spec.VRAM)
 
 	return sessionMetadata
+}
+
+func randRange(min, max int) int {
+	return rand.IntN(max-min) + min
+}
+
+func randRangeInt64(min, max int64) int64 {
+	return rand.Int64N(max-min) + min
 }
 
 func TestWorkload(t *testing.T) {

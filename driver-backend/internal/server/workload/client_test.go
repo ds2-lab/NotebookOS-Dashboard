@@ -56,9 +56,8 @@ var _ = Describe("Workload Client Tests", func() {
 			Build()
 		Expect(basicWorkload).ToNot(BeNil())
 
-		workloadFromTemplate, err := workload.NewWorkloadFromTemplate(basicWorkload, make([]*domain.WorkloadTemplateSession, 0))
+		err := basicWorkload.InitializeFromTemplate(make([]*domain.WorkloadTemplateSession, 0))
 		Expect(err).To(BeNil())
-		Expect(workloadFromTemplate).ToNot(BeNil())
 
 		sessionReadyEvent := &domain.Event{
 			Name:        domain.EventSessionReady,
@@ -76,7 +75,7 @@ var _ = Describe("Workload Client Tests", func() {
 			WithSessionReadyEvent(sessionReadyEvent).
 			WithDeepLearningModel("ResNet-18").
 			WithDataset("CIFAR-10").
-			WithWorkload(workloadFromTemplate).
+			WithWorkload(basicWorkload).
 			WithTimescaleAdjustmentFactor(timescaleAdjustmentFactor).
 			Build()
 		Expect(client).ToNot(BeNil())
@@ -148,9 +147,8 @@ var _ = Describe("Workload Client Tests", func() {
 			Build()
 		Expect(basicWorkload).ToNot(BeNil())
 
-		workloadFromTemplate, err := workload.NewWorkloadFromTemplate(basicWorkload, make([]*domain.WorkloadTemplateSession, 0))
+		err := basicWorkload.InitializeFromTemplate(make([]*domain.WorkloadTemplateSession, 0))
 		Expect(err).To(BeNil())
-		Expect(workloadFromTemplate).ToNot(BeNil())
 
 		sessionReadyEvent := &domain.Event{
 			Name:        domain.EventSessionReady,
@@ -168,7 +166,7 @@ var _ = Describe("Workload Client Tests", func() {
 			WithSessionReadyEvent(sessionReadyEvent).
 			WithDeepLearningModel("ResNet-18").
 			WithDataset("CIFAR-10").
-			WithWorkload(workloadFromTemplate).
+			WithWorkload(basicWorkload).
 			WithFileOutput("test_client_output.json").
 			Build()
 		Expect(client).ToNot(BeNil())

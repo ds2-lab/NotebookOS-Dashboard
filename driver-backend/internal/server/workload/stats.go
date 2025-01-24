@@ -286,6 +286,17 @@ type ClusterStatistics struct {
 
 	SubscriptionRatio float64 `csv:"SubscriptionRatio" json:"SubscriptionRatio"`
 
+	// NumTimesKernelReplicaAvailableImmediately is the number of times that a kernel replica was available
+	// immediately when an "execute_request" message was received by the cluster (as opposed to having to
+	// migrate some replicas around in order to serve the "execute_request").
+	NumTimesKernelReplicaAvailableImmediately float64 `csv:"NumTimesKernelReplicaAvailableImmediately" json:"NumTimesKernelReplicaAvailableImmediately"`
+
+	// NumTimesKernelReplicaNotAvailableImmediately is the number of times that a kernel replica was NOT available
+	// immediately when an "execute_request" message was received by the cluster, and we had to migrate some replicas
+	// around in order to serve the "execute_request" (as opposed to there being a replica available and able to
+	// serve the "execute_request" immediately, with no migrations required).
+	NumTimesKernelReplicaNotAvailableImmediately float64 `csv:"NumTimesKernelReplicaNotAvailableImmediately" json:"NumTimesKernelReplicaNotAvailableImmediately"`
+
 	////////////////////////
 	// Dynamic Scheduling //
 	////////////////////////

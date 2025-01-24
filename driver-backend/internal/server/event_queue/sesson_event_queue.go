@@ -30,7 +30,8 @@ type SessionEventQueue struct {
 
 	logger *zap.Logger
 
-	mu sync.Mutex
+	delayMu sync.Mutex
+	mu      sync.Mutex
 }
 
 // NewSessionEventQueue creates a new SessionEventQueue struct and returns a pointer to it.
@@ -53,8 +54,8 @@ func NewSessionEventQueue(sessionId string) *SessionEventQueue {
 }
 
 func (q *SessionEventQueue) IncurDelay(amount time.Duration) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
+	q.delayMu.Lock()
+	defer q.delayMu.Unlock()
 
 	q.Delay += amount
 }
@@ -139,8 +140,10 @@ func (q *SessionEventQueue) unsafeNextEventTimestamp() (time.Time, bool) {
 		return time.Time{}, false
 	}
 
+	q.delayMu.Lock()
 	timestampWithDelay := q.InternalQueue.Peek().Timestamp.Add(q.Delay)
-
+	q.delayMu.Unlock()
+	
 	// If there's a hold on events, then we'll add a huge constant amount to the timestamp so that the events
 	// are delayed more-or-less indefinitely.
 	if q.HoldActive {
