@@ -984,7 +984,15 @@ func (d *Driver) createOutputDirectory() error {
 func (d *Driver) DriveWorkload() {
 	var err error
 
+	if d.OutputCsvDisabled {
+		d.logger.Warn("CSV output is disabled!\n\n\n")
+	}
+
 	if !d.OutputCsvDisabled {
+		d.logger.Debug("Creating or opening the output CSV file.",
+			zap.String("workload_id", d.id),
+			zap.String("workload_name", d.workload.WorkloadName()),
+			zap.String("path", d.outputFilePath))
 		d.outputFileMutex.Lock()
 		d.outputFile, err = os.OpenFile(d.outputFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 		d.outputFileMutex.Unlock()
@@ -993,7 +1001,7 @@ func (d *Driver) DriveWorkload() {
 			d.logger.Error("Failed to create .CSV output file for workload.",
 				zap.String("workload_id", d.id),
 				zap.String("workload_name", d.workload.WorkloadName()),
-				zap.String("path", d.outputSubdirectoryPath),
+				zap.String("path", d.outputFilePath),
 				zap.Error(err))
 			d.handleCriticalError(err)
 			return
