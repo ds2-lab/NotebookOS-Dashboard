@@ -84,8 +84,7 @@ export const WorkloadDescriptiveIcons: React.FunctionComponent<IWorkloadDescript
             <FlexItem>
                 <Tooltip content={`Total number of Sessions involved in the workload.`} position="bottom">
                     <React.Fragment>
-                        <CubeIcon />{' '}
-                        {props.workload?.sessions.length - props.workload?.statistics.num_discarded_sessions}
+                        <CubeIcon /> {props.workload?.sessions.length}
                     </React.Fragment>
                 </Tooltip>
             </FlexItem>

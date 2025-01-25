@@ -37,21 +37,17 @@ import React, { ReactElement } from 'react';
 const tableColumns = {
     id: 'ID',
     status: 'Status',
-    currentTickNumber: 'Curr. Tick',
-    completedExecutions: 'Completed Executions',
-    remainingExecutions: 'Remaining Executions',
+    completedExecutions: 'Completed Exec.',
+    remainingExecutions: 'Remaining Exec.',
     millicpus: 'Millicpus',
-    memory: 'Memory (MB)',
+    memory: 'RAM (MB)',
     gpus: 'GPUs',
-    // currentGpus: 'Current vGPUs',
-    // maxGpus: 'Max vGPUs',
     vram: 'VRAM (GB)',
 };
 
 const sessions_table_columns: string[] = [
     'ID',
     'Status',
-    'Tick',
     'Completed Exec.',
     'Remaining Exec.',
     'Millicpus',
@@ -154,7 +150,15 @@ function getSessionStatusLabel(session: Session): ReactElement {
 // This example is trivial since our data objects just contain strings, but if the data was more complex
 // this would be a place to return simplified string or number versions of each column to sort by.
 function getSortableRowValues(session: Session): (string | number | Date)[] {
-    const { id, state, current_tick_number, trainings, trainings_completed, current_resource_request, max_resource_request } = session;
+    const {
+        id,
+        state,
+        current_tick_number,
+        trainings,
+        trainings_completed,
+        current_resource_request,
+        max_resource_request,
+    } = session;
 
     let status: string = state;
     if (session.discarded) {
@@ -267,7 +271,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         <Thead noWrap>
             <Tr>
                 <Th
-                    key={`workload_${props.workload?.id}_column_expand_action`}
+                    key={`workload_${props.workload?.id}_column_expand_action_0`}
                     aria-label={`workload_${props.workload?.id}_column_expand_action`}
                 />
                 {sessions_table_columns.map((column, columnIndex) => (
@@ -322,12 +326,12 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         <DescriptionListTerm>Stop Tick</DescriptionListTerm>
                         <DescriptionListDescription>{session.stop_tick}</DescriptionListDescription>
                     </DescriptionListGroup>
-                    {session.current_tick_number > 0 && (
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>Current Tick</DescriptionListTerm>
-                            <DescriptionListDescription>{session.current_tick_number}</DescriptionListDescription>
-                        </DescriptionListGroup>
-                    )}
+                    <DescriptionListGroup>
+                        <DescriptionListTerm>Current Tick</DescriptionListTerm>
+                        <DescriptionListDescription>
+                            {session.state == 'awaiting start' ? 'Waiting to Start' : session.current_tick_number}
+                        </DescriptionListDescription>
+                    </DescriptionListGroup>
                 </DescriptionList>
             </React.Fragment>
         );
@@ -399,7 +403,6 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         </Tooltip>
                     </Td>
                     <Td dataLabel={tableColumns.status}>{getSessionStatusLabel(session)}</Td>
-                    <Td dataLabel={tableColumns.currentTickNumber}>{session.current_tick_number}</Td>
                     <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.remainingExecutions}>{getRemainingTrainings(session)}</Td>
@@ -472,11 +475,6 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
             <CardBody>
                 <Table variant="compact" borders={true} isStriped isExpandable>
                     {tableHead}
-                    {/*{filteredSessions?.map((session: Session, rowIndex: number) => {*/}
-                    {/*{sortedSessions.length > 0 &&*/}
-                    {/*    arrayIndices.map((rowIndex: number) => {*/}
-                    {/*        return getTableRow(rowIndex);*/}
-                    {/*    })}*/}
                     {sortedSessions.length > 0 && getTableRows()}
                 </Table>
                 {pagination}

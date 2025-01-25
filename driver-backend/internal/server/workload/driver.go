@@ -1883,16 +1883,16 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 					zap.String("event", evt.String()))
 
 				// Discard events for this Session.
-				err := d.workload.SessionDiscarded(sessionId)
-				if err != nil {
-					d.logger.Error("Failed to discard events for session (whose client we couldn't find).",
-						zap.String("workload_name", d.workload.WorkloadName()),
-						zap.String("workload_id", d.workload.GetId()),
-						zap.String("session_id", sessionId),
-						zap.String("event_name", evt.Name.String()),
-						zap.String("event", evt.String()),
-						zap.Error(err))
-				}
+				//err := d.workload.SessionDiscarded(sessionId)
+				//if err != nil {
+				//	d.logger.Error("Failed to discard events for session (whose client we couldn't find).",
+				//		zap.String("workload_name", d.workload.WorkloadName()),
+				//		zap.String("workload_id", d.workload.GetId()),
+				//		zap.String("session_id", sessionId),
+				//		zap.String("event_name", evt.Name.String()),
+				//		zap.String("event", evt.String()),
+				//		zap.Error(err))
+				//}
 
 				continue
 			}

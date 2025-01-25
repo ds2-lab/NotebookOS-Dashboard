@@ -185,11 +185,9 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                 <Flex direction={{ default: 'row' }}>
                     <FlexItem align={{ default: 'alignLeft' }}>
                         <ClipboardCheckIcon /> {<strong>Sessions: </strong>}
-                        {props.workload?.statistics.num_sessions_created} / {getNumSessions(showDiscardedSessions)} (
+                        {props.workload?.statistics.num_sessions_created} / {props.workload?.sessions.length} (
                         {RoundToTwoDecimalPlaces(
-                            100 *
-                                (props.workload?.statistics.num_sessions_created /
-                                    getNumSessions(showDiscardedSessions)),
+                            100 * (props.workload?.statistics.num_sessions_created / props.workload?.sessions.length),
                         ) + '%'}
                         ) created, {props.workload?.statistics.num_active_trainings} actively training
                     </FlexItem>
