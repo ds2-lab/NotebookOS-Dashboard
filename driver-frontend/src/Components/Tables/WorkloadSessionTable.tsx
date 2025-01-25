@@ -37,6 +37,7 @@ import React, { ReactElement } from 'react';
 const tableColumns = {
     id: 'ID',
     status: 'Status',
+    currentTickNumber: 'Current Tick',
     completedExecutions: 'Completed Exec.',
     remainingExecutions: 'Remaining Exec.',
     millicpus: 'Millicpus',
@@ -48,6 +49,7 @@ const tableColumns = {
 const sessions_table_columns: string[] = [
     'ID',
     'Status',
+    'Current Tick',
     'Completed Exec.',
     'Remaining Exec.',
     'Millicpus',
@@ -403,7 +405,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         </Tooltip>
                     </Td>
                     <Td dataLabel={tableColumns.status}>{getSessionStatusLabel(session)}</Td>
-                    <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
+                    <Td dataLabel={tableColumns.status}>{session.current_tick_number}</Td>
                     <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.remainingExecutions}>{getRemainingTrainings(session)}</Td>
                     <Td dataLabel={tableColumns.millicpus}>

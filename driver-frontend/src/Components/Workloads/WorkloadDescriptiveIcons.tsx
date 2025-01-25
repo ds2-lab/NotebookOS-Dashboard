@@ -1,12 +1,5 @@
 import { Flex, FlexItem, Switch, Tooltip } from '@patternfly/react-core';
-import {
-    BlueprintIcon,
-    ClockIcon,
-    CubeIcon,
-    DiceIcon,
-    OutlinedCalendarAltIcon,
-    TaskIcon,
-} from '@patternfly/react-icons';
+import { BlueprintIcon, ClockIcon, CubeIcon, DiceIcon, TaskIcon } from '@patternfly/react-icons';
 import { GetWorkloadStatusLabel, GetWorkloadStatusTooltip, IsWorkloadFinished, Workload } from '@src/Data';
 import { WorkloadContext } from '@src/Providers';
 import { RoundToNDecimalPlaces } from '@src/Utils';
@@ -28,37 +21,14 @@ export const WorkloadDescriptiveIcons: React.FunctionComponent<IWorkloadDescript
                     <React.Fragment>{GetWorkloadStatusLabel(props.workload)}</React.Fragment>
                 </Tooltip>
             </FlexItem>
-            {props.workload.workload_preset && (
-                <FlexItem>
-                    <Tooltip content={'Workload preset.'} position="bottom">
-                        <React.Fragment>
-                            <BlueprintIcon /> &quot;
-                            {props.workload.workload_preset_name}
-                            &quot;
-                        </React.Fragment>
-                    </Tooltip>
-                </FlexItem>
-            )}
-            {props.workload.workload_template && (
-                <FlexItem>
-                    <Tooltip content={'Workload template.'} position="bottom">
-                        {/* <Label icon={<BlueprintIcon />}>&quot;{props.workload.workload_template.name}&quot;</Label> */}
-                        <React.Fragment>
-                            <BlueprintIcon /> &quot;
-                            {'Workload Template'}&quot;
-                        </React.Fragment>
-                    </Tooltip>
-                </FlexItem>
-            )}
-            {props.workload.workload_preset && (
-                <FlexItem hidden={props.workload.workload_preset.preset_type == 'XML'}>
-                    <Tooltip content={'Months of trace data included in the props.workload.'} position="bottom">
-                        <React.Fragment>
-                            <OutlinedCalendarAltIcon /> {props.workload.workload_preset.months_description}
-                        </React.Fragment>
-                    </Tooltip>
-                </FlexItem>
-            )}
+            <FlexItem>
+                <Tooltip content={'Workload Template.'} position="bottom">
+                    <React.Fragment>
+                        <BlueprintIcon /> &quot;
+                        {'Workload Template'}&quot;
+                    </React.Fragment>
+                </Tooltip>
+            </FlexItem>
             <FlexItem>
                 <Tooltip content={'Workload seed.'} position="bottom">
                     {/* <Label icon={<DiceIcon />}>{props.workload.seed}</Label> */}
