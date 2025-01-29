@@ -1086,7 +1086,7 @@ func (conn *BasicKernelConnection) updateConnectionStatus(status KernelConnectio
 	// established. If we are restarting, this message will skip the queue
 	// and be sent immediately.
 	success := false
-	maxNumTries := 1 // TODO: Change me to a higher number after debugging.
+	maxNumTries := 3
 	if conn.connectionStatus == KernelConnected {
 		conn.logger.Debug("Connection status is being updated to 'connected'. Attempting to retrieve kernel info.",
 			zap.String("kernel_id", conn.kernelId))
