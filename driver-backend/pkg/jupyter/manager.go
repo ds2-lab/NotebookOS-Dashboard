@@ -220,18 +220,26 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 	url := fmt.Sprintf("http://%s", address)
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(requestBodyJson))
 	if err != nil {
-		m.logger.Error("Error encountered while creating request for CreateFile operation.", zap.String("request-args", requestBody.String()), zap.String("sessionPath", sessionPath), zap.String("url", url), zap.Error(err))
+		m.logger.Error("Error encountered while creating request for CreateFile operation.",
+			zap.String("request-args", requestBody.String()),
+			zap.String("sessionPath", sessionPath),
+			zap.String("url", url), zap.Error(err))
 		m.tryCallErrorHandler("", sessionId, err)
 		return nil, err
 	}
 
-	m.logger.Debug("Issuing 'CREATE-SESSION' request now.", zap.String("request-args", requestBody.String()), zap.String("request-url", url))
+	m.logger.Debug("Issuing 'CREATE-SESSION' request now.",
+		zap.String("request-args", requestBody.String()),
+		zap.String("request-url", url))
 
 	sentAt := time.Now()
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		m.logger.Error("Received error when creating new session.", zap.String("request-args", requestBody.String()), zap.String("local-session-id", sessionId), zap.String("url", url), zap.Error(err))
+		m.logger.Error("Received error when creating new session.",
+			zap.String("request-args", requestBody.String()),
+			zap.String("local-session-id", sessionId),
+			zap.String("url", url), zap.Error(err))
 		m.tryCallErrorHandler("", sessionId, err)
 		return nil, err
 	}
@@ -250,7 +258,10 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 				return nil, err
 			}
 
-			m.logger.Debug("Received 'Created' when creating session", zap.Int("status-code", resp.StatusCode), zap.String("status", resp.Status), zap.String(ZapSessionIDKey, sessionId))
+			m.logger.Debug("Received 'Created' when creating session",
+				zap.Int("status-code", resp.StatusCode),
+				zap.String("status", resp.Status),
+				zap.String(ZapSessionIDKey, sessionId))
 
 			var kernelId = jupyterSession.JupyterKernel.Id
 			var jupyterSessionId = jupyterSession.JupyterSessionId
@@ -265,11 +276,14 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 
 			st := time.Now()
 			// Connect to the Session and to the associated kernel.
-			sessionConnection, err = NewSessionConnection(jupyterSession, "", m.jupyterServerAddress, m.atom, m.kernelMetricsManager.metricsConsumer, func(err error) {
-				m.tryCallErrorHandler(kernelId, sessionId, err)
-			})
+			sessionConnection, err = NewSessionConnection(jupyterSession, "", m.jupyterServerAddress, m.atom,
+				m.kernelMetricsManager.metricsConsumer, func(err error) {
+					m.tryCallErrorHandler(kernelId, sessionId, err)
+				})
 			if err != nil {
-				m.logger.Error("Could not establish connection to Session.", zap.String(ZapSessionIDKey, sessionId), zap.String("kernel_id", kernelId), zap.Error(err))
+				m.logger.Error("Could not establish connection to Session.",
+					zap.String(ZapSessionIDKey, sessionId),
+					zap.String("kernel_id", kernelId), zap.Error(err))
 				m.tryCallErrorHandler("", sessionId, err)
 				return nil, err
 			}
@@ -279,11 +293,18 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 			m.sessionMap[sessionId] = sessionConnection
 			m.mu.Unlock()
 
-			m.logger.Debug("Successfully created and setup session.", zap.Duration("time-to-create", creationTime), zap.String("local-session-id", sessionId), zap.String("jupyter-session-id", jupyterSessionId), zap.String("kernel_id", kernelId))
+			m.logger.Debug("Successfully created and setup session.",
+				zap.Duration("time-to-create", creationTime),
+				zap.String("local-session-id", sessionId),
+				zap.String("jupyter-session-id", jupyterSessionId),
+				zap.String("kernel_id", kernelId))
 		}
 	case http.StatusBadRequest:
 		{
-			m.logger.Error("Received HTTP 400 'Bad Request' when creating session", zap.String("status", resp.Status), zap.Any("headers", resp.Header), zap.Any("body", body))
+			m.logger.Error("Received HTTP 400 'Bad Request' when creating session",
+				zap.String("status", resp.Status),
+				zap.Any("headers", resp.Header),
+				zap.Any("body", body))
 			m.tryCallErrorHandler("", sessionId, err)
 			return nil, fmt.Errorf("ErrCreateSessionBadRequest %w : %s", ErrCreateSessionBadRequest, string(body))
 		}
@@ -299,7 +320,8 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 	default:
 		var responseJson map[string]interface{}
 		if err := json.Unmarshal(body, &responseJson); err != nil {
-			m.logger.Error("Failed to decode JSON response with unexpected HTTP status code.", zap.Int("http-status-code", http.StatusBadRequest), zap.Error(err))
+			m.logger.Error("Failed to decode JSON response with unexpected HTTP status code.",
+				zap.Int("http-status-code", http.StatusBadRequest), zap.Error(err))
 		}
 
 		m.logger.Warn("Unexpected response status code when creating a new session.",

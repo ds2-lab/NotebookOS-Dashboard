@@ -185,6 +185,10 @@ func (s *serverImpl) clearClusterStatistics() (*workload.ClusterStatistics, erro
 		zap.String("request_id", requestId),
 		zap.Bool("update", true))
 
+	if s.gatewayRpcClient == nil {
+		return nil, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
+	}
+
 	resp, err := s.gatewayRpcClient.ClearClusterStatistics(context.Background(), &proto.Void{})
 	if err != nil {
 		s.logger.Error("Failed to clear Cluster Statistics.", zap.Error(err))
