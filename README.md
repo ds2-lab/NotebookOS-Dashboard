@@ -8,7 +8,9 @@ The Workload Driver provides a web interface containing a dashboard for monitori
 
 ## Repository Overview
 
-The backend is contained within the `internal/` directory. The frontend is contained within the `web/` directory. The entrypoint for the backend is in the `cmd/server/` directory.
+The backend is contained within the `driver-backend/` directory. The frontend is contained within the `dashboard-frontend/` directory. 
+
+The entrypoint for the backend is the `driver-backend/cmd/server/main.go` file.
 
 ## Quick-start
 
@@ -18,12 +20,12 @@ git clone https://github.com/Scusemua/workload-driver-react
 cd workload-driver-react
 ```
 
-To run the `frontend`, execute the following:
+To run the `frontend`, execute the following (from within the `dashboard-frontend/` directory):
 ```bash
 npm install && npm run start:dev
 ```
 
-Next, to run the `backend`, execute the following in a separate terminal:
+Next, to run the `backend`, execute the following in a separate terminal session (from the `driver-backend/` directory):
 ```bash
 make run-server
 ```
