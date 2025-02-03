@@ -888,7 +888,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutInterval)
 	defer cancel()
 
-	sentRequestAt, err := c.submitTrainingToKernel(event)
+	sentRequestAt, executeRequestId, err := c.submitTrainingToKernel(event)
 	// Record it as processed even if there was an error when processing the event.
 	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
 		WithEventId(event.Id()).
@@ -914,7 +914,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
 		zap.Time("tick", tick),
-		zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)))
+		zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)),
+		zap.String("execute_request_msg_id", executeRequestId))
 
 	trainingStarted, err := c.waitForTrainingToStart(ctx, event, startedHandlingAt, sentRequestAt)
 	if !trainingStarted {
@@ -928,13 +929,14 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", event.String()),
+			zap.String("execute_request_msg_id", executeRequestId),
 			zap.Error(err))
 
 		c.trainingEventsDelayed.Add(1)
 		return err
 	}
 
-	err = c.waitForTrainingToEnd(ctx, event)
+	err = c.waitForTrainingToEnd(ctx, event, executeRequestId)
 	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
 		WithEventId(event.Id()).
 		WithSessionId(event.SessionID()).
@@ -962,7 +964,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 }
 
 // submitTrainingToKernel submits a training event to be processed/executed by the kernel.
-func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.Time, err error) {
+func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.Time, executeRequestId string, err error) {
 	c.logger.Debug("Client is submitting training event to kernel now.",
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.Workload.GetId()),
@@ -989,7 +991,7 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.Error(err))
-		return time.Time{}, err
+		return time.Time{}, "", err
 	}
 
 	c.logger.Debug("Submitting \"execute_request\" now.",
@@ -1002,20 +1004,21 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 		zap.String("execute_request_args", executeRequestArgs.String()))
 
 	sentRequestAt = time.Now()
-	_, err = kernelConnection.RequestExecute(executeRequestArgs)
+
+	_, executeRequestId, err = kernelConnection.RequestExecute(executeRequestArgs)
 	if err != nil {
 		c.logger.Error("Error while submitting training event to kernel.",
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId))
-		return time.Time{}, err
+		return time.Time{}, executeRequestId, err
 	}
 
 	c.lastTrainingSubmittedAt = time.Now()
 
 	c.Workload.TrainingSubmitted(c.SessionId, evt)
 
-	return sentRequestAt, nil
+	return sentRequestAt, executeRequestId, nil
 }
 
 // OnReceiveExecuteReply is called when an "execute_reply" message is received by the associated kernel.
@@ -1482,7 +1485,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 }
 
 // waitForTrainingToEnd waits until we receive an "execute_request" from the kernel.
-func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) error {
+func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, executeRequestId string) error {
 	select {
 	case v := <-c.TrainingStoppedChannel:
 		{
@@ -1497,6 +1500,7 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) 
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
+						zap.String("execute_request_msg_id", executeRequestId),
 						zap.Duration("e2e_latency", e2eLatency),
 						zap.Error(err))
 
@@ -1532,6 +1536,7 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) 
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.Int64("exec_time_millis", execTimeMillis),
 						zap.Duration("e2e_latency", e2eLatency),
+						zap.String("execute_request_msg_id", executeRequestId),
 						zap.Int32("training_events_handled", c.trainingEventsHandled.Load()),
 						zap.Int("total_training_events_for_session", c.TotalNumTrainings()))
 
@@ -1544,6 +1549,7 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) 
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
 						zap.Duration("e2e_latency", e2eLatency),
+						zap.String("execute_request_msg_id", executeRequestId),
 						zap.Any("response", v))
 
 					return fmt.Errorf("unexpected response via 'training-stopped' channel")
@@ -1558,6 +1564,7 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) 
 					zap.String("session_id", c.SessionId),
 					zap.String("workload_id", c.Workload.GetId()),
 					zap.String("workload_name", c.Workload.WorkloadName()),
+					zap.String("execute_request_msg_id", executeRequestId),
 					zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 					zap.Error(err))
 
@@ -1571,6 +1578,7 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event) 
 				zap.String("session_id", c.SessionId),
 				zap.String("workload_id", c.Workload.GetId()),
 				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("execute_request_msg_id", executeRequestId),
 				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
 
 			return jupyter.ErrRequestTimedOut

@@ -62,7 +62,9 @@ type KernelConnection interface {
 	// - stopOnError (bool): Whether to the abort execution queue on an error. The default is `false`.
 	//
 	// - waitForResponse (bool): Wait for response before returning.
-	RequestExecute(args *RequestExecuteArgs) (KernelMessage, error)
+	//
+	// Returns the response, the ID of the execute_request, and an error.
+	RequestExecute(args *RequestExecuteArgs) (KernelMessage, string, error)
 
 	// InterruptKernel interrupts a kernel.
 	//

@@ -535,7 +535,9 @@ func (conn *BasicKernelConnection) CreateExecuteRequestMessage(args *RequestExec
 // - allowStdin (bool): Whether to allow stdin requests. The default is `true`.
 // - stopOnError (bool): Whether to the abort execution queue on an error. The default is `false`.
 // - waitForResponse (bool): Whether to wait for a response from the kernel, or just return immediately.
-func (conn *BasicKernelConnection) RequestExecute(args *RequestExecuteArgs) (KernelMessage, error) {
+//
+// Returns the response, the ID of the execute_request, and an error.
+func (conn *BasicKernelConnection) RequestExecute(args *RequestExecuteArgs) (KernelMessage, string, error) {
 	message, responseChan := conn.CreateExecuteRequestMessage(args)
 
 	sentAt := time.Now()
@@ -545,18 +547,18 @@ func (conn *BasicKernelConnection) RequestExecute(args *RequestExecuteArgs) (Ker
 			zap.String("kernel_id", conn.kernelId),
 			zap.Error(err))
 
-		return nil, err
+		return nil, message.GetHeader().MessageId, err
 	}
 
 	conn.waitingForExecuteResponses.Add(1)
 
 	if args.AwaitResponse() {
-		return conn.handleExecuteRequestResponse(message, args, responseChan, sentAt), nil // blocking
+		return conn.handleExecuteRequestResponse(message, args, responseChan, sentAt), message.GetHeader().MessageId, nil // blocking
 	} else {
 		go conn.handleExecuteRequestResponse(message, args, responseChan, sentAt) // non-blocking
 	}
 
-	return nil, nil
+	return nil, message.GetHeader().MessageId, nil
 }
 
 func (conn *BasicKernelConnection) RequestKernelInfo() (KernelMessage, error) {
