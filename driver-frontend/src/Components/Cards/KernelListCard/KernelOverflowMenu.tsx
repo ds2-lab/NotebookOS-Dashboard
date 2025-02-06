@@ -62,7 +62,7 @@ export const KernelOverflowMenu: React.FunctionComponent<IKernelKernelOverflowMe
                                     variant={'link'}
                                     icon={<CodeIcon />}
                                     /* Disable the 'Execute' button if we have no replicas, or if we don't have at least 3. */
-                                    isDisabled={executeButtonDisabled()}
+                                    // isDisabled={executeButtonDisabled()}
                                     onClick={() => props.onExecuteCodeClicked(props.kernel)}
                                 >
                                     Execute
