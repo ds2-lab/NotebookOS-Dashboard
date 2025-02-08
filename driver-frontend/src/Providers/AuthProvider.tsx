@@ -329,7 +329,7 @@ const AuthProvider = (props: { children }) => {
                                 GetToastContentWithHeaderAndBody(
                                     'Logged Out',
                                     "You've been logged-out. Please reauthenticate to continue using the Cluster Dashboard.",
-                                    'danger',
+                                    'warning',
                                     () => toast.dismiss(toastIdLoggedOut),
                                 ),
                             { id: toastIdLoggedOut },
