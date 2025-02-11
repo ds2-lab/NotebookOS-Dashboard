@@ -50,6 +50,7 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
 
     const [showDiscardedEvents, setShowDiscardedEvents] = React.useState<boolean>(false);
     const [showDiscardedSessions, setShowDiscardedSessions] = React.useState<boolean>(false);
+    const [workloadSessionTableHasBorders, setWorkloadSessionTableHasBorders] = React.useState<boolean>(false);
 
     const shouldShowTickNotification = (workloadId: string, tick: number): boolean => {
         if (!showedTickNotifications || !showedTickNotifications.current) {
@@ -217,6 +218,14 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                                 Randomize Session States
                             </Button>
                             <Checkbox
+                                label="Row Borders"
+                                id={'row-borders-toggle-checkbox'}
+                                isChecked={workloadSessionTableHasBorders}
+                                onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) =>
+                                    setWorkloadSessionTableHasBorders(checked)
+                                }
+                            />
+                            <Checkbox
                                 label="Show Discarded Sessions"
                                 id={'show-discarded-sessions-checkbox'}
                                 isChecked={showDiscardedSessions}
@@ -227,7 +236,11 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                         </Flex>
                     </FlexItem>
                 </Flex>
-                <WorkloadSessionTable workload={props.workload} showDiscardedSessions={showDiscardedSessions} />
+                <WorkloadSessionTable
+                    workload={props.workload}
+                    showDiscardedSessions={showDiscardedSessions}
+                    hasBorders={workloadSessionTableHasBorders}
+                />
             </FlexItem>
         </Flex>
     );

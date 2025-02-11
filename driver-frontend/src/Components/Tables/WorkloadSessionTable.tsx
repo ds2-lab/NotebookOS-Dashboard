@@ -235,6 +235,7 @@ export interface WorkloadSessionTableProps {
     children?: React.ReactNode;
     workload: Workload | null;
     showDiscardedSessions?: boolean;
+    hasBorders?: boolean;
 }
 
 // Displays the Sessions from a workload in a table.
@@ -319,63 +320,6 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         columnIndex,
     });
 
-    const tableHead = (
-        <Thead noWrap hasNestedHeader>
-            {/* The first Tr represents the top level of columns. */}
-            {/* Each must pass either rowSpan if the column does not contain sub columns or colSpan if the column contains sub columns. */}
-            {/* The value of rowSpan is equal to the number of rows the nested header will span, typically 2, */}
-            {/* and the value of colSpan is equal to the number of sub columns in a column. */}
-            {/* Each Th except the last should also pass hasRightBorder. */}
-            <Tr>
-                <Th
-                    key={`workload_${props.workload?.id}_column_expand_action_0`}
-                    aria-label={`workload_${props.workload?.id}_column_expand_action`}
-                    rowSpan={2}
-                />
-                {sessions_table_column_blocks.map((column_names: string[], blockIndex: number) => (
-                    <Th
-                        hasRightBorder={sessions_table_column_blocks_right_borders[blockIndex]}
-                        key={`workload_${props.workload?.id}_column_block_${blockIndex}`}
-                        aria-label={`${sessions_table_column_block_names[blockIndex]}-column-block`}
-                        colSpan={column_names.length > 1 ? column_names.length : undefined}
-                        rowSpan={column_names.length > 1 ? undefined : 2}
-                        sort={column_names.length > 1 ? undefined : getSortParams(blockIndex)}
-                    >
-                        {sessions_table_column_block_names[blockIndex]}
-                    </Th>
-                ))}
-            </Tr>
-            {/* The second Tr represents the second level of sub columns. */}
-            {/* The Th in this row each should pass isSubHeader, and the last sub column of a column should also pass hasRightBorder.  */}
-            <Tr resetOffset>
-                {sessions_table_columns2.map((column, columnIndex) => (
-                    <Th
-                        isSubheader
-                        hasRightBorder={sessions_table_column_right_borders[columnIndex]}
-                        key={`workload_${props.workload?.id}_column_${columnIndex}`}
-                        sort={getSortParams(columnIndex + num_blocks_with_one_elem)}
-                        aria-label={`${column}-column`}
-                    >
-                        {column}
-                    </Th>
-                ))}
-            </Tr>
-            {/*<Th*/}
-            {/*    key={`workload_${props.workload?.id}_column_expand_action_0`}*/}
-            {/*    aria-label={`workload_${props.workload?.id}_column_expand_action`}*/}
-            {/*/>*/}
-            {/*{sessions_table_columns.map((column, columnIndex) => (*/}
-            {/*    <Th*/}
-            {/*        key={`workload_${props.workload?.id}_column_${columnIndex}`}*/}
-            {/*        sort={getSortParams(columnIndex)}*/}
-            {/*        aria-label={`${column}-column`}*/}
-            {/*    >*/}
-            {/*        {column}*/}
-            {/*    </Th>*/}
-            {/*))}*/}
-        </Thead>
-    );
-
     const pagination = (
         <Pagination
             itemCount={sortedSessions.length}
@@ -436,6 +380,63 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
             </Flex>
         );
     };
+
+    const tableHead = (
+        <Thead noWrap hasNestedHeader>
+            {/* The first Tr represents the top level of columns. */}
+            {/* Each must pass either rowSpan if the column does not contain sub columns or colSpan if the column contains sub columns. */}
+            {/* The value of rowSpan is equal to the number of rows the nested header will span, typically 2, */}
+            {/* and the value of colSpan is equal to the number of sub columns in a column. */}
+            {/* Each Th except the last should also pass hasRightBorder. */}
+            <Tr>
+                <Th
+                    key={`workload_${props.workload?.id}_column_expand_action_0`}
+                    aria-label={`workload_${props.workload?.id}_column_expand_action`}
+                    rowSpan={2}
+                />
+                {sessions_table_column_blocks.map((column_names: string[], blockIndex: number) => (
+                    <Th
+                        hasRightBorder={sessions_table_column_blocks_right_borders[blockIndex]}
+                        key={`workload_${props.workload?.id}_column_block_${blockIndex}`}
+                        aria-label={`${sessions_table_column_block_names[blockIndex]}-column-block`}
+                        colSpan={column_names.length > 1 ? column_names.length : undefined}
+                        rowSpan={column_names.length > 1 ? undefined : 2}
+                        sort={column_names.length > 1 ? undefined : getSortParams(blockIndex)}
+                    >
+                        {sessions_table_column_block_names[blockIndex]}
+                    </Th>
+                ))}
+            </Tr>
+            {/* The second Tr represents the second level of sub columns. */}
+            {/* The Th in this row each should pass isSubHeader, and the last sub column of a column should also pass hasRightBorder.  */}
+            <Tr resetOffset>
+                {sessions_table_columns2.map((column, columnIndex) => (
+                    <Th
+                        isSubheader
+                        hasRightBorder={sessions_table_column_right_borders[columnIndex]}
+                        key={`workload_${props.workload?.id}_column_${columnIndex}`}
+                        sort={getSortParams(columnIndex + num_blocks_with_one_elem)}
+                        aria-label={`${column}-column`}
+                    >
+                        {column}
+                    </Th>
+                ))}
+            </Tr>
+            {/*<Th*/}
+            {/*    key={`workload_${props.workload?.id}_column_expand_action_0`}*/}
+            {/*    aria-label={`workload_${props.workload?.id}_column_expand_action`}*/}
+            {/*/>*/}
+            {/*{sessions_table_columns.map((column, columnIndex) => (*/}
+            {/*    <Th*/}
+            {/*        key={`workload_${props.workload?.id}_column_${columnIndex}`}*/}
+            {/*        sort={getSortParams(columnIndex)}*/}
+            {/*        aria-label={`${column}-column`}*/}
+            {/*    >*/}
+            {/*        {column}*/}
+            {/*    </Th>*/}
+            {/*))}*/}
+        </Thead>
+    );
 
     const getTableRow = (rowIndex: number): ReactElement | undefined => {
         const session: Session = sortedSessions[rowIndex];
@@ -563,7 +564,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         <Card isCompact isRounded isFlat>
             <CardBody>
                 <InnerScrollContainer>
-                    <Table variant="compact" borders={true} isStriped isExpandable>
+                    <Table gridBreakPoint={''} borders={props.hasBorders} isStriped isExpandable>
                         {tableHead}
                         {sortedSessions.length > 0 && getTableRows()}
                     </Table>
