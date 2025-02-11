@@ -68,17 +68,33 @@ const sessions_table_columns: string[] = [
     'VRAM (GB)',
 ];
 
-const sessions_table_column_right_borders: boolean[] = [false, true, false, false, true, false, false, false, false];
+const sessions_table_columns2: string[] = [
+    'Current Tick',
+    'Completed Exec.',
+    'Remaining Exec.',
+    'Millicpus',
+    'RAM (MB)',
+    'GPUs',
+    'VRAM (GB)',
+];
 
-const sessions_table_column_blocks_right_borders: boolean[] = [true, true, false];
+const sessions_table_column_right_borders: boolean[] = [false, false, true, false, false, false, false];
+
+const sessions_table_column_blocks_right_borders: boolean[] = [true, true, true, false];
 
 const sessions_table_column_blocks: string[][] = [
-    ['ID', 'Status'],
+    ['ID'],
+    ['Status'],
     ['Current Tick', 'Completed Exec.', 'Remaining Exec.'],
     ['Millicpus', 'RAM (MB)', 'GPUs', 'VRAM (GB)'],
 ];
 
-const sessions_table_column_block_names: string[] = ['Session Info', 'Progress', 'Resources'];
+const num_blocks_with_one_elem: number = sessions_table_column_blocks.reduce(
+    (accumulator, currentValue) => (currentValue.length == 1 ? accumulator + 1 : accumulator),
+    0,
+);
+
+const sessions_table_column_block_names: string[] = ['ID', 'Status', 'Progress', 'Resources'];
 
 const sessions_table_column_names = {
     id: 'ID',
@@ -321,8 +337,9 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         hasRightBorder={sessions_table_column_blocks_right_borders[blockIndex]}
                         key={`workload_${props.workload?.id}_column_block_${blockIndex}`}
                         aria-label={`${sessions_table_column_block_names[blockIndex]}-column-block`}
-                        colSpan={column_names.length}
-                        rowSpan={column_names.length > 1 ? 1 : 2}
+                        colSpan={column_names.length > 1 ? column_names.length : undefined}
+                        rowSpan={column_names.length > 1 ? undefined : 2}
+                        sort={column_names.length > 1 ? undefined : getSortParams(blockIndex)}
                     >
                         {sessions_table_column_block_names[blockIndex]}
                     </Th>
@@ -331,12 +348,12 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
             {/* The second Tr represents the second level of sub columns. */}
             {/* The Th in this row each should pass isSubHeader, and the last sub column of a column should also pass hasRightBorder.  */}
             <Tr resetOffset>
-                {sessions_table_columns.map((column, columnIndex) => (
+                {sessions_table_columns2.map((column, columnIndex) => (
                     <Th
                         isSubheader
                         hasRightBorder={sessions_table_column_right_borders[columnIndex]}
                         key={`workload_${props.workload?.id}_column_${columnIndex}`}
-                        sort={getSortParams(columnIndex)}
+                        sort={getSortParams(columnIndex + num_blocks_with_one_elem)}
                         aria-label={`${column}-column`}
                     >
                         {column}
