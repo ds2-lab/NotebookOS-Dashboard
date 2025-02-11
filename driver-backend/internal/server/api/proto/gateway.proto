@@ -914,7 +914,7 @@ message KernelRegistrationNotification {
   string dockerContainerId=13; // Docker ID of the container. Only populated in Docker mode.
   string notificationId = 14;
   bool prewarmContainer = 15; // is currently a prewarm container
-  bool wasPreformContainer = 16; // was a prewarm container that got used
+  bool wasPrewarmContainer = 16; // was a prewarm container that got used
 }
 
 // Returned by the Cluster Gateway for the NotifyKernelRegistered RPC.
