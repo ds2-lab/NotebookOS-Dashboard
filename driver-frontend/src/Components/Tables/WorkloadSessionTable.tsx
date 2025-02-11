@@ -12,6 +12,7 @@ import {
     Label,
     Pagination,
     Popover,
+    Text,
     Tooltip,
 } from '@patternfly/react-core';
 import {
@@ -48,8 +49,8 @@ const tableColumns = {
     id: 'ID',
     status: 'Status',
     currentTickNumber: 'Tick',
-    completedExecutions: 'Completed',
-    remainingExecutions: 'Remaining',
+    completedExecutions: 'Done',
+    remainingExecutions: 'Remain',
     deepLearningCategory: 'Category',
     deepLearningModel: 'Model',
     deepLearningDataset: 'Dataset',
@@ -63,8 +64,8 @@ const sessions_table_columns: string[] = [
     'ID',
     'Status',
     'Tick',
-    'Completed',
-    'Remaining',
+    'Done',
+    'Remain',
     'Category',
     'Model',
     'Dataset',
@@ -75,8 +76,8 @@ const sessions_table_columns: string[] = [
 ];
 
 const table_columns_no_single_blocks: string[] = [
-    'Completed',
-    'Remaining',
+    'Done',
+    'Remain',
     'Category',
     'Model',
     'Dataset',
@@ -92,7 +93,7 @@ const sessions_table_column_blocks: string[][] = [
     ['ID'],
     ['Status'],
     ['Tick'],
-    ['Completed', 'Remaining'],
+    ['Done', 'Remain'],
     ['Category', 'Model', 'Dataset'],
     ['Millicpus', 'RAM (MB)', 'GPUs', 'VRAM (GB)'],
 ];
@@ -247,16 +248,24 @@ export interface WorkloadSessionTableProps {
     hasBorders?: boolean;
 }
 
-function getShortDeepLearningCategory(category: string): string {
-    if (category == 'Natural Language Processing (NLP)') {
-        return 'NLP';
-    } else if (category == 'Computer Vision (CV)') {
-        return 'CV';
-    } else if (category == 'Speech') {
-        return 'Speech';
-    } else {
+/**
+ * Extract and return the abbreviated name from the full name (if an abbreviated name exists). Otherwise,
+ * return the full, original name.
+ */
+function getShortDeepLearningName(name: string): string {
+    if (!name) {
         return 'N/A';
     }
+
+    // If the name includes an abbreviation (e.g., "(CV)" or "(CoLA)"), then use the abbreviation.
+    if (name.includes('(') && name.includes(')')) {
+        const lindex: number = name.lastIndexOf('(');
+        const rindex: number = name.lastIndexOf(')');
+
+        return name.substring(lindex + 1, rindex);
+    }
+
+    return name;
 }
 
 // Displays the Sessions from a workload in a table.
@@ -513,13 +522,14 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         <Popover
                             alertSeverityVariant="info"
                             headerComponent="h1"
+                            position={'right'}
                             hasAutoWidth={true}
                             headerContent={getSessionPopoverHeader(session)}
                             bodyContent={getSessionPopoverContent(session)}
                         >
-                            <Button variant={'link'} isInline>
-                                {session.id}
-                            </Button>
+                            <Text component={'small'} style={{ cursor: 'pointer' }}>
+                                {session.id + '  '}
+                            </Text>
                         </Popover>
                         <Tooltip
                             content={showCopySuccessContent ? doneCopyText : copyText}
@@ -530,7 +540,9 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         >
                             <Button
                                 icon={<CopyIcon />}
-                                variant={'plain'}
+                                variant={'link'}
+                                component={"span"}
+                                isInline
                                 onClick={async (event) => {
                                     event.preventDefault();
                                     await navigator.clipboard.writeText(session.id);
@@ -545,10 +557,14 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                     <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.remainingExecutions}>{getRemainingTrainings(session)}</Td>
                     <Td dataLabel={tableColumns.deepLearningCategory}>
-                        {getShortDeepLearningCategory(session.model_dataset_category)}
+                        {getShortDeepLearningName(session.model_dataset_category)}
                     </Td>
-                    <Td dataLabel={tableColumns.deepLearningModel}>{session.assigned_model}</Td>
-                    <Td dataLabel={tableColumns.deepLearningDataset}>{session.assigned_dataset}</Td>
+                    <Td dataLabel={tableColumns.deepLearningModel}>
+                        <Text component={'small'}>{getShortDeepLearningName(session.assigned_model)}</Text>
+                    </Td>
+                    <Td dataLabel={tableColumns.deepLearningDataset}>
+                        <Text component={'small'}>{getShortDeepLearningName(session.assigned_dataset)}</Text>
+                    </Td>
                     <Td dataLabel={tableColumns.millicpus}>
                         <CpuIcon />{' '}
                         {session?.current_resource_request
