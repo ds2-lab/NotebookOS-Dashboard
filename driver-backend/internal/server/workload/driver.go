@@ -1857,10 +1857,7 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 				zap.Time("starting_tick", tick),
 				zap.String("session_ready_event", evt.String()))
 
-			var (
-				model, category, dataset string
-				err                      error
-			)
+			var err error
 
 			session, ok := d.workloadSessionsMap[sessionId]
 			if !ok {
@@ -1868,7 +1865,13 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 				return fmt.Errorf("%w: \"%s\"", domain.ErrUnknownSession, sessionId)
 			}
 
-			if session.AssignedDataset == "" || session.AssignedModel == "" {
+			// We'll use the Session's values for model, dataset, and category.
+			// If any of these are not already set, then they'll all be regenerated/reassigned.
+			model := session.AssignedModel
+			category := session.AssignedDataset
+			dataset := session.ModelDatasetCategory
+
+			if model == "" || dataset == "" || category == "" {
 				model, category, err = d.randomlySelectModel()
 				if err != nil {
 					d.logger.Error("Failed to randomly select model.", zap.Error(err))
