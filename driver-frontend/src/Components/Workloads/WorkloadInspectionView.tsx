@@ -1,4 +1,5 @@
 import {
+    Button,
     Checkbox,
     DescriptionList,
     DescriptionListDescription,
@@ -17,7 +18,7 @@ import {
     TaskIcon,
 } from '@patternfly/react-icons';
 import { WorkloadEventTable, WorkloadSessionTable } from '@src/Components';
-import { Workload } from '@src/Data';
+import { Session, Workload } from '@src/Data';
 import { GetToastContentWithHeaderAndBody } from '@src/Utils/toast_utils';
 import { RoundToNDecimalPlaces, RoundToTwoDecimalPlaces } from '@Utils/utils';
 import { uuidv4 } from 'lib0/random';
@@ -27,6 +28,13 @@ import toast, { Toast } from 'react-hot-toast';
 interface IWorkloadInspectionViewProps {
     workload: Workload;
     showTickDurationChart: boolean;
+}
+
+/**
+ * Returns a random number between min (inclusive) and max (exclusive)
+ */
+function getRandomArbitrary(min: number, max: number): number {
+    return Math.random() * (max - min) + min;
 }
 
 export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspectionViewProps> = (
@@ -95,13 +103,25 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
         return props.workload?.statistics.time_elapsed_str;
     };
 
-    function getNumSessions(includeDiscarded: boolean): number {
-        if (includeDiscarded) {
-            return props.workload?.sessions.length;
-        }
+    const randomizeSessionStates = () => {
+        const sessions: Session[] = props.workload.sessions;
 
-        return props.workload?.sessions.length - props.workload?.statistics.num_discarded_sessions;
-    }
+        for (let i = 0; i < sessions.length; i++) {
+            const session = sessions[i];
+            session.current_resource_request.cpus = Math.floor(
+                getRandomArbitrary(0, session.max_resource_request.cpus),
+            );
+            session.current_resource_request.memory = getRandomArbitrary(0, session.max_resource_request.memory);
+            session.current_resource_request.gpus = Math.floor(
+                getRandomArbitrary(0, session.max_resource_request.gpus),
+            );
+            session.current_resource_request.vram = getRandomArbitrary(0, session.max_resource_request.vram);
+
+            session.trainings_completed = Math.floor(getRandomArbitrary(0, session.trainings.length));
+
+            session.current_tick_number = Math.floor(getRandomArbitrary(0, session.stop_tick));
+        }
+    };
 
     return (
         <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXl' }}>
@@ -192,14 +212,19 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                         ) created, {props.workload?.statistics.num_active_trainings} actively training
                     </FlexItem>
                     <FlexItem align={{ default: 'alignRight' }}>
-                        <Checkbox
-                            label="Show Discarded Sessions"
-                            id={'show-discarded-sessions-checkbox'}
-                            isChecked={showDiscardedSessions}
-                            onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) =>
-                                setShowDiscardedSessions(checked)
-                            }
-                        />
+                        <Flex direction={{ default: 'row' }}>
+                            <Button variant="link" icon={<DiceIcon />} onClick={() => randomizeSessionStates()}>
+                                Randomize Session States
+                            </Button>
+                            <Checkbox
+                                label="Show Discarded Sessions"
+                                id={'show-discarded-sessions-checkbox'}
+                                isChecked={showDiscardedSessions}
+                                onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) =>
+                                    setShowDiscardedSessions(checked)
+                                }
+                            />
+                        </Flex>
                     </FlexItem>
                 </Flex>
                 <WorkloadSessionTable workload={props.workload} showDiscardedSessions={showDiscardedSessions} />

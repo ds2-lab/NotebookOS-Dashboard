@@ -28,7 +28,17 @@ import {
     UnknownIcon,
     WarningTriangleIcon,
 } from '@patternfly/react-icons';
-import { ExpandableRowContent, Table, Tbody, Td, Th, Thead, ThProps, Tr } from '@patternfly/react-table';
+import {
+    ExpandableRowContent,
+    InnerScrollContainer,
+    Table,
+    Tbody,
+    Td,
+    Th,
+    Thead,
+    ThProps,
+    Tr,
+} from '@patternfly/react-table';
 import { GpuIcon, GpuIconAlt2 } from '@src/Assets/Icons';
 import { SessionTrainingEventTable } from '@src/Components';
 import { RoundToThreeDecimalPlaces, RoundToTwoDecimalPlaces } from '@src/Utils';
@@ -57,6 +67,30 @@ const sessions_table_columns: string[] = [
     'GPUs',
     'VRAM (GB)',
 ];
+
+const sessions_table_column_right_borders: boolean[] = [false, true, false, false, true, false, false, false, false];
+
+const sessions_table_column_blocks_right_borders: boolean[] = [true, true, false];
+
+const sessions_table_column_blocks: string[][] = [
+    ['ID', 'Status'],
+    ['Current Tick', 'Completed Exec.', 'Remaining Exec.'],
+    ['Millicpus', 'RAM (MB)', 'GPUs', 'VRAM (GB)'],
+];
+
+const sessions_table_column_block_names: string[] = ['Session Info', 'Progress', 'Resources'];
+
+const sessions_table_column_names = {
+    id: 'ID',
+    status: 'Status',
+    currentTick: 'Current Tick',
+    completedExecutions: 'Completed Exec.',
+    remainingExecutions: 'Remaining Exec.',
+    milliCpus: 'Millicpus',
+    ram: 'RAM (MB)',
+    gpus: 'GPUs',
+    vram: 'VRAM (GB)',
+};
 
 /**
  * Return the number of trainings that the given session has left to complete, if that information is available.
@@ -270,14 +304,37 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
     });
 
     const tableHead = (
-        <Thead noWrap>
+        <Thead noWrap hasNestedHeader>
+            {/* The first Tr represents the top level of columns. */}
+            {/* Each must pass either rowSpan if the column does not contain sub columns or colSpan if the column contains sub columns. */}
+            {/* The value of rowSpan is equal to the number of rows the nested header will span, typically 2, */}
+            {/* and the value of colSpan is equal to the number of sub columns in a column. */}
+            {/* Each Th except the last should also pass hasRightBorder. */}
             <Tr>
                 <Th
                     key={`workload_${props.workload?.id}_column_expand_action_0`}
                     aria-label={`workload_${props.workload?.id}_column_expand_action`}
+                    rowSpan={2}
                 />
+                {sessions_table_column_blocks.map((column_names: string[], blockIndex: number) => (
+                    <Th
+                        hasRightBorder={sessions_table_column_blocks_right_borders[blockIndex]}
+                        key={`workload_${props.workload?.id}_column_block_${blockIndex}`}
+                        aria-label={`${sessions_table_column_block_names[blockIndex]}-column-block`}
+                        colSpan={column_names.length}
+                        rowSpan={column_names.length > 1 ? 1 : 2}
+                    >
+                        {sessions_table_column_block_names[blockIndex]}
+                    </Th>
+                ))}
+            </Tr>
+            {/* The second Tr represents the second level of sub columns. */}
+            {/* The Th in this row each should pass isSubHeader, and the last sub column of a column should also pass hasRightBorder.  */}
+            <Tr resetOffset>
                 {sessions_table_columns.map((column, columnIndex) => (
                     <Th
+                        isSubheader
+                        hasRightBorder={sessions_table_column_right_borders[columnIndex]}
                         key={`workload_${props.workload?.id}_column_${columnIndex}`}
                         sort={getSortParams(columnIndex)}
                         aria-label={`${column}-column`}
@@ -286,6 +343,19 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                     </Th>
                 ))}
             </Tr>
+            {/*<Th*/}
+            {/*    key={`workload_${props.workload?.id}_column_expand_action_0`}*/}
+            {/*    aria-label={`workload_${props.workload?.id}_column_expand_action`}*/}
+            {/*/>*/}
+            {/*{sessions_table_columns.map((column, columnIndex) => (*/}
+            {/*    <Th*/}
+            {/*        key={`workload_${props.workload?.id}_column_${columnIndex}`}*/}
+            {/*        sort={getSortParams(columnIndex)}*/}
+            {/*        aria-label={`${column}-column`}*/}
+            {/*    >*/}
+            {/*        {column}*/}
+            {/*    </Th>*/}
+            {/*))}*/}
         </Thead>
     );
 
@@ -359,7 +429,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
 
         // key={`workload_event_${props.workload?.events_processed[0]?.id}_row_${rowIndex}`}
         return (
-            <Tbody key={`session-${session.id}-row-${rowIndex}`}>
+            <Tbody key={`session-${session.id}-row-${rowIndex}`} isExpanded={isSessionExpanded(session)}>
                 <Tr>
                     <Td
                         expand={
@@ -475,10 +545,12 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
     return (
         <Card isCompact isRounded isFlat>
             <CardBody>
-                <Table variant="compact" borders={true} isStriped isExpandable>
-                    {tableHead}
-                    {sortedSessions.length > 0 && getTableRows()}
-                </Table>
+                <InnerScrollContainer>
+                    <Table variant="compact" borders={true} isStriped isExpandable>
+                        {tableHead}
+                        {sortedSessions.length > 0 && getTableRows()}
+                    </Table>
+                </InnerScrollContainer>
                 {pagination}
             </CardBody>
         </Card>
