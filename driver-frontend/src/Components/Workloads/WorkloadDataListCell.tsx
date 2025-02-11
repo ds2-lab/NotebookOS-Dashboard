@@ -28,35 +28,6 @@ export const WorkloadDataListCell: React.FunctionComponent<IWorkloadDataListCell
                                     <strong>{props.workload.name}</strong>
                                 </Text>
                             </FlexItem>
-                            {props.workload.workload_preset && (
-                                <FlexItem>
-                                    <Tooltip
-                                        content={`This preset is defined in a ${props.workload.workload_preset.preset_type} file.`}
-                                        position="bottom"
-                                    >
-                                        <React.Fragment>
-                                            {props.workload.workload_preset.preset_type === 'XML' && (
-                                                <XmlFileIcon scale={2.25} />
-                                            )}
-                                            {props.workload.workload_preset.preset_type === 'CSV' && (
-                                                <CsvFileIcon scale={2.25} />
-                                            )}
-                                        </React.Fragment>
-                                    </Tooltip>
-                                </FlexItem>
-                            )}
-                            {props.workload.workload_template && (
-                                <FlexItem>
-                                    <Tooltip
-                                        content={`This props.workload was created/defined using a template.`}
-                                        position="bottom"
-                                    >
-                                        <React.Fragment>
-                                            <TemplateIcon scale={3.25} />
-                                        </React.Fragment>
-                                    </Tooltip>
-                                </FlexItem>
-                            )}
                         </Flex>
                         <FlexItem>
                             <Text component={TextVariants.small}>
@@ -137,29 +108,6 @@ export const WorkloadDataListCell: React.FunctionComponent<IWorkloadDataListCell
                                         </Button>
                                     </Tooltip>
                                 </FlexItem>
-                                {/* The element below is only meant to be visible for preset-based workloads, not template-based workloads. */}
-                                {props.workload.workload_preset && (
-                                    <FlexItem>
-                                        <Tooltip content={'Inspect the events of the props.workload'}>
-                                            <Button
-                                                id={`inspect-props.workload-${props.workload.id}-button`}
-                                                isDisabled={
-                                                    !props.workload.workload_preset ||
-                                                    props.workload.workload_preset.preset_type == 'CSV'
-                                                }
-                                                variant="link"
-                                                icon={<SearchIcon />}
-                                                onClick={(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-                                                    props.onVisualizeWorkloadClicked(props.workload);
-
-                                                    event.stopPropagation();
-                                                }}
-                                            >
-                                                Inspect
-                                            </Button>
-                                        </Tooltip>
-                                    </FlexItem>
-                                )}
                             </Flex>
                         </FlexItem>
                     </Flex>

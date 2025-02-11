@@ -1903,9 +1903,11 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 			// We'll use the Session's values for model, dataset, and category.
 			// If any of these are not already set, then they'll all be regenerated/reassigned.
 			model := session.AssignedModel
-			category := session.AssignedDataset
-			dataset := session.ModelDatasetCategory
+			category := session.ModelDatasetCategory
+			dataset := session.AssignedDataset
 
+			// If these aren't already assigned, then we'll randomly pick them and assign them to both the client
+			// and the session (in the client builder).
 			if model == "" || dataset == "" || category == "" {
 				model, category, err = d.randomlySelectModel()
 				if err != nil {
@@ -1921,6 +1923,12 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 				}
 
 				d.logger.Debug("Assigning randomly-selected model and dataset to client.",
+					zap.String("session_id", sessionId),
+					zap.String("category", category),
+					zap.String("model", model),
+					zap.String("dataset", dataset))
+			} else {
+				d.logger.Debug("Assigning model and dataset to client.",
 					zap.String("session_id", sessionId),
 					zap.String("category", category),
 					zap.String("model", model),

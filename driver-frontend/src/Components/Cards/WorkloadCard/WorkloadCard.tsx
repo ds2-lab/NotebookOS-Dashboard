@@ -1,4 +1,4 @@
-import { InspectWorkloadModal, NewWorkloadFromTemplateModal, VisualizeWorkloadModal } from '@Components/Modals';
+import { InspectWorkloadModal, NewWorkloadFromTemplateModal } from '@Components/Modals';
 import { WorkloadsDataList } from '@Components/Workloads/WorkloadsDataList';
 import {
     Button,
@@ -225,11 +225,6 @@ export const WorkloadCard: React.FunctionComponent<WorkloadCardProps> = (props: 
                 isOpen={isRegisterNewWorkloadFromTemplateModalOpen}
                 onClose={onCancelStartWorkloadFromTemplate}
                 onConfirm={onConfirmRegisterWorkloadFromTemplate}
-            />
-            <VisualizeWorkloadModal
-                isOpen={visualizeWorkloadModalOpen}
-                workload={workloadBeingVisualized}
-                onClose={onCloseVisualizeWorkloadModal}
             />
             {workloadBeingInspected !== null && (
                 <InspectWorkloadModal

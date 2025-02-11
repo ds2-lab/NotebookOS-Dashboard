@@ -541,7 +541,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                             <Button
                                 icon={<CopyIcon />}
                                 variant={'link'}
-                                component={"span"}
+                                component={'span'}
                                 isInline
                                 onClick={async (event) => {
                                     event.preventDefault();
@@ -557,7 +557,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                     <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.remainingExecutions}>{getRemainingTrainings(session)}</Td>
                     <Td dataLabel={tableColumns.deepLearningCategory}>
-                        {getShortDeepLearningName(session.model_dataset_category)}
+                        <Text component={'small'}>{getShortDeepLearningName(session.model_dataset_category)}</Text>
                     </Td>
                     <Td dataLabel={tableColumns.deepLearningModel}>
                         <Text component={'small'}>{getShortDeepLearningName(session.assigned_model)}</Text>

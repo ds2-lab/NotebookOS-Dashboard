@@ -86,13 +86,6 @@ func (b *ClientBuilder) WithDeepLearningModel(model string) *ClientBuilder {
 	return b
 }
 
-// WithFileOutput will instruct the Client [that is to be built] to also output its logs to a file (at the specified
-// path) in addition to outputting its logs to the console/terminal (stdout).
-func (b *ClientBuilder) WithFileOutput(path string) *ClientBuilder {
-	b.fileOutputPath = path
-	return b
-}
-
 func (b *ClientBuilder) WithDataset(dataset string) *ClientBuilder {
 	b.assignedDataset = dataset
 	return b
@@ -100,6 +93,13 @@ func (b *ClientBuilder) WithDataset(dataset string) *ClientBuilder {
 
 func (b *ClientBuilder) WithModelDatasetCategory(modelDatasetCategory string) *ClientBuilder {
 	b.modelDatasetCategory = modelDatasetCategory
+	return b
+}
+
+// WithFileOutput will instruct the Client [that is to be built] to also output its logs to a file (at the specified
+// path) in addition to outputting its logs to the console/terminal (stdout).
+func (b *ClientBuilder) WithFileOutput(path string) *ClientBuilder {
+	b.fileOutputPath = path
 	return b
 }
 
