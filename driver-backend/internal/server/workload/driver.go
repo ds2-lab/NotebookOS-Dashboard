@@ -630,6 +630,38 @@ func (d *Driver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.
 	d.workloadSessionsMap = make(map[string]*domain.WorkloadTemplateSession, len(d.workloadSessions))
 	for _, session := range d.workloadSessions {
 		d.workloadSessionsMap[session.Id] = session
+
+		if session.AssignedDataset == "" || session.AssignedModel == "" {
+			model, category, err := d.randomlySelectModel()
+			if err != nil {
+				d.logger.Error("Failed to randomly select model for session.",
+					zap.String("session_id", session.Id), zap.Error(err))
+
+				return nil, err
+			}
+
+			var dataset string
+			dataset, err = d.randomlySelectDataset(category)
+			if err != nil {
+				d.logger.Error("Failed to randomly select dataset for session.",
+					zap.String("session_id", session.Id),
+					zap.String("model", model),
+					zap.String("category", category),
+					zap.Error(err))
+
+				return nil, err
+			}
+
+			d.logger.Debug("Assigning randomly-selected model and dataset to session.",
+				zap.String("session_id", session.Id),
+				zap.String("category", category),
+				zap.String("model", model),
+				zap.String("dataset", dataset))
+
+			session.AssignedModel = model
+			session.AssignedDataset = dataset
+			session.ModelDatasetCategory = category
+		}
 	}
 
 	d.workloadRegistrationRequest = workloadRegistrationRequest
@@ -1825,25 +1857,37 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 				zap.Time("starting_tick", tick),
 				zap.String("session_ready_event", evt.String()))
 
-			model, category, err := d.randomlySelectModel()
-			if err != nil {
-				d.logger.Error("Failed to randomly select model.", zap.Error(err))
-				return err
+			var (
+				model, category, dataset string
+				err                      error
+			)
+
+			session, ok := d.workloadSessionsMap[sessionId]
+			if !ok {
+				d.logger.Error("Unknown session", zap.String("session_id", sessionId))
+				return fmt.Errorf("%w: \"%s\"", domain.ErrUnknownSession, sessionId)
 			}
 
-			var dataset string
-			dataset, err = d.randomlySelectDataset(category)
-			if err != nil {
-				d.logger.Error("Failed to randomly select dataset.",
-					zap.String("model", model), zap.String("category", category), zap.Error(err))
-				return err
-			}
+			if session.AssignedDataset == "" || session.AssignedModel == "" {
+				model, category, err = d.randomlySelectModel()
+				if err != nil {
+					d.logger.Error("Failed to randomly select model.", zap.Error(err))
+					return err
+				}
 
-			d.logger.Debug("Assigning randomly-selected model and dataset to client.",
-				zap.String("session_id", sessionId),
-				zap.String("category", category),
-				zap.String("model", model),
-				zap.String("dataset", dataset))
+				dataset, err = d.randomlySelectDataset(category)
+				if err != nil {
+					d.logger.Error("Failed to randomly select dataset.",
+						zap.String("model", model), zap.String("category", category), zap.Error(err))
+					return err
+				}
+
+				d.logger.Debug("Assigning randomly-selected model and dataset to client.",
+					zap.String("session_id", sessionId),
+					zap.String("category", category),
+					zap.String("model", model),
+					zap.String("dataset", dataset))
+			}
 
 			fileOutputDirectory := path.Join(d.clientOutputDirectory, fmt.Sprintf("client-%s.json", sessionId))
 
@@ -1855,12 +1899,13 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 				WithAtom(d.atom).
 				WithDeepLearningModel(model).
 				WithDataset(dataset).
+				WithModelDatasetCategory(category).
 				WithSchedulingPolicy(d.getSchedulingPolicy()).
 				WithKernelManager(d.KernelManager).
 				WithTargetTickDurationSeconds(d.targetTickDurationSeconds).
 				WithErrorChan(d.errorChan).
 				WithWorkload(d.workload).
-				WithSession(d.workloadSessionsMap[sessionId]).
+				WithSession(session).
 				WithNotifyCallback(d.notifyCallback).
 				WithWaitGroup(&d.clientsWaitGroup).
 				WithTimescaleAdjustmentFactor(d.timescaleAdjustmentFactor).

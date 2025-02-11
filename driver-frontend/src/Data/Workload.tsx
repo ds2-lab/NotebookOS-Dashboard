@@ -367,6 +367,8 @@ interface Session {
     stderr_io_pub_messages: string[];
     stdout_io_pub_messages: string[];
     current_tick_number: number;
+    assigned_model: string;
+    assigned_dataset: string;
 }
 
 interface TrainingEvent {

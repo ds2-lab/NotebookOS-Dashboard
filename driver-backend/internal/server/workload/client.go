@@ -50,6 +50,7 @@ type ClientBuilder struct {
 	waitGroup                 *sync.WaitGroup
 	assignedModel             string // assignedModel is the name of the model to be assigned to the client.
 	assignedDataset           string // assignedDataset is the name of the dataset to be assigned to the client.
+	modelDatasetCategory      string // modelDatasetCategory is the category of the assignedModel and assignedDataset.
 	fileOutputPath            string
 
 	// maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential
@@ -94,6 +95,11 @@ func (b *ClientBuilder) WithFileOutput(path string) *ClientBuilder {
 
 func (b *ClientBuilder) WithDataset(dataset string) *ClientBuilder {
 	b.assignedDataset = dataset
+	return b
+}
+
+func (b *ClientBuilder) WithModelDatasetCategory(modelDatasetCategory string) *ClientBuilder {
+	b.modelDatasetCategory = modelDatasetCategory
 	return b
 }
 
@@ -219,6 +225,7 @@ func (b *ClientBuilder) Build() *Client {
 		schedulingPolicy:                 b.schedulingPolicy,
 		AssignedModel:                    b.assignedModel,
 		AssignedDataset:                  b.assignedDataset,
+		ModelDatasetCategory:             b.modelDatasetCategory,
 		maxSleepDuringInitSec:            b.maxSleepDuringInitSec,
 		dropSessionsWithNoTrainingEvents: b.dropSessionsWithNoTrainingEvents,
 		MaxCreationAttempts:              b.maxCreationAttempts,
@@ -262,6 +269,12 @@ func (b *ClientBuilder) Build() *Client {
 
 	client.EventQueue.Push(b.sessionReadyEvent)
 
+	// Assign the model and dataset to the session.
+	// They may already be assigned; that's fine.
+	client.Session.AssignedModel = b.assignedModel
+	client.Session.AssignedDataset = b.assignedDataset
+	client.Session.ModelDatasetCategory = b.modelDatasetCategory
+
 	return client
 }
 
@@ -302,6 +315,7 @@ type Client struct {
 	waitGroup                        *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
 	AssignedModel                    string                                 // AssignedModel is the name of the model assigned to this client.
 	AssignedDataset                  string                                 // AssignedDataset is the name of the dataset assigned to this client.
+	ModelDatasetCategory             string                                 `json:"model_dataset_category"` // ModelDatasetCategory is the category of the AssignedModel and AssignedDataset.
 	explicitlyStopped                atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
 	closeLogFileFunc                 func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
 	dropSessionsWithNoTrainingEvents bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.

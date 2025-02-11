@@ -101,6 +101,13 @@ type BasicWorkloadSession struct {
 	TotalDelayMilliseconds int64            `json:"total_delay_milliseconds"`
 	Discarded              bool             `json:"discarded"`
 	FailedTicks            int              `json:"failed_ticks"`
+
+	// AssignedModel is the name of the model assigned to this BasicWorkloadSession.
+	AssignedModel string `json:"assigned_model"`
+	// AssignedDataset is the name of the dataset assigned to this BasicWorkloadSession.
+	AssignedDataset string `json:"assigned_dataset"`
+	// ModelDatasetCategory is the category of the AssignedModel and AssignedDataset.
+	ModelDatasetCategory string `json:"model_dataset_category"`
 }
 
 func NewWorkloadSession(id string, meta SessionMetadata, resourceRequest *ResourceRequest, createdAtTime time.Time, atom *zap.AtomicLevel) *BasicWorkloadSession {
