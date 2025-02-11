@@ -50,9 +50,9 @@ import React, { ReactElement } from 'react';
 const tableColumns = {
     id: 'ID',
     status: 'Status',
-    currentTickNumber: 'Current Tick',
-    completedExecutions: 'Completed Exec.',
-    remainingExecutions: 'Remaining Exec.',
+    currentTickNumber: 'Tick',
+    completedExecutions: 'Completed',
+    remainingExecutions: 'Remaining',
     millicpus: 'Millicpus',
     memory: 'RAM (MB)',
     gpus: 'GPUs',
@@ -62,33 +62,33 @@ const tableColumns = {
 const sessions_table_columns: string[] = [
     'ID',
     'Status',
-    'Current Tick',
-    'Completed Exec.',
-    'Remaining Exec.',
+    'Tick',
+    'Completed',
+    'Remaining',
     'Millicpus',
     'RAM (MB)',
     'GPUs',
     'VRAM (GB)',
 ];
 
-const sessions_table_columns2: string[] = [
-    'Current Tick',
-    'Completed Exec.',
-    'Remaining Exec.',
+const table_columns_no_single_blocks: string[] = [
+    'Completed',
+    'Remaining',
     'Millicpus',
     'RAM (MB)',
     'GPUs',
     'VRAM (GB)',
 ];
 
-const sessions_table_column_right_borders: boolean[] = [false, false, true, false, false, false, false];
+const sessions_table_column_right_borders: boolean[] = [false, true, false, false, false, false, false];
 
-const sessions_table_column_blocks_right_borders: boolean[] = [true, true, true, false];
+const sessions_table_column_blocks_right_borders: boolean[] = [true, true, true, true, false];
 
 const sessions_table_column_blocks: string[][] = [
     ['ID'],
     ['Status'],
-    ['Current Tick', 'Completed Exec.', 'Remaining Exec.'],
+    ['Tick'],
+    ['Completed', 'Remaining'],
     ['Millicpus', 'RAM (MB)', 'GPUs', 'VRAM (GB)'],
 ];
 
@@ -97,14 +97,14 @@ const num_blocks_with_one_elem: number = sessions_table_column_blocks.reduce(
     0,
 );
 
-const sessions_table_column_block_names: string[] = ['ID', 'Status', 'Progress', 'Resources'];
+const sessions_table_column_block_names: string[] = ['ID', 'Status', 'Tick', 'Executions', 'Resources'];
 
 const sessions_table_column_names = {
     id: 'ID',
     status: 'Status',
-    currentTick: 'Current Tick',
-    completedExecutions: 'Completed Exec.',
-    remainingExecutions: 'Remaining Exec.',
+    currentTick: 'Tick',
+    completedExecutions: 'Completed',
+    remainingExecutions: 'Remaining',
     milliCpus: 'Millicpus',
     ram: 'RAM (MB)',
     gpus: 'GPUs',
@@ -365,7 +365,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         <DescriptionListDescription>{session.stop_tick}</DescriptionListDescription>
                     </DescriptionListGroup>
                     <DescriptionListGroup>
-                        <DescriptionListTerm>Current Tick</DescriptionListTerm>
+                        <DescriptionListTerm>Tick</DescriptionListTerm>
                         <DescriptionListDescription>
                             {session.state == 'awaiting start' ? 'Waiting to Start' : session.current_tick_number}
                         </DescriptionListDescription>
@@ -440,7 +440,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
             {/* The second Tr represents the second level of sub columns. */}
             {/* The Th in this row each should pass isSubHeader, and the last sub column of a column should also pass hasRightBorder.  */}
             <Tr resetOffset>
-                {sessions_table_columns2.map((column, columnIndex) => (
+                {table_columns_no_single_blocks.map((column, columnIndex) => (
                     <Th
                         isSubheader
                         hasRightBorder={sessions_table_column_right_borders[columnIndex]}
