@@ -10,8 +10,11 @@ import {
     Flex,
     FlexItem,
     Label,
+    MenuToggle,
+    MenuToggleElement,
     Pagination,
     Popover,
+    Select,
     Tooltip,
 } from '@patternfly/react-core';
 import {
@@ -253,6 +256,8 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
 
     const [showCopySuccessContent, setShowCopySuccessContent] = React.useState(false);
 
+    const [statusFilterExpandned, setStatusFilterExpandned] = React.useState(false);
+
     const [sortedSessions, setSortedSessions] = React.useState<Session[]>([]);
 
     React.useEffect(() => {
@@ -381,6 +386,30 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         );
     };
 
+    // const getTableHeadContent = (blockIndex: number) => {
+    //     if (sessions_table_column_block_names[blockIndex] !== 'Status') {
+    //         return sessions_table_column_block_names[blockIndex];
+    //     }
+    //
+    //     return (
+    //         <Flex>
+    //             <FlexItem>{sessions_table_column_block_names[blockIndex]}</FlexItem>
+    //             <FlexItem>
+    //                 <Select
+    //                     toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
+    //                         <MenuToggle
+    //                             ref={toggleRef}
+    //                             onClick={() => setStatusFilterExpandned(!statusFilterExpandned)}
+    //                         >
+    //                             awaiting start
+    //                         </MenuToggle>
+    //                     )}
+    //                 ></Select>
+    //             </FlexItem>
+    //         </Flex>
+    //     );
+    // };
+
     const tableHead = (
         <Thead noWrap hasNestedHeader>
             {/* The first Tr represents the top level of columns. */}
@@ -403,6 +432,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         rowSpan={column_names.length > 1 ? undefined : 2}
                         sort={column_names.length > 1 ? undefined : getSortParams(blockIndex)}
                     >
+                        {/*{getTableHeadContent(blockIndex)}*/}
                         {sessions_table_column_block_names[blockIndex]}
                     </Th>
                 ))}
