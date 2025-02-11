@@ -206,6 +206,7 @@ type Driver struct {
 	timeCompressTrainingDurations      bool                                       // timeCompressTrainingDurations indicates whether the Workload's TimescaleAdjustmentFactor should be used to compress the duration of training events.
 	DropSessionsWithNoTrainingEvents   bool                                       // DropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
 	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
+	rng                                *rand.Rand
 	Clients                            map[string]*Client
 	clientsWaitGroup                   sync.WaitGroup
 	trainingEventSubmitted             bool
@@ -357,6 +358,9 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	for _, modelConfig := range workloadJobConfig.Models {
 		// If we've never seen this category before, then add the category to the slice of categories.
 		if idx := indexOf(driver.modelDatasetCategories, modelConfig.Type); idx == -1 {
+			driver.logger.Debug("Discovered new model/dataset category.",
+				zap.String("category", modelConfig.Type))
+
 			driver.modelDatasetCategories = append(driver.modelDatasetCategories, modelConfig.Type)
 		}
 
@@ -372,14 +376,20 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 
 		// Add the model to the slice.
 		models = append(models, modelConfig.Name)
+		driver.logger.Debug("Discovered new model.", zap.String("category", modelConfig.Name))
 
 		// Persist the slice in the map.
 		driver.modelsByCategory[modelConfig.Type] = models
 	}
 
+	driver.rng = rand.New(src)
+
 	// Iterate over all the configured datasets and record them in the driver's internal dictionaries.
 	for _, datasetConfig := range workloadJobConfig.Datasets {
 		if idx := indexOf(driver.modelDatasetCategories, datasetConfig.Type); idx == -1 {
+			driver.logger.Debug("Discovered new model/dataset category.",
+				zap.String("category", datasetConfig.Type))
+
 			driver.modelDatasetCategories = append(driver.modelDatasetCategories, datasetConfig.Type)
 		}
 
@@ -395,9 +405,27 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 
 		// Add the dataset to the slice.
 		datasets = append(datasets, datasetConfig.Name)
+		driver.logger.Debug("Discovered new dataset.", zap.String("category", datasetConfig.Name))
 
 		// Persist the slice in the map.
 		driver.datasetsByCategory[datasetConfig.Type] = datasets
+	}
+
+	driver.logger.Debug("Deep learning categories...",
+		zap.Int("num_categories", len(driver.modelDatasetCategories)),
+		zap.Strings("categories", driver.modelDatasetCategories))
+
+	for _, category := range driver.modelDatasetCategories {
+		models := driver.modelsByCategory[category]
+		datasets := driver.datasetsByCategory[category]
+
+		driver.logger.Debug(fmt.Sprintf("%s deep learning models...", category),
+			zap.Int("num_models", len(models)),
+			zap.Strings("models", models))
+
+		driver.logger.Debug(fmt.Sprintf("%s deep learning datasets...", category),
+			zap.Int("num_datasets", len(datasets)),
+			zap.Strings("datasets", datasets))
 	}
 
 	return driver, nil
@@ -629,9 +657,7 @@ func (d *Driver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.
 	d.workloadSessions = workloadRegistrationRequest.Sessions
 	d.workloadSessionsMap = make(map[string]*domain.WorkloadTemplateSession, len(d.workloadSessions))
 	for _, session := range d.workloadSessions {
-		d.workloadSessionsMap[session.Id] = session
-
-		if session.AssignedDataset == "" || session.AssignedModel == "" {
+		if session.AssignedDataset == "" || session.AssignedModel == "" || session.ModelDatasetCategory == "" {
 			model, category, err := d.randomlySelectModel()
 			if err != nil {
 				d.logger.Error("Failed to randomly select model for session.",
@@ -662,6 +688,8 @@ func (d *Driver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.
 			session.AssignedDataset = dataset
 			session.ModelDatasetCategory = category
 		}
+
+		d.workloadSessionsMap[session.Id] = session
 	}
 
 	d.workloadRegistrationRequest = workloadRegistrationRequest
@@ -1803,11 +1831,14 @@ func (d *Driver) randomlySelectModel() (string, string, error) {
 		return "", "", fmt.Errorf("there are no models configured whatsoever")
 	}
 
-	// First, randomly select the category.
-	rngSource := rand.NewSource(time.Now().Unix())
-	rng := rand.New(rngSource)
+	d.sugaredLogger.Debugf("Randomly selecting category from amongst %d options: %v.",
+		len(d.modelDatasetCategories), d.modelDatasetCategories)
 
-	categoryIndex := rng.Intn(len(d.modelDatasetCategories))
+	categoryIndex := d.rng.Intn(len(d.modelDatasetCategories))
+
+	d.sugaredLogger.Debugf("Selected category #%d: %v.",
+		categoryIndex, d.modelDatasetCategories[categoryIndex])
+
 	category := d.modelDatasetCategories[categoryIndex]
 
 	models, loaded := d.modelsByCategory[category]
@@ -1815,7 +1846,14 @@ func (d *Driver) randomlySelectModel() (string, string, error) {
 		return "", category, fmt.Errorf("no models configured for specified category \"%s\"", category)
 	}
 
-	modelIndex := rng.Intn(len(models))
+	d.sugaredLogger.Debugf("Randomly selecting model from amongst %d options: %v.",
+		len(models), models)
+
+	modelIndex := d.rng.Intn(len(models))
+
+	d.sugaredLogger.Debugf("Selected model #%d: %v.",
+		modelIndex, models[modelIndex])
+
 	return models[modelIndex], category, nil
 }
 
@@ -1830,10 +1868,7 @@ func (d *Driver) randomlySelectDataset(category string) (string, error) {
 		return "", fmt.Errorf("no datasets configured for specified category \"%s\"", category)
 	}
 
-	rngSource := rand.NewSource(time.Now().Unix())
-	rng := rand.New(rngSource)
-
-	idx := rng.Intn(len(datasets))
+	idx := d.rng.Intn(len(datasets))
 	return datasets[idx], nil
 }
 

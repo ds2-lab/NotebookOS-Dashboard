@@ -10,11 +10,8 @@ import {
     Flex,
     FlexItem,
     Label,
-    MenuToggle,
-    MenuToggleElement,
     Pagination,
     Popover,
-    Select,
     Tooltip,
 } from '@patternfly/react-core';
 import {
@@ -53,6 +50,9 @@ const tableColumns = {
     currentTickNumber: 'Tick',
     completedExecutions: 'Completed',
     remainingExecutions: 'Remaining',
+    deepLearningCategory: 'Category',
+    deepLearningModel: 'Model',
+    deepLearningDataset: 'Dataset',
     millicpus: 'Millicpus',
     memory: 'RAM (MB)',
     gpus: 'GPUs',
@@ -65,6 +65,9 @@ const sessions_table_columns: string[] = [
     'Tick',
     'Completed',
     'Remaining',
+    'Category',
+    'Model',
+    'Dataset',
     'Millicpus',
     'RAM (MB)',
     'GPUs',
@@ -74,21 +77,23 @@ const sessions_table_columns: string[] = [
 const table_columns_no_single_blocks: string[] = [
     'Completed',
     'Remaining',
+    'Category',
+    'Model',
+    'Dataset',
     'Millicpus',
     'RAM (MB)',
     'GPUs',
     'VRAM (GB)',
 ];
 
-const sessions_table_column_right_borders: boolean[] = [false, true, false, false, false, false, false];
-
-const sessions_table_column_blocks_right_borders: boolean[] = [true, true, true, true, false];
+const sessions_table_column_right_borders: boolean[] = [false, true, false, false, true, false, false, false, false];
 
 const sessions_table_column_blocks: string[][] = [
     ['ID'],
     ['Status'],
     ['Tick'],
     ['Completed', 'Remaining'],
+    ['Category', 'Model', 'Dataset'],
     ['Millicpus', 'RAM (MB)', 'GPUs', 'VRAM (GB)'],
 ];
 
@@ -97,19 +102,14 @@ const num_blocks_with_one_elem: number = sessions_table_column_blocks.reduce(
     0,
 );
 
-const sessions_table_column_block_names: string[] = ['ID', 'Status', 'Tick', 'Executions', 'Resources'];
-
-const sessions_table_column_names = {
-    id: 'ID',
-    status: 'Status',
-    currentTick: 'Tick',
-    completedExecutions: 'Completed',
-    remainingExecutions: 'Remaining',
-    milliCpus: 'Millicpus',
-    ram: 'RAM (MB)',
-    gpus: 'GPUs',
-    vram: 'VRAM (GB)',
-};
+const sessions_table_column_block_names: string[] = [
+    'ID',
+    'Status',
+    'Tick',
+    'Executions',
+    'Deep Learning',
+    'Resources',
+];
 
 /**
  * Return the number of trainings that the given session has left to complete, if that information is available.
@@ -211,6 +211,9 @@ function getSortableRowValues(session: Session): (string | number | Date)[] {
         current_tick_number,
         trainings,
         trainings_completed,
+        model_dataset_category,
+        assigned_model,
+        assigned_dataset,
         current_resource_request,
         max_resource_request,
     } = session;
@@ -226,6 +229,9 @@ function getSortableRowValues(session: Session): (string | number | Date)[] {
         current_tick_number,
         trainings_completed,
         trainings.length - trainings_completed,
+        model_dataset_category,
+        assigned_model,
+        assigned_dataset,
         current_resource_request.cpus,
         current_resource_request.memory,
         current_resource_request.gpus,
@@ -239,6 +245,18 @@ export interface WorkloadSessionTableProps {
     workload: Workload | null;
     showDiscardedSessions?: boolean;
     hasBorders?: boolean;
+}
+
+function getShortDeepLearningCategory(category: string): string {
+    if (category == 'Natural Language Processing (NLP)') {
+        return 'NLP';
+    } else if (category == 'Computer Vision (CV)') {
+        return 'CV';
+    } else if (category == 'Speech') {
+        return 'Speech';
+    } else {
+        return 'N/A';
+    }
 }
 
 // Displays the Sessions from a workload in a table.
@@ -256,7 +274,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
 
     const [showCopySuccessContent, setShowCopySuccessContent] = React.useState(false);
 
-    const [statusFilterExpandned, setStatusFilterExpandned] = React.useState(false);
+    // const [statusFilterExpandned, setStatusFilterExpandned] = React.useState(false);
 
     const [sortedSessions, setSortedSessions] = React.useState<Session[]>([]);
 
@@ -425,7 +443,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                 />
                 {sessions_table_column_blocks.map((column_names: string[], blockIndex: number) => (
                     <Th
-                        hasRightBorder={sessions_table_column_blocks_right_borders[blockIndex]}
+                        hasRightBorder={blockIndex == sessions_table_column_blocks.length - 1 ? false : true}
                         key={`workload_${props.workload?.id}_column_block_${blockIndex}`}
                         aria-label={`${sessions_table_column_block_names[blockIndex]}-column-block`}
                         colSpan={column_names.length > 1 ? column_names.length : undefined}
@@ -523,9 +541,14 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                         </Tooltip>
                     </Td>
                     <Td dataLabel={tableColumns.status}>{getSessionStatusLabel(session)}</Td>
-                    <Td dataLabel={tableColumns.status}>{session.current_tick_number}</Td>
+                    <Td dataLabel={tableColumns.currentTickNumber}>{session.current_tick_number}</Td>
                     <Td dataLabel={tableColumns.completedExecutions}>{session.trainings_completed || '0'}</Td>
                     <Td dataLabel={tableColumns.remainingExecutions}>{getRemainingTrainings(session)}</Td>
+                    <Td dataLabel={tableColumns.deepLearningCategory}>
+                        {getShortDeepLearningCategory(session.model_dataset_category)}
+                    </Td>
+                    <Td dataLabel={tableColumns.deepLearningModel}>{session.assigned_model}</Td>
+                    <Td dataLabel={tableColumns.deepLearningDataset}>{session.assigned_dataset}</Td>
                     <Td dataLabel={tableColumns.millicpus}>
                         <CpuIcon />{' '}
                         {session?.current_resource_request

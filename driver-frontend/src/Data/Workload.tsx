@@ -369,6 +369,7 @@ interface Session {
     current_tick_number: number;
     assigned_model: string;
     assigned_dataset: string;
+    model_dataset_category: string;
 }
 
 interface TrainingEvent {
