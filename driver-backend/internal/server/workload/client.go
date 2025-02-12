@@ -581,7 +581,7 @@ func (c *Client) initialize() error {
 		zap.String("workload_id", c.WorkloadId))
 
 	initialDuration := time.Millisecond * time.Duration(math.Min(float64(c.maxSleepDuringInitSec*1000)*0.10, 30_000))
-	maximumNumberOfAttempts := 3
+	maximumNumberOfAttempts := 5
 	backoff := wait.Backoff{
 		Duration: initialDuration,
 		Factor:   1.25,
@@ -898,9 +898,9 @@ func (c *Client) handleEvent(event *domain.Event, tick time.Time) error {
 func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error {
 	startedHandlingAt := time.Now()
 
-	timeoutInterval := c.getTimeoutInterval(event)
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutInterval)
-	defer cancel()
+	startTrainingTimeoutInterval := c.getTimeoutInterval(event)
+	startTrainingCtx, startTrainingCancel := context.WithTimeout(context.Background(), startTrainingTimeoutInterval)
+	defer startTrainingCancel()
 
 	sentRequestAt, executeRequestId, err := c.submitTrainingToKernel(event)
 	// Record it as processed even if there was an error when processing the event.
@@ -931,7 +931,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)),
 		zap.String("execute_request_msg_id", executeRequestId))
 
-	trainingStarted, err := c.waitForTrainingToStart(ctx, event, startedHandlingAt, sentRequestAt)
+	trainingStarted, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt, sentRequestAt, startTrainingTimeoutInterval)
 	if !trainingStarted {
 		c.trainingEventsDelayed.Add(1)
 		return nil
@@ -950,7 +950,11 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		return err
 	}
 
-	err = c.waitForTrainingToEnd(ctx, event, executeRequestId)
+	stopTrainingTimeoutInterval := c.getTimeoutInterval(event)
+	stopTrainingCtx, stopTrainingCancel := context.WithTimeout(context.Background(), stopTrainingTimeoutInterval)
+	defer stopTrainingCancel()
+
+	err = c.waitForTrainingToEnd(stopTrainingCtx, event, executeRequestId, stopTrainingTimeoutInterval)
 	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
 		WithEventId(event.Id()).
 		WithSessionId(event.SessionID()).
@@ -1105,11 +1109,15 @@ func (c *Client) incurDelay(delayAmount time.Duration) {
 // waitForTrainingToStart waits for a training to begin being processed by a kernel replica.
 //
 // waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
-func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time, sentRequestAt time.Time) (bool, error) {
+func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time,
+	sentRequestAt time.Time, timeoutInterval time.Duration) (bool, error) {
+
 	c.logger.Debug("Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
-		zap.String("session_id", c.SessionId))
+		zap.String("session_id", c.SessionId),
+		zap.Duration("timeout_interval", timeoutInterval),
+		zap.Duration("time_elapsed", time.Since(sentRequestAt)))
 
 	select {
 	case v := <-c.TrainingStartedChannel:
@@ -1122,6 +1130,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
+						zap.Duration("timeout_interval", timeoutInterval),
 						zap.Duration("time_elapsed", time.Since(sentRequestAt)),
 						zap.Error(err))
 
@@ -1140,13 +1149,14 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
+						zap.Duration("timeout_interval", timeoutInterval),
 						zap.Duration("start_latency", startLatency))
 				}
 			}
 		}
 	case <-ctx.Done():
 		{
-			c.trainingStartTimedOut(sentRequestAt)
+			c.trainingStartTimedOut(sentRequestAt, timeoutInterval)
 		}
 	}
 
@@ -1155,12 +1165,14 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 
 // trainingStartTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
 // training event started being processed after the timeout interval elapses.
-func (c *Client) trainingStartTimedOut(sentRequestAt time.Time) {
+func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration) {
 	timeElapsed := time.Since(sentRequestAt)
-	c.logger.Warn("Have not received 'training started' notification for over 1 minute. Assuming message was lost.",
+	c.logger.Warn(fmt.Sprintf("Have not received 'training started' notification for over %v. Assuming message was lost.",
+		time.Since(sentRequestAt)),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
+		zap.Duration("timeout_interval", timeoutInterval),
 		zap.Duration("time_elapsed", timeElapsed))
 
 	c.notifyCallback(&proto.Notification{
@@ -1447,12 +1459,12 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 180) + c.getAdjustedDuration(evt)
+		return (time.Second * 300) + c.getAdjustedDuration(evt)
 	}
 
 	if schedulingPolicy == "static" || schedulingPolicy == "dynamic-v3" || schedulingPolicy == "dynamic-v4" {
 		// There's no network I/O on the critical path, so stopping the training should be quick.
-		return (time.Second * 180) + c.getAdjustedDuration(evt)
+		return (time.Second * 300) + c.getAdjustedDuration(evt)
 	}
 
 	// Get the remote storage definition of the workload.
@@ -1463,7 +1475,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 180) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
+		return (time.Second * 300) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
 	}
 
 	// Load the session and subsequently its current resource request.
@@ -1475,7 +1487,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 180) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
+		return (time.Second * 300) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
 	}
 
 	vramBytes := resourceRequest.VRAM * 1000000000
@@ -1484,7 +1496,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 	expectedNetworkIoLatency := readTime + writeTime
 
 	// Extra 30 seconds for whatever shenanigans need to occur.
-	interval := (time.Second * 180) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
+	interval := (time.Second * 300) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
 
 	c.logger.Debug("Computed timeout interval.",
 		zap.String("workload_id", c.Workload.GetId()),
@@ -1499,7 +1511,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 }
 
 // waitForTrainingToEnd waits until we receive an "execute_request" from the kernel.
-func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, executeRequestId string) error {
+func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, execReqMsgId string, timeoutInterval time.Duration) error {
 	select {
 	case v := <-c.TrainingStoppedChannel:
 		{
@@ -1514,7 +1526,8 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, 
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
-						zap.String("execute_request_msg_id", executeRequestId),
+						zap.String("execute_request_msg_id", execReqMsgId),
+						zap.Duration("timeout_interval", timeoutInterval),
 						zap.Duration("e2e_latency", e2eLatency),
 						zap.Error(err))
 
@@ -1550,7 +1563,8 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, 
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.Int64("exec_time_millis", execTimeMillis),
 						zap.Duration("e2e_latency", e2eLatency),
-						zap.String("execute_request_msg_id", executeRequestId),
+						zap.String("execute_request_msg_id", execReqMsgId),
+						zap.Duration("timeout_interval", timeoutInterval),
 						zap.Int32("training_events_handled", c.trainingEventsHandled.Load()),
 						zap.Int("total_training_events_for_session", c.TotalNumTrainings()))
 
@@ -1563,7 +1577,8 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, 
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
 						zap.Duration("e2e_latency", e2eLatency),
-						zap.String("execute_request_msg_id", executeRequestId),
+						zap.Duration("timeout_interval", timeoutInterval),
+						zap.String("execute_request_msg_id", execReqMsgId),
 						zap.Any("response", v))
 
 					return fmt.Errorf("unexpected response via 'training-stopped' channel")
@@ -1578,7 +1593,8 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, 
 					zap.String("session_id", c.SessionId),
 					zap.String("workload_id", c.Workload.GetId()),
 					zap.String("workload_name", c.Workload.WorkloadName()),
-					zap.String("execute_request_msg_id", executeRequestId),
+					zap.String("execute_request_msg_id", execReqMsgId),
+					zap.Duration("timeout_interval", timeoutInterval),
 					zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 					zap.Error(err))
 
@@ -1592,7 +1608,8 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, 
 				zap.String("session_id", c.SessionId),
 				zap.String("workload_id", c.Workload.GetId()),
 				zap.String("workload_name", c.Workload.WorkloadName()),
-				zap.String("execute_request_msg_id", executeRequestId),
+				zap.String("execute_request_msg_id", execReqMsgId),
+				zap.Duration("timeout_interval", timeoutInterval),
 				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
 
 			return jupyter.ErrRequestTimedOut

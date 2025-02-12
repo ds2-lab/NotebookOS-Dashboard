@@ -425,10 +425,17 @@ func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */ )
 
 			// Create a message to push to the frontend.
 			var msgId = uuid.NewString()
-			responseBuilder := newResponseBuilder(msgId, OpPushedWorkloadUpdate)
+			workloadRespBuilder := newResponseBuilder(msgId, OpPushedWorkloadUpdate)
 
 			allWorkloadsEncodedSizeBytes := 0
-			for _, workload := range activeWorkloadsSlice {
+			nilIdx := -1
+			for idx, workload := range activeWorkloadsSlice {
+				if workload == nil {
+					m.logger.Warn("Encountered 'nil' workload in active workloads slice...", zap.Int("idx", idx))
+					nilIdx = idx
+					continue
+				}
+
 				workloadEncoded, err := json.Marshal(workload)
 				if err != nil {
 					panic(err)
@@ -439,20 +446,25 @@ func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */ )
 					patch, err := jsonpatch.CreateMergePatch(prevEncoding, workloadEncoded)
 					if err != nil {
 						m.logger.Error("Failed to create merge patch for workload.", zap.Any("workload", workload), zap.Error(err))
-						responseBuilder.AddModifiedWorkload(workload)
+						workloadRespBuilder.AddModifiedWorkload(workload)
 					} else {
 						//m.logger.Debug("Creating patch for workload.", zap.ByteString("patch", patch))
-						responseBuilder.AddModifiedWorkloadAsPatch(patch, workload.GetId())
+						workloadRespBuilder.AddModifiedWorkloadAsPatch(patch, workload.GetId())
 					}
 				} else {
-					responseBuilder.AddModifiedWorkload(workload)
+					workloadRespBuilder.AddModifiedWorkload(workload)
 				}
 
 				previousWorkloadsEncoded[workload.GetId()] = workloadEncoded
 				allWorkloadsEncodedSizeBytes += len(workloadEncoded)
 			}
 
-			responseEncoded, err := responseBuilder.BuildResponse().Encode()
+			if nilIdx > 0 {
+				m.logger.Warn("Removing 'nil' workload from active workloads slice...", zap.Int("idx", nilIdx))
+				activeWorkloadsSlice = append(activeWorkloadsSlice[:nilIdx], activeWorkloadsSlice[nilIdx+1:]...)
+			}
+
+			responseEncoded, err := workloadRespBuilder.BuildResponse().Encode()
 			if err != nil {
 				panic(err)
 			}
