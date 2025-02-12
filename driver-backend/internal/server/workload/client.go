@@ -450,7 +450,7 @@ func (c *Client) stop() {
 func (c *Client) getInitialResourceRequest() *jupyter.ResourceSpec {
 	var initialResourceRequest *jupyter.ResourceSpec
 
-	if c.schedulingPolicy == "static" || c.schedulingPolicy == "dynamic-v3" || c.schedulingPolicy == "dynamic-v4" {
+	if c.schedulingPolicy == "static" || c.schedulingPolicy == "dynamic-v3" || c.schedulingPolicy == "dynamic-v4" || c.schedulingPolicy == "fcfs-batch" || c.schedulingPolicy == "middle-ground" || c.schedulingPolicy == "gandiva" {
 		// Try to get the first training event of the session, and just reserve those resources.
 		firstTrainingEvent := c.Session.TrainingEvents[0]
 
@@ -1157,6 +1157,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 	case <-ctx.Done():
 		{
 			c.trainingStartTimedOut(sentRequestAt, timeoutInterval)
+			return false, nil
 		}
 	}
 
@@ -1451,6 +1452,8 @@ func (c *Client) getAdjustedDuration(evt *domain.Event) time.Duration {
 // getTimeoutInterval computes a "meaningful" timeout interval based on the scheduling policy, taking into account
 // approximately how long the network I/O before/after training is expected to take and whatnot.
 func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
+	baseInterval := time.Second * 330
+
 	// Load the scheduling policy.
 	schedulingPolicy := c.schedulingPolicy
 	if schedulingPolicy == "" {
@@ -1459,12 +1462,12 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 300) + c.getAdjustedDuration(evt)
+		return baseInterval + c.getAdjustedDuration(evt)
 	}
 
 	if schedulingPolicy == "static" || schedulingPolicy == "dynamic-v3" || schedulingPolicy == "dynamic-v4" {
 		// There's no network I/O on the critical path, so stopping the training should be quick.
-		return (time.Second * 300) + c.getAdjustedDuration(evt)
+		return baseInterval + c.getAdjustedDuration(evt)
 	}
 
 	// Get the remote storage definition of the workload.
@@ -1475,7 +1478,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 300) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
+		return baseInterval + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
 	}
 
 	// Load the session and subsequently its current resource request.
@@ -1487,7 +1490,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("event", evt.Name.String()))
-		return (time.Second * 300) + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
+		return baseInterval + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
 	}
 
 	vramBytes := resourceRequest.VRAM * 1000000000
@@ -1496,7 +1499,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 	expectedNetworkIoLatency := readTime + writeTime
 
 	// Extra 30 seconds for whatever shenanigans need to occur.
-	interval := (time.Second * 300) + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
+	interval := baseInterval + (time.Second * time.Duration(expectedNetworkIoLatency)) + c.getAdjustedDuration(evt)
 
 	c.logger.Debug("Computed timeout interval.",
 		zap.String("workload_id", c.Workload.GetId()),
