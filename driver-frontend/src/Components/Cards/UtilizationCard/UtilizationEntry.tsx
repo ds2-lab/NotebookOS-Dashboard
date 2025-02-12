@@ -1,4 +1,4 @@
-import { Flex, FlexItem } from '@patternfly/react-core';
+import { Flex, FlexItem, Text } from '@patternfly/react-core';
 import { UtilizationDonutChart } from '@src/Components';
 import React from 'react';
 
@@ -18,9 +18,9 @@ export const UtilizationEntry: React.FunctionComponent<UtilizationEntryProps> = 
             <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
                 <FlexItem>{props.icon}</FlexItem>
                 <FlexItem>
-                    <b>
-                        {props.resourceDisplayName} {props.resourceUnit}
-                    </b>
+                    <Text>
+                        {props.resourceDisplayName} ({props.resourceUnit})
+                    </Text>
                 </FlexItem>
             </Flex>
             <FlexItem>
