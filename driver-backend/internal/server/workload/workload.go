@@ -32,6 +32,9 @@ const (
 	PresetWorkload      Kind = "Preset"
 	TemplateWorkload    Kind = "Template"
 	TraceWorkload       Kind = "WorkloadFromTrace"
+
+	cpuNumDecimals = 2
+	memNumDecimals = 3
 )
 
 var (
@@ -350,12 +353,15 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			session.SetCurrentResourceRequest(domain.NewResourceRequest(0, 0, 0, 0, "ANY_GPU"))
 		}
 
-		// Round to 4 decimal places for vCPUs and 6 decimal places for RAM and VRAM.
+		// Round to 2 decimal places for vCPUs and 3 decimal places for RAM and VRAM.
+		// This is to be consistent with how Kubernetes handle memory reservations.
+		// You can reserve memory at the granularity of Kilobytes.
+		// Since memory is expressed in MB, the first 3 decimals are kilobytes.
 		session.CurrentResourceRequest = domain.NewResourceRequest(
-			decimal.NewFromFloat(session.CurrentResourceRequest.Cpus).Round(4).InexactFloat64(),
-			decimal.NewFromFloat(session.CurrentResourceRequest.MemoryMB).Round(6).InexactFloat64(),
+			decimal.NewFromFloat(session.CurrentResourceRequest.Cpus).Round(cpuNumDecimals).InexactFloat64(),
+			decimal.NewFromFloat(session.CurrentResourceRequest.MemoryMB).Round(memNumDecimals).InexactFloat64(),
 			session.CurrentResourceRequest.Gpus,
-			decimal.NewFromFloat(session.CurrentResourceRequest.VRAM).Round(6).InexactFloat64(),
+			decimal.NewFromFloat(session.CurrentResourceRequest.VRAM).Round(memNumDecimals).InexactFloat64(),
 			"ANY_GPU")
 
 		if session.MaxResourceRequest == nil {
@@ -368,23 +374,29 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			return domain.ErrMissingMaxResourceRequest
 		}
 
-		// Round to 4 decimal places for vCPUs and 6 decimal places for RAM and VRAM.
+		// Round to 2 decimal places for vCPUs and 3 decimal places for RAM and VRAM.
+		// This is to be consistent with how Kubernetes handle memory reservations.
+		// You can reserve memory at the granularity of Kilobytes.
+		// Since memory is expressed in MB, the first 3 decimals are kilobytes.
 		session.MaxResourceRequest = domain.NewResourceRequest(
-			decimal.NewFromFloat(session.MaxResourceRequest.Cpus).Round(4).InexactFloat64(),
-			decimal.NewFromFloat(session.MaxResourceRequest.MemoryMB).Round(6).InexactFloat64(),
+			decimal.NewFromFloat(session.MaxResourceRequest.Cpus).Round(cpuNumDecimals).InexactFloat64(),
+			decimal.NewFromFloat(session.MaxResourceRequest.MemoryMB).Round(memNumDecimals).InexactFloat64(),
 			session.MaxResourceRequest.Gpus,
-			decimal.NewFromFloat(session.MaxResourceRequest.VRAM).Round(6).InexactFloat64(),
+			decimal.NewFromFloat(session.MaxResourceRequest.VRAM).Round(memNumDecimals).InexactFloat64(),
 			"ANY_GPU")
 
 		if session.NumTrainingEvents == 0 && len(session.TrainingEvents) > 0 {
 			session.NumTrainingEvents = len(session.TrainingEvents)
 		}
 
-		// Round to 4 decimal places for vCPUs and 6 decimal places for RAM and VRAM.
+		// Round to 2 decimal places for vCPUs and 3 decimal places for RAM and VRAM.
+		// This is to be consistent with how Kubernetes handle memory reservations.
+		// You can reserve memory at the granularity of Kilobytes.
+		// Since memory is expressed in MB, the first 3 decimals are kilobytes.
 		for _, event := range session.TrainingEvents {
-			event.Millicpus = decimal.NewFromFloat(event.Millicpus).Round(4).InexactFloat64()
-			event.MemUsageMB = decimal.NewFromFloat(event.MemUsageMB).Round(6).InexactFloat64()
-			event.VRamUsageGB = decimal.NewFromFloat(event.VRamUsageGB).Round(6).InexactFloat64()
+			event.Millicpus = decimal.NewFromFloat(event.Millicpus).Round(cpuNumDecimals).InexactFloat64()
+			event.MemUsageMB = decimal.NewFromFloat(event.MemUsageMB).Round(memNumDecimals).InexactFloat64()
+			event.VRamUsageGB = decimal.NewFromFloat(event.VRamUsageGB).Round(memNumDecimals).InexactFloat64()
 		}
 
 		// Need to set this before calling unsafeIsSessionBeingSampled.
@@ -397,6 +409,12 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			if err != nil {
 				w.logger.Error("Failed to set session state.", zap.String("session_id", session.GetId()), zap.Error(err))
 			}
+
+			w.logger.Debug("Registered Session.",
+				zap.String("session_id", session.GetId()),
+				zap.Int("num_trainings", len(session.TrainingEvents)),
+				zap.String("max_resource_request", session.MaxResourceRequest.String()),
+				zap.String("current_resource_request", session.CurrentResourceRequest.String()))
 		}
 	}
 
