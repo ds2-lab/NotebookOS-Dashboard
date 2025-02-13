@@ -51,19 +51,19 @@ func (h *ClusterStatisticsHttpHandler) HandleDeleteRequest(c *gin.Context) {
 		return
 	}
 
-	var clusterStatistics *workload.ClusterStatistics
+	var serializableClusterStatistics *workload.SerializableClusterStatistics
 
 	buffer := bytes.NewBuffer(resp.SerializedClusterStatistics)
 	decoder := gob.NewDecoder(buffer)
 
-	err = decoder.Decode(&clusterStatistics)
+	err = decoder.Decode(&serializableClusterStatistics)
 	if err != nil {
 		h.logger.Error("Failed to decode Cluster Statistics while handling associated HTTP DELETE request.", zap.Error(err))
 		_ = c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, clusterStatistics)
+	c.JSON(http.StatusOK, serializableClusterStatistics)
 }
 
 func (h *ClusterStatisticsHttpHandler) HandleRequest(c *gin.Context) {

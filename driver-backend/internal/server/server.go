@@ -240,18 +240,18 @@ func (s *serverImpl) RefreshAndClearClusterStatistics(update bool, clear bool) (
 		return nil, err
 	}
 
-	var clusterStatistics *workload.ClusterStatistics
+	var serializableClusterStatistics *workload.SerializableClusterStatistics
 
 	buffer := bytes.NewBuffer(resp.SerializedClusterStatistics)
 	decoder := gob.NewDecoder(buffer)
 
-	err = decoder.Decode(&clusterStatistics)
+	err = decoder.Decode(&serializableClusterStatistics)
 	if err != nil {
 		s.logger.Error("Failed to decode Cluster Statistics.", zap.Error(err))
 		return nil, err
 	}
 
-	return clusterStatistics, nil
+	return serializableClusterStatistics.ToClusterStatistics(), nil
 }
 
 // templateStaticFiles rewrites the __BASE_PATH__ string in the ./dist/index.html and ./dist/200.html files with
