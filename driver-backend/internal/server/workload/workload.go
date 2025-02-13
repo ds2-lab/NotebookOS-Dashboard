@@ -33,7 +33,7 @@ const (
 	TemplateWorkload    Kind = "Template"
 	TraceWorkload       Kind = "WorkloadFromTrace"
 
-	cpuNumDecimals = 2
+	cpuNumDecimals = 0
 	memNumDecimals = 3
 )
 
@@ -353,7 +353,7 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			session.SetCurrentResourceRequest(domain.NewResourceRequest(0, 0, 0, 0, "ANY_GPU"))
 		}
 
-		// Round to 2 decimal places for vCPUs and 3 decimal places for RAM and VRAM.
+		// Round to 0 decimal places for millicpus and 3 decimal places for RAM and VRAM.
 		// This is to be consistent with how Kubernetes handle memory reservations.
 		// You can reserve memory at the granularity of Kilobytes.
 		// Since memory is expressed in MB, the first 3 decimals are kilobytes.
@@ -374,7 +374,7 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			return domain.ErrMissingMaxResourceRequest
 		}
 
-		// Round to 2 decimal places for vCPUs and 3 decimal places for RAM and VRAM.
+		// Round to 0 decimal places for millicpus and 3 decimal places for RAM and VRAM.
 		// This is to be consistent with how Kubernetes handle memory reservations.
 		// You can reserve memory at the granularity of Kilobytes.
 		// Since memory is expressed in MB, the first 3 decimals are kilobytes.
@@ -389,7 +389,7 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			session.NumTrainingEvents = len(session.TrainingEvents)
 		}
 
-		// Round to 2 decimal places for vCPUs and 3 decimal places for RAM and VRAM.
+		// Round to 0 decimal places for millicpus and 3 decimal places for RAM and VRAM.
 		// This is to be consistent with how Kubernetes handle memory reservations.
 		// You can reserve memory at the granularity of Kilobytes.
 		// Since memory is expressed in MB, the first 3 decimals are kilobytes.
