@@ -33,8 +33,9 @@ const (
 	TemplateWorkload    Kind = "Template"
 	TraceWorkload       Kind = "WorkloadFromTrace"
 
-	cpuNumDecimals = 0
-	memNumDecimals = 3
+	cpuNumDecimals  = 0 // Base units are already millicpus
+	memNumDecimals  = 3 // Because base units are MB, so we support to the granularity of KB, like Kubernetes
+	vramNumDecimals = 6 // Because base units are GB, so we support to the granularity of KB, like Kubernetes
 )
 
 var (
@@ -361,7 +362,7 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			decimal.NewFromFloat(session.CurrentResourceRequest.Cpus).Round(cpuNumDecimals).InexactFloat64(),
 			decimal.NewFromFloat(session.CurrentResourceRequest.MemoryMB).Round(memNumDecimals).InexactFloat64(),
 			session.CurrentResourceRequest.Gpus,
-			decimal.NewFromFloat(session.CurrentResourceRequest.VRAM).Round(memNumDecimals).InexactFloat64(),
+			decimal.NewFromFloat(session.CurrentResourceRequest.VRAM).Round(vramNumDecimals).InexactFloat64(),
 			"ANY_GPU")
 
 		if session.MaxResourceRequest == nil {
@@ -382,7 +383,7 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			decimal.NewFromFloat(session.MaxResourceRequest.Cpus).Round(cpuNumDecimals).InexactFloat64(),
 			decimal.NewFromFloat(session.MaxResourceRequest.MemoryMB).Round(memNumDecimals).InexactFloat64(),
 			session.MaxResourceRequest.Gpus,
-			decimal.NewFromFloat(session.MaxResourceRequest.VRAM).Round(memNumDecimals).InexactFloat64(),
+			decimal.NewFromFloat(session.MaxResourceRequest.VRAM).Round(vramNumDecimals).InexactFloat64(),
 			"ANY_GPU")
 
 		if session.NumTrainingEvents == 0 && len(session.TrainingEvents) > 0 {
@@ -396,7 +397,7 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 		for _, event := range session.TrainingEvents {
 			event.Millicpus = decimal.NewFromFloat(event.Millicpus).Round(cpuNumDecimals).InexactFloat64()
 			event.MemUsageMB = decimal.NewFromFloat(event.MemUsageMB).Round(memNumDecimals).InexactFloat64()
-			event.VRamUsageGB = decimal.NewFromFloat(event.VRamUsageGB).Round(memNumDecimals).InexactFloat64()
+			event.VRamUsageGB = decimal.NewFromFloat(event.VRamUsageGB).Round(vramNumDecimals).InexactFloat64()
 		}
 
 		// Need to set this before calling unsafeIsSessionBeingSampled.
