@@ -8,6 +8,7 @@ import (
 	"github.com/scusemua/workload-driver-react/m/v2/internal/domain"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/api/proto"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/metrics"
+	"github.com/shopspring/decimal"
 	"math/rand"
 	"sync"
 	"time"
@@ -349,6 +350,14 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			session.SetCurrentResourceRequest(domain.NewResourceRequest(0, 0, 0, 0, "ANY_GPU"))
 		}
 
+		// Round to 4 decimal places for vCPUs and 6 decimal places for RAM and VRAM.
+		session.CurrentResourceRequest = domain.NewResourceRequest(
+			decimal.NewFromFloat(session.CurrentResourceRequest.Cpus).Round(4).InexactFloat64(),
+			decimal.NewFromFloat(session.CurrentResourceRequest.MemoryMB).Round(6).InexactFloat64(),
+			session.CurrentResourceRequest.Gpus,
+			decimal.NewFromFloat(session.CurrentResourceRequest.VRAM).Round(6).InexactFloat64(),
+			"ANY_GPU")
+
 		if session.MaxResourceRequest == nil {
 			w.logger.Error("Session does not have a 'max' resource request.",
 				zap.String("session_id", session.GetId()),
@@ -359,8 +368,23 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 			return domain.ErrMissingMaxResourceRequest
 		}
 
+		// Round to 4 decimal places for vCPUs and 6 decimal places for RAM and VRAM.
+		session.MaxResourceRequest = domain.NewResourceRequest(
+			decimal.NewFromFloat(session.MaxResourceRequest.Cpus).Round(4).InexactFloat64(),
+			decimal.NewFromFloat(session.MaxResourceRequest.MemoryMB).Round(6).InexactFloat64(),
+			session.MaxResourceRequest.Gpus,
+			decimal.NewFromFloat(session.MaxResourceRequest.VRAM).Round(6).InexactFloat64(),
+			"ANY_GPU")
+
 		if session.NumTrainingEvents == 0 && len(session.TrainingEvents) > 0 {
 			session.NumTrainingEvents = len(session.TrainingEvents)
+		}
+
+		// Round to 4 decimal places for vCPUs and 6 decimal places for RAM and VRAM.
+		for _, event := range session.TrainingEvents {
+			event.Millicpus = decimal.NewFromFloat(event.Millicpus).Round(4).InexactFloat64()
+			event.MemUsageMB = decimal.NewFromFloat(event.MemUsageMB).Round(6).InexactFloat64()
+			event.VRamUsageGB = decimal.NewFromFloat(event.VRamUsageGB).Round(6).InexactFloat64()
 		}
 
 		// Need to set this before calling unsafeIsSessionBeingSampled.
