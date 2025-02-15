@@ -4,6 +4,8 @@ import {
     Button,
     Card,
     CardBody,
+    Chip,
+    ChipGroup,
     DescriptionList,
     DescriptionListDescription,
     DescriptionListGroup,
@@ -636,36 +638,62 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         <Toolbar usePageInsets id="compact-toolbar">
             <ToolbarContent>
                 <ToolbarItem variant={'bulk-select'}>
-                    <Select
-                        id="select-session-status"
-                        aria-label="Select Input"
-                        toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
-                            <MenuToggle
-                                ref={toggleRef}
-                                onClick={() => setStatusFilterSelectOpen(!statusFilterSelectOpen)}
-                                isExpanded={statusFilterSelectOpen}
-                            >
-                                <FilterIcon /> Filter by Session Status
-                                {selectedSessionStatuses.length > 0 && (
-                                    <Badge isRead>{selectedSessionStatuses.length}</Badge>
+                    <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsSm' }}>
+                        <FlexItem>
+                            <Select
+                                id="select-session-status"
+                                aria-label="Select Input"
+                                toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
+                                    <MenuToggle
+                                        ref={toggleRef}
+                                        onClick={() => setStatusFilterSelectOpen(!statusFilterSelectOpen)}
+                                        isExpanded={statusFilterSelectOpen}
+                                        isFullWidth
+                                    >
+                                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
+                                            <FlexItem>
+                                                <FilterIcon /> Filter by Session status
+                                            </FlexItem>
+                                            <FlexItem>
+                                                {selectedSessionStatuses.length > 0 && (
+                                                    <Badge isRead>{selectedSessionStatuses.length}</Badge>
+                                                )}
+                                            </FlexItem>
+                                        </Flex>
+                                    </MenuToggle>
                                 )}
-                            </MenuToggle>
-                        )}
-                        isOpen={statusFilterSelectOpen}
-                        onOpenChange={(isOpen: boolean) => setStatusFilterSelectOpen(isOpen)}
-                        onSelect={onSelectSessionStatus}
-                    >
-                        {sessionStatuses.map((status: string, idx: number) => (
-                            <SelectOption
-                                hasCheckbox
-                                key={idx}
-                                value={idx}
-                                isSelected={selectedSessionStatuses.includes(idx)}
+                                isOpen={statusFilterSelectOpen}
+                                onOpenChange={(isOpen: boolean) => setStatusFilterSelectOpen(isOpen)}
+                                onSelect={onSelectSessionStatus}
                             >
-                                {getStatusLabel(status, 'N/A')}
-                            </SelectOption>
-                        ))}
-                    </Select>
+                                {sessionStatuses.map((status: string, idx: number) => (
+                                    <SelectOption
+                                        hasCheckbox
+                                        key={idx}
+                                        value={idx}
+                                        isSelected={selectedSessionStatuses.includes(idx)}
+                                    >
+                                        {getStatusLabel(status, 'N/A')}
+                                    </SelectOption>
+                                ))}
+                            </Select>
+                        </FlexItem>
+                        <FlexItem>
+                            <ChipGroup aria-label="Current selections">
+                                {selectedSessionStatuses.map((statusIndex, idx) => (
+                                    <Chip
+                                        key={idx}
+                                        onClick={(ev) => {
+                                            ev.stopPropagation();
+                                            onSelectSessionStatus(undefined, statusIndex);
+                                        }}
+                                    >
+                                        {sessionStatuses[statusIndex]}
+                                    </Chip>
+                                ))}
+                            </ChipGroup>
+                        </FlexItem>
+                    </Flex>
                 </ToolbarItem>
             </ToolbarContent>
         </Toolbar>
