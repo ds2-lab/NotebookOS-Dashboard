@@ -756,7 +756,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                                             onSelectSessionIdFilter(undefined, sessionId);
                                         }}
                                     >
-                                        {sessionId.substring(0, 10) + '...'}
+                                        {sessionId.substring(0, 8) + '...'}
                                     </Chip>
                                 ))}
                             </ChipGroup>
