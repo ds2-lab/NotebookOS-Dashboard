@@ -68,6 +68,10 @@ export const SearchWithAutocomplete: React.FunctionComponent<SearchWithAutocompl
             setIsAutocompleteOpen(false);
         }
         setValue(newValue);
+
+        if (newValue === '') {
+            setHint(default_hint);
+        }
         // props.setValue(newValue);
     };
 
@@ -140,7 +144,7 @@ export const SearchWithAutocomplete: React.FunctionComponent<SearchWithAutocompl
             window.removeEventListener('keydown', handleMenuKeys);
             window.removeEventListener('click', handleClickOutside);
         };
-    }, [isAutocompleteOpen, hint, searchInputRef.current]);
+    }, [isAutocompleteOpen, hint, handleMenuKeys, handleClickOutside]);
 
     const searchInput = (
         <SearchInput
