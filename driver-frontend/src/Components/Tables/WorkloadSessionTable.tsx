@@ -1,3 +1,4 @@
+import { SearchWithAutocomplete } from '@Components/Tables/SearchWithAutocomplete';
 import { Session, Workload } from '@Data/Workload';
 import {
     Badge,
@@ -303,6 +304,8 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
 
     const [selectedSessionStatuses, setSelectedSessionStatuses] = React.useState<number[]>([]);
 
+    const [filteredSessionIds, setFilteredSessionIds] = React.useState<string[]>([]);
+
     // const [statusFilterExpandned, setStatusFilterExpandned] = React.useState(false);
 
     const [sortedSessions, setSortedSessions] = React.useState<Session[]>([]);
@@ -310,6 +313,10 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
     React.useEffect(() => {
         let sorted =
             props.workload?.sessions.filter((session: Session) => {
+                if (filteredSessionIds.length > 0 && !filteredSessionIds.includes(session.id)) {
+                    return false;
+                }
+
                 const sessionStatus: string = session.state;
                 const sessionStatusIndex: number = sessionStatuses.indexOf(sessionStatus);
 
@@ -352,6 +359,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         props.workload?.sessions,
         props.showDiscardedSessions,
         selectedSessionStatuses,
+        filteredSessionIds,
     ]);
 
     const copyText: string = 'Copy session ID to clipboard';
@@ -634,6 +642,35 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         }
     };
 
+    const onSelectSessionIdFilter = (
+        _event: React.MouseEvent<Element, MouseEvent> | undefined,
+        value: string | number | undefined,
+    ) => {
+        if (filteredSessionIds.includes(value as string)) {
+            setFilteredSessionIds(filteredSessionIds.filter((id) => id !== value));
+        } else {
+            setFilteredSessionIds([...filteredSessionIds, value as string]);
+        }
+    };
+
+    const getWordsForSearchWithAutocomplete = (): string[] => {
+        if (props.showDiscardedSessions) {
+            return props.workload?.sessions.map((session: Session) => session.id) || [];
+        }
+
+        const sessionIds: string[] | undefined = props.workload?.sessions.reduce(function (
+            filtered: string[],
+            session: Session,
+        ): string[] {
+            if (!session.discarded) {
+                filtered.push(session.id);
+            }
+            return filtered;
+        }, []);
+
+        return sessionIds || [];
+    };
+
     const tableToolbar = (
         <Toolbar usePageInsets id="compact-toolbar">
             <ToolbarContent>
@@ -689,6 +726,37 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                                         }}
                                     >
                                         {sessionStatuses[statusIndex]}
+                                    </Chip>
+                                ))}
+                            </ChipGroup>
+                        </FlexItem>
+                    </Flex>
+                </ToolbarItem>
+                <ToolbarItem variant={'search-filter'}>
+                    <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsSm' }}>
+                        <FlexItem>
+                            <SearchWithAutocomplete
+                                words={getWordsForSearchWithAutocomplete()}
+                                setValue={(value: string) => {
+                                    if (filteredSessionIds.includes(value as string)) {
+                                        return;
+                                    }
+
+                                    setFilteredSessionIds([...filteredSessionIds, value as string]);
+                                }}
+                            />
+                        </FlexItem>
+                        <FlexItem>
+                            <ChipGroup aria-label="Current selections">
+                                {filteredSessionIds.map((sessionId: string) => (
+                                    <Chip
+                                        key={sessionId}
+                                        onClick={(ev) => {
+                                            ev.stopPropagation();
+                                            onSelectSessionIdFilter(undefined, sessionId);
+                                        }}
+                                    >
+                                        {sessionId.substring(0, 10) + '...'}
                                     </Chip>
                                 ))}
                             </ChipGroup>
