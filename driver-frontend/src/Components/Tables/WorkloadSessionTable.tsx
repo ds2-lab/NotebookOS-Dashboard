@@ -1,5 +1,6 @@
 import { Session, Workload } from '@Data/Workload';
 import {
+    Badge,
     Button,
     Card,
     CardBody,
@@ -10,15 +11,23 @@ import {
     Flex,
     FlexItem,
     Label,
+    MenuToggle,
+    MenuToggleElement,
     Pagination,
     Popover,
+    Select,
+    SelectOption,
     Text,
+    Toolbar,
+    ToolbarContent,
+    ToolbarItem,
     Tooltip,
 } from '@patternfly/react-core';
 import {
     CopyIcon,
     CpuIcon,
     ErrorCircleOIcon,
+    FilterIcon,
     InfoCircleIcon,
     InProgressIcon,
     MemoryIcon,
@@ -125,18 +134,9 @@ function getRemainingTrainings(session: Session): string | number {
     return 'N/A';
 }
 
-function getSessionStatusLabel(session: Session): ReactElement {
-    if (session.discarded) {
-        return (
-            <Tooltip position="right" content="This session was discarded and will not be sampled in this workload.">
-                <Label icon={<WarningTriangleIcon />} color="orange">
-                    discarded
-                </Label>
-            </Tooltip>
-        );
-    }
+const sessionStatuses: string[] = ['awaiting start', 'idle', 'training_submitted', 'training', 'terminated', 'erred'];
 
-    const status: string = session.state;
+function getStatusLabel(status: string, error_message?: string): ReactElement {
     switch (status) {
         case 'awaiting start':
             return (
@@ -182,7 +182,7 @@ function getSessionStatusLabel(session: Session): ReactElement {
             return (
                 <Tooltip
                     position="right"
-                    content={`This session has been terminated due to an unexpected error: ${session.error_message}`}
+                    content={`This session has been terminated due to an unexpected error: ${error_message}`}
                 >
                     <Label icon={<ErrorCircleOIcon />} color="red">
                         {' '}
@@ -200,6 +200,20 @@ function getSessionStatusLabel(session: Session): ReactElement {
                 </Tooltip>
             );
     }
+}
+
+function getSessionStatusLabel(session: Session): ReactElement {
+    if (session.discarded) {
+        return (
+            <Tooltip position="right" content="This session was discarded and will not be sampled in this workload.">
+                <Label icon={<WarningTriangleIcon />} color="orange">
+                    discarded
+                </Label>
+            </Tooltip>
+        );
+    }
+
+    return getStatusLabel(session.state, session.error_message);
 }
 
 // Since OnSort specifies sorted columns by index, we need sortable values for our object by column index.
@@ -283,6 +297,10 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
 
     const [showCopySuccessContent, setShowCopySuccessContent] = React.useState(false);
 
+    const [statusFilterSelectOpen, setStatusFilterSelectOpen] = React.useState(false);
+
+    const [selectedSessionStatuses, setSelectedSessionStatuses] = React.useState<number[]>([]);
+
     // const [statusFilterExpandned, setStatusFilterExpandned] = React.useState(false);
 
     const [sortedSessions, setSortedSessions] = React.useState<Session[]>([]);
@@ -290,6 +308,13 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
     React.useEffect(() => {
         let sorted =
             props.workload?.sessions.filter((session: Session) => {
+                const sessionStatus: string = session.state;
+                const sessionStatusIndex: number = sessionStatuses.indexOf(sessionStatus);
+
+                if (selectedSessionStatuses.length > 0 && !selectedSessionStatuses.includes(sessionStatusIndex)) {
+                    return false;
+                }
+
                 return props.showDiscardedSessions || !session.discarded;
             }) || [];
         if (activeSortIndex !== null) {
@@ -318,7 +343,14 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         }
 
         setSortedSessions(sorted);
-    }, [activeSortDirection, activeSortIndex, props.workload, props.workload?.sessions, props.showDiscardedSessions]);
+    }, [
+        activeSortDirection,
+        activeSortIndex,
+        props.workload,
+        props.workload?.sessions,
+        props.showDiscardedSessions,
+        selectedSessionStatuses,
+    ]);
 
     const copyText: string = 'Copy session ID to clipboard';
     const doneCopyText: string = 'Successfully copied session ID to clipboard!';
@@ -375,6 +407,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
             ]}
             onSetPage={(_event, newPage: number) => setPage(newPage)}
             onPerPageSelect={onPerPageSelect}
+            variant={'bottom'}
             ouiaId="WorkloadSessionsPagination"
         />
     );
@@ -413,30 +446,6 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         );
     };
 
-    // const getTableHeadContent = (blockIndex: number) => {
-    //     if (sessions_table_column_block_names[blockIndex] !== 'Status') {
-    //         return sessions_table_column_block_names[blockIndex];
-    //     }
-    //
-    //     return (
-    //         <Flex>
-    //             <FlexItem>{sessions_table_column_block_names[blockIndex]}</FlexItem>
-    //             <FlexItem>
-    //                 <Select
-    //                     toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
-    //                         <MenuToggle
-    //                             ref={toggleRef}
-    //                             onClick={() => setStatusFilterExpandned(!statusFilterExpandned)}
-    //                         >
-    //                             awaiting start
-    //                         </MenuToggle>
-    //                     )}
-    //                 ></Select>
-    //             </FlexItem>
-    //         </Flex>
-    //     );
-    // };
-
     const tableHead = (
         <Thead noWrap hasNestedHeader>
             {/* The first Tr represents the top level of columns. */}
@@ -452,7 +461,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                 />
                 {sessions_table_column_blocks.map((column_names: string[], blockIndex: number) => (
                     <Th
-                        hasRightBorder={blockIndex == sessions_table_column_blocks.length - 1 ? false : true}
+                        hasRightBorder={blockIndex != sessions_table_column_blocks.length - 1}
                         key={`workload_${props.workload?.id}_column_block_${blockIndex}`}
                         aria-label={`${sessions_table_column_block_names[blockIndex]}-column-block`}
                         colSpan={column_names.length > 1 ? column_names.length : undefined}
@@ -479,19 +488,6 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                     </Th>
                 ))}
             </Tr>
-            {/*<Th*/}
-            {/*    key={`workload_${props.workload?.id}_column_expand_action_0`}*/}
-            {/*    aria-label={`workload_${props.workload?.id}_column_expand_action`}*/}
-            {/*/>*/}
-            {/*{sessions_table_columns.map((column, columnIndex) => (*/}
-            {/*    <Th*/}
-            {/*        key={`workload_${props.workload?.id}_column_${columnIndex}`}*/}
-            {/*        sort={getSortParams(columnIndex)}*/}
-            {/*        aria-label={`${column}-column`}*/}
-            {/*    >*/}
-            {/*        {column}*/}
-            {/*    </Th>*/}
-            {/*))}*/}
         </Thead>
     );
 
@@ -612,10 +608,6 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
     // Indices from current pagination state.
     const startIndex: number = perPage * (page - 1);
     const endIndex: number = perPage * (page - 1) + perPage;
-    // const arrayIndices = Array.from({ length: endIndex - startIndex }, (_, i) => startIndex + i).map((index) => {
-    //     return index;
-    // });
-    // const filteredSessions: Session[] | undefined = sortedSessions.slice(startIndex, endIndex);
 
     const getTableRows = () => {
         const tableRows: ReactElement[] = [];
@@ -629,16 +621,67 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         return tableRows;
     };
 
+    const onSelectSessionStatus = (
+        _event: React.MouseEvent<Element, MouseEvent> | undefined,
+        value: string | number | undefined,
+    ) => {
+        if (selectedSessionStatuses.includes(value as number)) {
+            setSelectedSessionStatuses(selectedSessionStatuses.filter((id) => id !== value));
+        } else {
+            setSelectedSessionStatuses([...selectedSessionStatuses, value as number]);
+        }
+    };
+
+    const tableToolbar = (
+        <Toolbar usePageInsets id="compact-toolbar">
+            <ToolbarContent>
+                <ToolbarItem variant={'bulk-select'}>
+                    <Select
+                        id="select-session-status"
+                        aria-label="Select Input"
+                        toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
+                            <MenuToggle
+                                ref={toggleRef}
+                                onClick={() => setStatusFilterSelectOpen(!statusFilterSelectOpen)}
+                                isExpanded={statusFilterSelectOpen}
+                            >
+                                <FilterIcon /> Filter by Session Status
+                                {selectedSessionStatuses.length > 0 && (
+                                    <Badge isRead>{selectedSessionStatuses.length}</Badge>
+                                )}
+                            </MenuToggle>
+                        )}
+                        isOpen={statusFilterSelectOpen}
+                        onOpenChange={(isOpen: boolean) => setStatusFilterSelectOpen(isOpen)}
+                        onSelect={onSelectSessionStatus}
+                    >
+                        {sessionStatuses.map((status: string, idx: number) => (
+                            <SelectOption
+                                hasCheckbox
+                                key={idx}
+                                value={idx}
+                                isSelected={selectedSessionStatuses.includes(idx)}
+                            >
+                                {getStatusLabel(status, 'N/A')}
+                            </SelectOption>
+                        ))}
+                    </Select>
+                </ToolbarItem>
+            </ToolbarContent>
+        </Toolbar>
+    );
+
     return (
         <Card isCompact isRounded isFlat>
             <CardBody>
                 <InnerScrollContainer>
+                    {tableToolbar}
                     <Table gridBreakPoint={''} borders={props.hasBorders} isStriped isExpandable>
                         {tableHead}
                         {sortedSessions.length > 0 && getTableRows()}
                     </Table>
+                    {pagination}
                 </InnerScrollContainer>
-                {pagination}
             </CardBody>
         </Card>
     );

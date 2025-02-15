@@ -353,7 +353,7 @@ func (m *BasicWorkloadManager) pushWorkloadUpdate(payload []byte) error {
 }
 
 // Used to push updates about active workloads to the frontend.
-func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */ ) {
+func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */) {
 	activeWorkloads := m.GetActiveWorkloads()
 
 	// Function that continuously pulls workload IDs out of the 'workloadStartedChan' until there are none left.
@@ -427,7 +427,6 @@ func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */ )
 			var msgId = uuid.NewString()
 			workloadRespBuilder := newResponseBuilder(msgId, OpPushedWorkloadUpdate)
 
-			allWorkloadsEncodedSizeBytes := 0
 			nilIdx := -1
 			for idx, workload := range activeWorkloadsSlice {
 				if workload == nil {
@@ -436,27 +435,7 @@ func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */ )
 					continue
 				}
 
-				workloadEncoded, err := json.Marshal(workload)
-				if err != nil {
-					panic(err)
-				}
-
-				prevEncoding, loaded := previousWorkloadsEncoded[workload.GetId()]
-				if loaded {
-					patch, err := jsonpatch.CreateMergePatch(prevEncoding, workloadEncoded)
-					if err != nil {
-						m.logger.Error("Failed to create merge patch for workload.", zap.Any("workload", workload), zap.Error(err))
-						workloadRespBuilder.AddModifiedWorkload(workload)
-					} else {
-						//m.logger.Debug("Creating patch for workload.", zap.ByteString("patch", patch))
-						workloadRespBuilder.AddModifiedWorkloadAsPatch(patch, workload.GetId())
-					}
-				} else {
-					workloadRespBuilder.AddModifiedWorkload(workload)
-				}
-
-				previousWorkloadsEncoded[workload.GetId()] = workloadEncoded
-				allWorkloadsEncodedSizeBytes += len(workloadEncoded)
+				m.encodeWorkload(workload, previousWorkloadsEncoded, workloadRespBuilder)
 			}
 
 			if nilIdx > 0 {
@@ -491,6 +470,35 @@ func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */ )
 		// Sleep for the configured amount of time, and then we'll go again.
 		time.Sleep(m.pushUpdateInterval)
 	}
+}
+
+func (m *BasicWorkloadManager) encodeWorkload(workload domain.Workload, previousWorkloadsEncoded map[string][]byte, workloadRespBuilder *responseBuilder) {
+	defer func() {
+		if r := recover(); r != nil {
+			m.logger.Error("Recovered from panic in BasicWorkloadManager::encodeWorkload")
+		}
+	}()
+
+	workloadEncoded, err := json.Marshal(workload)
+	if err != nil {
+		panic(err)
+	}
+
+	prevEncoding, loaded := previousWorkloadsEncoded[workload.GetId()]
+	if loaded {
+		patch, err := jsonpatch.CreateMergePatch(prevEncoding, workloadEncoded)
+		if err != nil {
+			m.logger.Error("Failed to create merge patch for workload.", zap.Any("workload", workload), zap.Error(err))
+			workloadRespBuilder.AddModifiedWorkload(workload)
+		} else {
+			//m.logger.Debug("Creating patch for workload.", zap.ByteString("patch", patch))
+			workloadRespBuilder.AddModifiedWorkloadAsPatch(patch, workload.GetId())
+		}
+	} else {
+		workloadRespBuilder.AddModifiedWorkload(workload)
+	}
+
+	previousWorkloadsEncoded[workload.GetId()] = workloadEncoded
 }
 
 func (m *BasicWorkloadManager) readWorkloadJobConfigurations(filepath string) (*domain.WorkloadJobConfiguration, error) {
