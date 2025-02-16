@@ -62,6 +62,19 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
         return tick > lastTickNotification;
     };
 
+    /**
+     * Return the total number of non-disabled sessions (unless we're showing disabled sessions).
+     */
+    const getTotalNumSessions = (): number => {
+        return props.workload.sessions.reduce((sum: number, session: Session) => {
+            if (showDiscardedSessions || !session.discarded) {
+                return sum + 1;
+            }
+
+            return sum;
+        }, 0);
+    };
+
     // TODO: This will miscount the first tick as being smaller, basically whenever we first open the workload
     //       preview to when the next tick begins, it'll count that block as the duration of the first tick,
     //       which is wrong.
@@ -206,9 +219,9 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                 <Flex direction={{ default: 'row' }}>
                     <FlexItem align={{ default: 'alignLeft' }}>
                         <ClipboardCheckIcon /> {<strong>Sessions: </strong>}
-                        {props.workload?.statistics.num_sessions_created} / {props.workload?.sessions.length} (
+                        {props.workload?.statistics.num_sessions_created} / {getTotalNumSessions()} (
                         {RoundToTwoDecimalPlaces(
-                            100 * (props.workload?.statistics.num_sessions_created / props.workload?.sessions.length),
+                            100 * (props.workload?.statistics.num_sessions_created / getTotalNumSessions()),
                         ) + '%'}
                         ) created, {props.workload?.statistics.num_active_trainings} actively training
                     </FlexItem>
