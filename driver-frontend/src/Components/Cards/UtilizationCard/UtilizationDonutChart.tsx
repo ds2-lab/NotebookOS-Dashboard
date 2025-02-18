@@ -219,13 +219,6 @@ export const UtilizationDonutChart: React.FunctionComponent<UtilizationDonutChar
         }
     };
 
-    // const possiblyConvertToExponent = (val: number) => {
-    //     if (val.toString().length > 6) {
-    //         return val.toExponential(2);
-    //     }
-    //     return val;
-    // };
-
     return (
         <ChartDonutThreshold
             ariaDesc={`Cluster ${props.resourceDisplayName} resource usage`}
