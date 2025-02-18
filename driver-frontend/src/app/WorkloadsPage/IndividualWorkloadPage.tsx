@@ -1,9 +1,9 @@
 import { WorkloadInspectionView } from '@Components/Workloads/WorkloadInspectionView';
 import { Button, Card, CardBody, CardFooter, Divider, Flex, FlexItem, PageSection, Text } from '@patternfly/react-core';
-import { BackwardIcon, ExportIcon } from '@patternfly/react-icons';
+import { BackwardIcon, ExportIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
 import useNavigation from '@Providers/NavigationProvider';
 import { WorkloadDataListCell } from '@src/Components/Workloads/WorkloadDataListCell';
-import { Workload } from '@src/Data';
+import { IsActivelyRunning, IsReadyAndWaiting, Workload } from '@src/Data';
 import { WorkloadContext } from '@src/Providers';
 import React from 'react';
 import { useParams } from 'react-router';
@@ -15,8 +15,7 @@ export const IndividualWorkloadPage: React.FunctionComponent<IndividualWorkloadP
 ) => {
     const params = useParams();
 
-    const { workloadsMap, exportWorkload } = React.useContext(WorkloadContext);
-
+    const { workloadsMap, exportWorkload, startWorkload, stopWorkload } = React.useContext(WorkloadContext);
     const { navigate } = useNavigation();
 
     const [targetWorkload, setTargetWorkload] = React.useState<Workload | undefined>(undefined);
@@ -36,6 +35,19 @@ export const IndividualWorkloadPage: React.FunctionComponent<IndividualWorkloadP
         }
     }, [navigate, params, workloadsMap]);
 
+    const startOrStopWorkload = () => {
+        if (!targetWorkload) {
+            return;
+        }
+
+        if (IsActivelyRunning(targetWorkload)) {
+            startWorkload(targetWorkload);
+            return;
+        }
+
+        stopWorkload(targetWorkload);
+    };
+
     /**
      * Return the content to be rendered on the page.
      */
@@ -47,10 +59,7 @@ export const IndividualWorkloadPage: React.FunctionComponent<IndividualWorkloadP
                         <CardBody>
                             <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsLg' }}>
                                 <FlexItem>
-                                    <WorkloadDataListCell
-                                        workload={targetWorkload}
-                                        hideNavButton={true}
-                                    />
+                                    <WorkloadDataListCell workload={targetWorkload} hideNavButton={true} />
                                 </FlexItem>
                                 <FlexItem>
                                     <Divider />
@@ -80,6 +89,23 @@ export const IndividualWorkloadPage: React.FunctionComponent<IndividualWorkloadP
                                         }}
                                     >
                                         Export
+                                    </Button>
+                                </FlexItem>
+                                <FlexItem>
+                                    <Button
+                                        key="export_workload_state_button"
+                                        aria-label={'Export workload state'}
+                                        variant="secondary"
+                                        isDisabled={
+                                            !IsReadyAndWaiting(targetWorkload) && !IsActivelyRunning(targetWorkload)
+                                        }
+                                        isDanger={IsActivelyRunning(targetWorkload)}
+                                        icon={IsActivelyRunning(targetWorkload) ? <StopIcon /> : <PlayIcon />}
+                                        onClick={() => {
+                                            startOrStopWorkload();
+                                        }}
+                                    >
+                                        {IsActivelyRunning(targetWorkload) ? 'Stop' : 'Start'}
                                     </Button>
                                 </FlexItem>
                             </Flex>

@@ -1,6 +1,5 @@
 import { Button, Flex, FlexItem, Text, TextVariants, Tooltip } from '@patternfly/react-core';
-import { PauseIcon, PlayIcon, SearchIcon, StopIcon } from '@patternfly/react-icons';
-import { CsvFileIcon, TemplateIcon, XmlFileIcon } from '@src/Assets/Icons';
+import { PauseIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
 import WorkloadDescriptiveIcons from '@src/Components/Workloads/WorkloadDescriptiveIcons';
 import { WorkloadRuntimeMetrics } from '@src/Components/Workloads/WorkloadRuntimeMetrics';
 import { IsActivelyRunning, IsInProgress, IsPaused, IsPausing, IsReadyAndWaiting, Workload } from '@src/Data';

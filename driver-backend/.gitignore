@@ -21,3 +21,4 @@ dist2
 /server~
 /.env
 workload-output
+server_output.txt
