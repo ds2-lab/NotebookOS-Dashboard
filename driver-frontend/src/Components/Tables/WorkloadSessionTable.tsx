@@ -31,8 +31,8 @@ import {
     CpuIcon,
     ErrorCircleOIcon,
     FilterIcon,
-    InfoCircleIcon,
     InProgressIcon,
+    InfoCircleIcon,
     MemoryIcon,
     OffIcon,
     PendingIcon,
@@ -48,8 +48,8 @@ import {
     Tbody,
     Td,
     Th,
-    Thead,
     ThProps,
+    Thead,
     Tr,
 } from '@patternfly/react-table';
 import { GpuIcon, GpuIconAlt2 } from '@src/Assets/Icons';
