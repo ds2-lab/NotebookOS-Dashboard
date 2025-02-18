@@ -9,7 +9,7 @@ import React from 'react';
 
 interface IWorkloadDataListCellProps {
     workload: Workload;
-    onVisualizeWorkloadClicked: (workload: Workload) => void;
+    hideNavButton?: boolean;
 }
 
 export const WorkloadDataListCell: React.FunctionComponent<IWorkloadDataListCellProps> = (
@@ -114,7 +114,7 @@ export const WorkloadDataListCell: React.FunctionComponent<IWorkloadDataListCell
                 </FlexItem>
             </Flex>
             <WorkloadDescriptiveIcons workload={props.workload} />
-            <WorkloadRuntimeMetrics workload={props.workload} />
+            <WorkloadRuntimeMetrics workload={props.workload} hideNavButton={props.hideNavButton} />
         </Flex>
     );
 };

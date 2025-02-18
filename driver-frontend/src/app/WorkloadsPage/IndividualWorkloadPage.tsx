@@ -8,9 +8,7 @@ import { WorkloadContext } from '@src/Providers';
 import React from 'react';
 import { useParams } from 'react-router';
 
-interface IndividualWorkloadPageProps {
-    onVisualizeWorkloadClicked: (workload: Workload) => void;
-}
+interface IndividualWorkloadPageProps {}
 
 export const IndividualWorkloadPage: React.FunctionComponent<IndividualWorkloadPageProps> = (
     props: IndividualWorkloadPageProps,
@@ -51,7 +49,7 @@ export const IndividualWorkloadPage: React.FunctionComponent<IndividualWorkloadP
                                 <FlexItem>
                                     <WorkloadDataListCell
                                         workload={targetWorkload}
-                                        onVisualizeWorkloadClicked={props.onVisualizeWorkloadClicked}
+                                        hideNavButton={true}
                                     />
                                 </FlexItem>
                                 <FlexItem>

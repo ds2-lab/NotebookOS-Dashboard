@@ -1,5 +1,6 @@
-import { Flex, FlexItem, Switch, Tooltip } from '@patternfly/react-core';
-import { BlueprintIcon, ClockIcon, CubeIcon, DiceIcon, TaskIcon } from '@patternfly/react-icons';
+import { Button, Flex, FlexItem, Switch, Tooltip } from '@patternfly/react-core';
+import { ArrowRightIcon, BlueprintIcon, ClockIcon, CubeIcon, DiceIcon, TaskIcon } from '@patternfly/react-icons';
+import useNavigation from '@Providers/NavigationProvider';
 import { GetWorkloadStatusLabel, GetWorkloadStatusTooltip, IsWorkloadFinished, Workload } from '@src/Data';
 import { WorkloadContext } from '@src/Providers';
 import { RoundToNDecimalPlaces } from '@src/Utils';
@@ -13,6 +14,7 @@ export const WorkloadDescriptiveIcons: React.FunctionComponent<IWorkloadDescript
     props: IWorkloadDescriptiveIcons,
 ) => {
     const { toggleDebugLogs } = React.useContext(WorkloadContext);
+    const { navigate } = useNavigation();
 
     return (
         <Flex className="props.workload-descriptive-icons" spaceItems={{ default: 'spaceItemsMd' }}>

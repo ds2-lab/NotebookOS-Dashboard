@@ -21,12 +21,14 @@ import { WorkloadContext } from '@Providers/WorkloadProvider';
 
 import { IsInProgress, Workload } from '@src/Data/Workload';
 import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 export interface WorkloadCardProps {
     workloadsPerPage: number;
     perPageOption: PerPageOptions[];
     inspectInModal: boolean;
     useCreationModal: boolean;
+    workloadBeingInspected?: Workload;
 }
 
 export const WorkloadCard: React.FunctionComponent<WorkloadCardProps> = (props: WorkloadCardProps) => {
@@ -35,16 +37,22 @@ export const WorkloadCard: React.FunctionComponent<WorkloadCardProps> = (props: 
         React.useState(false);
     const [selectedWorkloadListId, setSelectedWorkloadListId] = React.useState('');
 
-    const [visualizeWorkloadModalOpen, setVisualizeWorkloadModalOpen] = React.useState(false);
-    const [workloadBeingVisualized, setWorkloadBeingVisualized] = React.useState<Workload | null>(null);
-
     const [inspectWorkloadModalOpen, setInspectWorkloadModalOpen] = React.useState(false);
     const [workloadBeingInspected, setWorkloadBeingInspected] = React.useState<Workload | null>(null);
 
-    const { workloads, workloadsMap, registerWorkloadFromPreset, registerWorkloadFromTemplate, stopAllWorkloads } =
+    const { workloads, workloadsMap, registerWorkloadFromTemplate, stopAllWorkloads } =
         React.useContext(WorkloadContext);
 
     const { navigate } = useNavigation();
+    const location = useLocation();
+
+    useEffect(() => {
+        if (location.state?.workload) {
+            setWorkloadBeingInspected(location.state.workload);
+        } else if (props.workloadBeingInspected) {
+            setWorkloadBeingInspected(props.workloadBeingInspected);
+        }
+    }, [location.state, props.workloadBeingInspected]); // Only update local state when navigation occurs
 
     useEffect(() => {
         if (workloadBeingInspected !== null && inspectWorkloadModalOpen) {
@@ -56,11 +64,6 @@ export const WorkloadCard: React.FunctionComponent<WorkloadCardProps> = (props: 
             }
         }
     }, [workloadsMap, inspectWorkloadModalOpen, workloadBeingInspected]);
-
-    const onCloseVisualizeWorkloadModal = () => {
-        setWorkloadBeingVisualized(null);
-        setVisualizeWorkloadModalOpen(false);
-    };
 
     const onCloseInspectWorkloadModal = () => {
         setWorkloadBeingInspected(null);
@@ -82,45 +85,13 @@ export const WorkloadCard: React.FunctionComponent<WorkloadCardProps> = (props: 
         workloadRegistrationRequest: string,
         messageId?: string,
     ) => {
-        // setIsRegisterWorkloadModalOpen(false);
         setIsRegisterNewWorkloadFromTemplateModalOpen(false);
         registerWorkloadFromTemplate(workloadName, workloadRegistrationRequest, messageId);
     };
 
-    // const onRegisterWorkloadFromTemplateClicked = () => {
-    //     setIsRegisterNewWorkloadFromTemplateModalOpen(true);
-    // };
-
-    // const onConfirmRegisterWorkload = (
-    //     workloadName: string,
-    //     selectedPreset: WorkloadPreset,
-    //     workloadSeedString: string,
-    //     debugLoggingEnabled: boolean,
-    //     timescaleAdjustmentFactor: number,
-    //     workloadSessionSamplePercent: number,
-    // ) => {
-    //     // setIsRegisterWorkloadModalOpen(false);
-    //     setIsRegisterNewWorkloadFromTemplateModalOpen(false);
-    //
-    //     registerWorkloadFromPreset(
-    //         workloadName,
-    //         selectedPreset,
-    //         workloadSeedString,
-    //         debugLoggingEnabled,
-    //         timescaleAdjustmentFactor,
-    //         workloadSessionSamplePercent,
-    //     );
-    // };
-
-    // const onCancelStartWorkload = () => {
-    //     console.log('New workload cancelled by user before starting.');
-    //     setIsRegisterWorkloadModalOpen(false);
-    // };
-
     const onCancelStartWorkloadFromTemplate = () => {
         console.log('New workload from template cancelled by user before starting.');
         setIsRegisterNewWorkloadFromTemplateModalOpen(false);
-        // setIsRegisterWorkloadModalOpen(true);
     };
 
     const onStopAllWorkloadsClicked = () => {
@@ -136,14 +107,6 @@ export const WorkloadCard: React.FunctionComponent<WorkloadCardProps> = (props: 
             setSelectedWorkloadListId(id);
             console.log("Selected workload '%s'", id);
         }
-    };
-
-    const onVisualizeWorkloadClicked = (workload: Workload) => {
-        console.log(`Inspecting workload: ${workload.name} (id=${workload.name})`);
-        console.log(workload);
-
-        setWorkloadBeingVisualized(workload);
-        setVisualizeWorkloadModalOpen(true);
     };
 
     const cardHeaderActions = (
@@ -207,7 +170,6 @@ export const WorkloadCard: React.FunctionComponent<WorkloadCardProps> = (props: 
                             workloads={workloads}
                             onSelectWorkload={onSelectWorkload}
                             onClickWorkload={onClickWorkload}
-                            onVisualizeWorkloadClicked={onVisualizeWorkloadClicked}
                             workloadsPerPage={props.workloadsPerPage}
                             selectedWorkloadListId={selectedWorkloadListId}
                             perPageOption={props.perPageOption}
@@ -215,12 +177,6 @@ export const WorkloadCard: React.FunctionComponent<WorkloadCardProps> = (props: 
                     )}
                 </CardBody>
             </Card>
-            {/*<RegisterWorkloadModal*/}
-            {/*    isOpen={isRegisterWorkloadModalOpen}*/}
-            {/*    onClose={onCancelStartWorkload}*/}
-            {/*    onConfirm={onConfirmRegisterWorkload}*/}
-            {/*    onRegisterWorkloadFromTemplateClicked={onRegisterWorkloadFromTemplateClicked}*/}
-            {/*/>*/}
             <NewWorkloadFromTemplateModal
                 isOpen={isRegisterNewWorkloadFromTemplateModalOpen}
                 onClose={onCancelStartWorkloadFromTemplate}

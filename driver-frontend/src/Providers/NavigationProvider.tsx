@@ -1,5 +1,6 @@
 import { JoinPaths } from '@src/Utils/path_utils';
 import { useNavigate } from 'react-router-dom';
+import type { NavigateOptions } from 'react-router/dist/lib/context';
 
 function isNumber(value?: string | string[] | number): boolean {
     return value != null && value !== '' && !Array.isArray(value) && !isNaN(Number(value.toString()));
@@ -8,7 +9,7 @@ function isNumber(value?: string | string[] | number): boolean {
 function useNavigation() {
     const navigate = useNavigate();
 
-    const doNavigate = (paths: number | string | string[] = '') => {
+    const doNavigate = (paths: number | string | string[] = '', options?: NavigateOptions) => {
         if (isNumber(paths)) {
             navigate(paths as number);
             return;
@@ -21,7 +22,7 @@ function useNavigation() {
             path = JoinPaths(path, paths as string);
         }
 
-        navigate(path);
+        navigate(path, options);
     };
 
     return {

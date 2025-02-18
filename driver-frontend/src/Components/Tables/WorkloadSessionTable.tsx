@@ -410,9 +410,8 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         // setAvailableDeepLearningModels(Array.from(deepLearningModels).sort());
         // setAvailableDeepLearningDatasets(Array.from(deepLearningDatasets).sort());
 
-        console.log(`sess: ${sess}`);
         return sess;
-    }, [filters.id, props.showDiscardedSessions, props.workload?.sessions, filters]);
+    }, [props.showDiscardedSessions, props.workload?.sessions, filters]);
 
     React.useEffect(() => {
         let sorted: Session[] = filteredSessions;

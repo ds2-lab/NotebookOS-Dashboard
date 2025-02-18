@@ -1,7 +1,8 @@
 import { WorkloadInspectionView } from '@Components/Workloads/WorkloadInspectionView';
 import { Button, Modal, ModalVariant, Title, TitleSizes } from '@patternfly/react-core';
-import { CloseIcon, ExportIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
+import { ArrowRightIcon, CloseIcon, ExportIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
 import { AuthorizationContext } from '@Providers/AuthProvider';
+import useNavigation from '@Providers/NavigationProvider';
 import { GetWorkloadStatusLabel, IsInProgress, IsReadyAndWaiting, Workload } from '@src/Data/Workload';
 import { WorkloadContext } from '@src/Providers';
 import React from 'react';
@@ -17,6 +18,8 @@ export const InspectWorkloadModal: React.FunctionComponent<InspectWorkloadModalP
     const { authenticated } = React.useContext(AuthorizationContext);
 
     const { exportWorkload, startWorkload, stopWorkload } = React.useContext(WorkloadContext);
+
+    const { navigate } = useNavigation();
 
     React.useEffect(() => {
         // Automatically close the modal of we are logged out.
@@ -86,6 +89,19 @@ export const InspectWorkloadModal: React.FunctionComponent<InspectWorkloadModalP
                     }}
                 >
                     Export
+                </Button>,
+                <Button
+                    key="goto-inspect-workload-page-button"
+                    variant="secondary"
+                    aria-label={'Go to workload page'}
+                    icon={<ArrowRightIcon />}
+                    onClick={() => {
+                        props.onClose();
+                        navigate('/workload/' + props.workload?.id);
+                        // navigate('/workloads', { state: { workload: props.workload } });
+                    }}
+                >
+                    Go to Workload Page
                 </Button>,
                 <Button
                     key="close-inspect-workload-modal-button"
