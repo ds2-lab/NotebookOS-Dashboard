@@ -36,10 +36,7 @@ export const WorkloadRuntimeMetrics: React.FunctionComponent<IWorkloadRuntimeMet
             </FlexItem>
             <FlexItem>
                 <Flex direction={{ default: 'row' }}>
-                    <FlexItem
-                        align={{ default: 'alignLeft' }}
-                        alignSelf={{ default: 'alignSelfFlexStart' }}
-                    >
+                    <FlexItem align={{ default: 'alignLeft' }} alignSelf={{ default: 'alignSelfFlexStart' }}>
                         <Label>
                             <Flex direction={{ default: 'row' }}>
                                 <FlexItem>
