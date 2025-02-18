@@ -5,8 +5,6 @@ import {
     Button,
     Card,
     CardBody,
-    Chip,
-    ChipGroup,
     DescriptionList,
     DescriptionListDescription,
     DescriptionListGroup,
@@ -23,7 +21,10 @@ import {
     Text,
     Toolbar,
     ToolbarContent,
+    ToolbarFilter,
+    ToolbarGroup,
     ToolbarItem,
+    ToolbarToggleGroup,
     Tooltip,
 } from '@patternfly/react-core';
 import {
@@ -285,6 +286,12 @@ function getShortDeepLearningName(name: string): string {
     return name;
 }
 
+interface Filter {
+    category: string[];
+    status: string[];
+    id: string[];
+}
+
 // Displays the Sessions from a workload in a table.
 export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableProps> = (props) => {
     const [page, setPage] = React.useState(1);
@@ -304,17 +311,74 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
 
     const [deepLearningCategoryFilterOpen, setDeepLearningCategoryFilterOpen] = React.useState(false);
 
-    const [selectedSessionStatuses, setSelectedSessionStatuses] = React.useState<number[]>([]);
-
-    const [selectedDeepLearnCategories, setSelectedDeepLearnCategories] = React.useState<number[]>([]);
-
-    const [filteredSessionIds, setFilteredSessionIds] = React.useState<string[]>([]);
-
     const [sortedSessions, setSortedSessions] = React.useState<Session[]>([]);
 
     const [availDeepLearningCategories, setAvailDeepLearningCategories] = React.useState<string[]>([]);
     // const [availableDeepLearningModels, setAvailableDeepLearningModels] = React.useState<string[]>([]);
     // const [availableDeepLearningDatasets, setAvailableDeepLearningDatasets] = React.useState<string[]>([]);
+
+    const [filters, setFilters] = React.useState<Filter>({
+        category: [],
+        status: [],
+        id: [],
+    });
+
+    const onDeleteFilterGroup = (type: string) => {
+        if (type === 'Category') {
+            setFilters({ category: [], status: filters.status, id: filters.id });
+        } else if (type === 'Status') {
+            setFilters({ category: filters.category, status: [], id: filters.id });
+        } else if (type === 'ID') {
+            setFilters({ category: filters.category, status: filters.status, id: [] });
+        }
+    };
+
+    const onDeleteFilter = (type: string, id: string) => {
+        if (type === 'Category') {
+            setFilters({
+                category: filters.category.filter((fil: string) => fil !== id),
+                status: filters.status,
+                id: filters.id,
+            });
+        } else if (type === 'Status') {
+            setFilters({
+                category: filters.category,
+                status: filters.status.filter((fil: string) => fil !== id),
+                id: filters.id,
+            });
+        } else if (type === 'ID') {
+            setFilters({
+                category: filters.category,
+                status: filters.status,
+                id: filters.id.filter((fil: string) => fil !== id),
+            });
+        }
+    };
+
+    const onSelectFilter = (
+        type: 'Category' | 'Status' | 'ID',
+        event: React.MouseEvent | React.ChangeEvent | undefined,
+        selection: string,
+    ) => {
+        const checked = (event?.target as HTMLInputElement).checked;
+        if (type === 'Category') {
+            setFilters({
+                category: checked
+                    ? [...filters.category, selection]
+                    : filters.category.filter((fil: string) => fil !== selection),
+                status: filters.status,
+                id: filters.id,
+            });
+        } else if (type === 'Status') {
+            setFilters({
+                category: filters.category,
+                status: checked
+                    ? [...filters.status, selection]
+                    : filters.status.filter((fil: string) => fil !== selection),
+                id: filters.id,
+            });
+        }
+    };
 
     const filteredSessions: Session[] = React.useMemo<Session[]>(() => {
         const deepLearningCategories: Set<string> = new Set<string>();
@@ -327,17 +391,15 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
                 // deepLearningModels.add(session.assigned_model);
                 // deepLearningDatasets.add(session.assigned_dataset);
 
-                if (filteredSessionIds.length > 0 && !filteredSessionIds.includes(session.id)) {
+                if (filters.id.length > 0 && !filters.id.includes(session.id)) {
                     return false;
                 }
 
-                const categoryIdx: number = availDeepLearningCategories.indexOf(session.model_dataset_category);
-                if (selectedDeepLearnCategories.length > 0 && !selectedDeepLearnCategories.includes(categoryIdx)) {
+                if (filters.category.length > 0 && !filters.category.includes(session.model_dataset_category)) {
                     return false;
                 }
 
-                const sessionStatusIndex: number = sessionStatuses.indexOf(session.state);
-                if (selectedSessionStatuses.length > 0 && !selectedSessionStatuses.includes(sessionStatusIndex)) {
+                if (filters.status.length > 0 && !filters.status.includes(session.state)) {
                     return false;
                 }
 
@@ -350,13 +412,7 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
 
         console.log(`sess: ${sess}`);
         return sess;
-    }, [
-        filteredSessionIds,
-        props.showDiscardedSessions,
-        props.workload?.sessions,
-        selectedDeepLearnCategories,
-        selectedSessionStatuses,
-    ]);
+    }, [filters.id, props.showDiscardedSessions, props.workload?.sessions, filters]);
 
     React.useEffect(() => {
         let sorted: Session[] = filteredSessions;
@@ -656,36 +712,22 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         return tableRows;
     };
 
-    const onSelectSessionStatus = (
-        _event: React.MouseEvent<Element, MouseEvent> | undefined,
-        value: string | number | undefined,
-    ) => {
-        if (selectedSessionStatuses.includes(value as number)) {
-            setSelectedSessionStatuses(selectedSessionStatuses.filter((id) => id !== value));
-        } else {
-            setSelectedSessionStatuses([...selectedSessionStatuses, value as number]);
-        }
-    };
-
-    const onSelectDeepLearningCategory = (
-        _event: React.MouseEvent<Element, MouseEvent> | undefined,
-        value: string | number | undefined,
-    ) => {
-        if (selectedDeepLearnCategories.includes(value as number)) {
-            setSelectedDeepLearnCategories(selectedDeepLearnCategories.filter((id) => id !== value));
-        } else {
-            setSelectedDeepLearnCategories([...selectedDeepLearnCategories, value as number]);
-        }
-    };
-
     const onSelectSessionIdFilter = (
         _event: React.MouseEvent<Element, MouseEvent> | undefined,
         value: string | number | undefined,
     ) => {
-        if (filteredSessionIds.includes(value as string)) {
-            setFilteredSessionIds(filteredSessionIds.filter((id) => id !== value));
+        if (filters.id.includes(value as string)) {
+            setFilters({
+                category: filters.category,
+                status: filters.status,
+                id: filters.id.filter((id) => id !== value),
+            });
         } else {
-            setFilteredSessionIds([...filteredSessionIds, value as string]);
+            setFilters({
+                category: filters.category,
+                status: filters.status,
+                id: [...filters.id, value as string],
+            });
         }
     };
 
@@ -707,187 +749,137 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         return sessionIds || [];
     };
 
-    /**
-     * Return the hint/preview text displayed by the session status filter select/dropdown menu.
-     */
-    const getStatusFilterText = (): string => {
-        if (selectedSessionStatuses.length == 0) {
-            return 'All Statuses';
-        }
-
-        return 'Filter by Status';
-    };
-
-    const getCategoryFilterText = (): string => {
-        if (selectedDeepLearnCategories.length == 0) {
-            return 'All Categories';
-        }
-
-        return 'Filter by Category';
-    };
-
     const sessionStatusFilterMenu = (
-        <ToolbarItem variant={'bulk-select'}>
-            <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                <FlexItem>
-                    <Select
-                        id="select-session-status"
-                        aria-label="Select Input"
-                        toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
-                            <MenuToggle
-                                ref={toggleRef}
-                                onClick={() => setStatusFilterSelectOpen(!statusFilterSelectOpen)}
-                                isExpanded={statusFilterSelectOpen}
-                                isFullWidth
-                            >
-                                <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                                    <FlexItem>
-                                        <FilterIcon /> {getStatusFilterText()}
-                                    </FlexItem>
-                                    <FlexItem>
-                                        {selectedSessionStatuses.length > 0 && (
-                                            <Badge isRead>{selectedSessionStatuses.length}</Badge>
-                                        )}
-                                    </FlexItem>
-                                </Flex>
-                            </MenuToggle>
-                        )}
-                        isOpen={statusFilterSelectOpen}
-                        onOpenChange={(isOpen: boolean) => setStatusFilterSelectOpen(isOpen)}
-                        onSelect={onSelectSessionStatus}
+        <ToolbarFilter
+            chips={filters.status}
+            deleteChip={(category, chip) => onDeleteFilter(category as string, chip as string)}
+            deleteChipGroup={(category) => onDeleteFilterGroup(category as string)}
+            categoryName="Status"
+        >
+            <Select
+                id="select-session-status"
+                aria-label="Select Input"
+                toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
+                    <MenuToggle
+                        ref={toggleRef}
+                        onClick={() => setStatusFilterSelectOpen(!statusFilterSelectOpen)}
+                        isExpanded={statusFilterSelectOpen}
+                        isFullWidth
                     >
-                        {sessionStatuses.map((status: string, idx: number) => (
-                            <SelectOption
-                                hasCheckbox
-                                key={idx}
-                                value={idx}
-                                isSelected={selectedSessionStatuses.includes(idx)}
-                            >
-                                {getStatusLabel(status, 'N/A')}
-                            </SelectOption>
-                        ))}
-                    </Select>
-                </FlexItem>
-                <FlexItem>
-                    <ChipGroup aria-label="Current selections">
-                        {selectedSessionStatuses.map((statusIndex, idx) => (
-                            <Chip
-                                key={idx}
-                                onClick={(ev) => {
-                                    ev.stopPropagation();
-                                    onSelectSessionStatus(undefined, statusIndex);
-                                }}
-                            >
-                                {sessionStatuses[statusIndex]}
-                            </Chip>
-                        ))}
-                    </ChipGroup>
-                </FlexItem>
-            </Flex>
-        </ToolbarItem>
-    );
-
-    const sessionIdFilterToolbarItem = (
-        <ToolbarItem variant={'search-filter'}>
-            <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                <FlexItem>
-                    <SearchWithAutocomplete
-                        words={getWordsForSearchWithAutocomplete()}
-                        setValue={(value: string) => {
-                            if (filteredSessionIds.includes(value as string)) {
-                                return;
-                            }
-
-                            setFilteredSessionIds([...filteredSessionIds, value as string]);
-                        }}
-                    />
-                </FlexItem>
-                <FlexItem>
-                    <ChipGroup aria-label="Current selections">
-                        {filteredSessionIds.map((sessionId: string) => (
-                            <Chip
-                                key={sessionId}
-                                onClick={(ev) => {
-                                    ev.stopPropagation();
-                                    onSelectSessionIdFilter(undefined, sessionId);
-                                }}
-                            >
-                                {sessionId.substring(0, 8) + '...'}
-                            </Chip>
-                        ))}
-                    </ChipGroup>
-                </FlexItem>
-            </Flex>
-        </ToolbarItem>
+                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
+                            <FlexItem>{'Status'}</FlexItem>
+                            <FlexItem>
+                                {filters.status.length > 0 && <Badge isRead>{filters.status.length}</Badge>}
+                            </FlexItem>
+                        </Flex>
+                    </MenuToggle>
+                )}
+                isOpen={statusFilterSelectOpen}
+                onOpenChange={(isOpen: boolean) => setStatusFilterSelectOpen(isOpen)}
+                onSelect={(event, selection) => onSelectFilter('Status', event, selection as string)}
+            >
+                {sessionStatuses.map((status: string) => (
+                    <SelectOption hasCheckbox key={status} value={status} isSelected={filters.status.includes(status)}>
+                        {getStatusLabel(status, 'N/A')}
+                    </SelectOption>
+                ))}
+            </Select>
+        </ToolbarFilter>
     );
 
     const deepLearningCategoryFilterMenu = (
-        <ToolbarItem variant={'bulk-select'}>
-            <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                <FlexItem>
-                    <Select
-                        id="select-deep-learning-category"
-                        aria-label="Select Input"
-                        toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
-                            <MenuToggle
-                                ref={toggleRef}
-                                onClick={() => setDeepLearningCategoryFilterOpen(!deepLearningCategoryFilterOpen)}
-                                isExpanded={deepLearningCategoryFilterOpen}
-                                isFullWidth
-                            >
-                                <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                                    <FlexItem>
-                                        <FilterIcon /> {getCategoryFilterText()}
-                                    </FlexItem>
-                                    <FlexItem>
-                                        {selectedDeepLearnCategories.length > 0 && (
-                                            <Badge isRead>{selectedDeepLearnCategories.length}</Badge>
-                                        )}
-                                    </FlexItem>
-                                </Flex>
-                            </MenuToggle>
-                        )}
-                        isOpen={deepLearningCategoryFilterOpen}
-                        onOpenChange={(isOpen: boolean) => setDeepLearningCategoryFilterOpen(isOpen)}
-                        onSelect={onSelectDeepLearningCategory}
+        <ToolbarFilter
+            chips={filters.category}
+            deleteChip={(category, chip) => onDeleteFilter(category as string, chip as string)}
+            deleteChipGroup={(category) => onDeleteFilterGroup(category as string)}
+            categoryName="Category"
+        >
+            <Select
+                id="select-deep-learning-category"
+                aria-label="Select Input"
+                toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
+                    <MenuToggle
+                        ref={toggleRef}
+                        onClick={() => setDeepLearningCategoryFilterOpen(!deepLearningCategoryFilterOpen)}
+                        isExpanded={deepLearningCategoryFilterOpen}
+                        isFullWidth
                     >
-                        {availDeepLearningCategories.map((category: string, idx: number) => (
-                            <SelectOption
-                                hasCheckbox
-                                key={idx}
-                                value={idx}
-                                isSelected={selectedDeepLearnCategories.includes(idx)}
-                            >
-                                {category}
-                            </SelectOption>
-                        ))}
-                    </Select>
-                </FlexItem>
-                <FlexItem>
-                    <ChipGroup aria-label="Current selections">
-                        {selectedDeepLearnCategories.map((categoryIndex, idx) => (
-                            <Chip
-                                key={idx}
-                                onClick={(ev) => {
-                                    ev.stopPropagation();
-                                    onSelectDeepLearningCategory(undefined, categoryIndex);
-                                }}
-                            >
-                                {availDeepLearningCategories[categoryIndex]}
-                            </Chip>
-                        ))}
-                    </ChipGroup>
-                </FlexItem>
-            </Flex>
-        </ToolbarItem>
+                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
+                            <FlexItem>{'Category'}</FlexItem>
+                            <FlexItem>
+                                {filters.category.length > 0 && <Badge isRead>{filters.category.length}</Badge>}
+                            </FlexItem>
+                        </Flex>
+                    </MenuToggle>
+                )}
+                isOpen={deepLearningCategoryFilterOpen}
+                onOpenChange={(isOpen: boolean) => setDeepLearningCategoryFilterOpen(isOpen)}
+                onSelect={(event?: React.MouseEvent<Element, MouseEvent>, value?: string | number) =>
+                    onSelectFilter('Category', event, value as string)
+                }
+            >
+                {availDeepLearningCategories.map((category: string) => (
+                    <SelectOption
+                        hasCheckbox
+                        key={category}
+                        value={category}
+                        isSelected={filters.category.includes(category)}
+                    >
+                        {category}
+                    </SelectOption>
+                ))}
+            </Select>
+        </ToolbarFilter>
+    );
+
+    const sessionIdFilterToolbarItem = (
+        <ToolbarFilter
+            chips={filters.id}
+            deleteChip={(category, chip) => onDeleteFilter(category as string, chip as string)}
+            deleteChipGroup={(category) => onDeleteFilterGroup(category as string)}
+            categoryName="ID"
+        >
+            <SearchWithAutocomplete
+                words={getWordsForSearchWithAutocomplete()}
+                setValue={(value: string) => {
+                    if (filters.id.includes(value as string)) {
+                        return;
+                    }
+
+                    onSelectSessionIdFilter(undefined, value as string);
+                }}
+            />
+        </ToolbarFilter>
+    );
+
+    const clearAllFilters = () => {
+        setFilters({
+            category: [],
+            status: [],
+            id: [],
+        });
+    };
+
+    const customChipGroupContent = (
+        <React.Fragment>
+            <ToolbarItem>
+                <Button variant={'link'} isInline onClick={() => clearAllFilters()}>
+                    Clear all filters
+                </Button>
+            </ToolbarItem>
+        </React.Fragment>
     );
 
     const tableToolbar = (
-        <Toolbar usePageInsets id="compact-toolbar">
+        <Toolbar usePageInsets id="compact-toolbar" customChipGroupContent={customChipGroupContent}>
             <ToolbarContent>
-                {sessionStatusFilterMenu}
-                {deepLearningCategoryFilterMenu}
-                {sessionIdFilterToolbarItem}
+                <ToolbarToggleGroup toggleIcon={<FilterIcon />} breakpoint="xl">
+                    {sessionIdFilterToolbarItem}
+                    <ToolbarGroup variant={'filter-group'}>
+                        {sessionStatusFilterMenu}
+                        {deepLearningCategoryFilterMenu}
+                    </ToolbarGroup>
+                </ToolbarToggleGroup>
             </ToolbarContent>
         </Toolbar>
     );
