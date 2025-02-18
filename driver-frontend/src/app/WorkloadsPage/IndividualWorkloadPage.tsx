@@ -41,11 +41,11 @@ export const IndividualWorkloadPage: React.FunctionComponent<IndividualWorkloadP
         }
 
         if (IsActivelyRunning(targetWorkload)) {
-            startWorkload(targetWorkload);
+            stopWorkload(targetWorkload);
             return;
         }
 
-        stopWorkload(targetWorkload);
+        startWorkload(targetWorkload);
     };
 
     /**
