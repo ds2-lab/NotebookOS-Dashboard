@@ -32,8 +32,8 @@ import {
     CpuIcon,
     ErrorCircleOIcon,
     FilterIcon,
-    InfoCircleIcon,
     InProgressIcon,
+    InfoCircleIcon,
     MemoryIcon,
     OffIcon,
     PendingIcon,
@@ -49,8 +49,8 @@ import {
     Tbody,
     Td,
     Th,
-    Thead,
     ThProps,
+    Thead,
     Tr,
 } from '@patternfly/react-table';
 import { GpuIcon, GpuIconAlt2 } from '@src/Assets/Icons';
@@ -286,6 +286,14 @@ function getShortDeepLearningName(name: string): string {
     return name;
 }
 
+interface OpenFilterMenus {
+    model: boolean;
+    dataset: boolean;
+    category: boolean;
+    status: boolean;
+    id: boolean;
+}
+
 interface Filter {
     model: string[];
     dataset: string[];
@@ -302,6 +310,9 @@ const CategoryFilter: FilterType = 'Category';
 const StatusFilter: FilterType = 'Status';
 const IdFilter: FilterType = 'ID';
 
+// FilterTypes that have an associated dropdown/select menu.
+const selectFilterTypes: FilterType[] = [StatusFilter, CategoryFilter, ModelFilter, DatasetFilter];
+
 interface SessionFilterSelectProps {
     filterType: FilterType;
     filters: string[];
@@ -310,10 +321,10 @@ interface SessionFilterSelectProps {
     onDeleteFilter: (filterType: FilterType, value: string) => void;
     onDeleteFilterGroup: (filterType: FilterType) => void;
     open: boolean;
-    toggleOpen: (val: boolean) => void;
+    toggleOpen: (filterType: FilterType, value: boolean) => void;
 }
 
-export const SessionFilterSelect: React.FunctionComponent<SessionFilterSelectProps> = (
+export const SessionFilterSelectMenu: React.FunctionComponent<SessionFilterSelectProps> = (
     props: SessionFilterSelectProps,
 ) => {
     return (
@@ -321,20 +332,24 @@ export const SessionFilterSelect: React.FunctionComponent<SessionFilterSelectPro
             chips={props.filters}
             deleteChip={(category, chip) => props.onDeleteFilter(category as FilterType, chip as string)}
             deleteChipGroup={(category) => props.onDeleteFilterGroup(category as FilterType)}
-            categoryName={DatasetFilter}
+            categoryName={props.filterType}
         >
             <Select
-                id="select-deep-learning-dataset"
-                aria-label="Select Deep Learning Dataset"
+                id={`"select-deep-learning-${props.filterType.toLowerCase()}"`}
+                aria-label={`Select Deep Learning ${props.filterType}`}
                 toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
                     <MenuToggle
                         ref={toggleRef}
-                        onClick={() => props.toggleOpen(!props.open)}
+                        onClick={(evt: React.MouseEvent) => {
+                            evt.preventDefault();
+                            evt.stopPropagation();
+                            props.toggleOpen(props.filterType, !props.open);
+                        }}
                         isExpanded={props.open}
                         isFullWidth
                     >
                         <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                            <FlexItem>{DatasetFilter}</FlexItem>
+                            <FlexItem>{props.filterType}</FlexItem>
                             <FlexItem>
                                 {props.filters.length > 0 && <Badge isRead>{props.filters.length}</Badge>}
                             </FlexItem>
@@ -342,19 +357,14 @@ export const SessionFilterSelect: React.FunctionComponent<SessionFilterSelectPro
                     </MenuToggle>
                 )}
                 isOpen={props.open}
-                onOpenChange={(isOpen: boolean) => props.toggleOpen(isOpen)}
+                onOpenChange={(isOpen: boolean) => props.toggleOpen(props.filterType, isOpen)}
                 onSelect={(event?: React.MouseEvent, value?: string | number) =>
-                    props.onSelectFilter(DatasetFilter, event, value as string)
+                    props.onSelectFilter(props.filterType, event, value as string)
                 }
             >
-                {props.values.map((dataset: string) => (
-                    <SelectOption
-                        hasCheckbox
-                        key={dataset}
-                        value={dataset}
-                        isSelected={props.filters.includes(dataset)}
-                    >
-                        {dataset}
+                {props.values.map((value: string) => (
+                    <SelectOption hasCheckbox key={value} value={value} isSelected={props.filters.includes(value)}>
+                        {props.filterType == StatusFilter ? getStatusLabel(value) : value}
                     </SelectOption>
                 ))}
             </Select>
@@ -379,19 +389,19 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
 
     const [showCopySuccessContent, setShowCopySuccessContent] = React.useState(false);
 
-    const [statusFilterSelectOpen, setStatusFilterSelectOpen] = React.useState(false);
-
-    const [deepLearningCategoryFilterOpen, setDeepLearningCategoryFilterOpen] = React.useState(false);
-
-    const [deepLearningModelFilterOpen, setDeepLearningModelFilterOpen] = React.useState(false);
-
-    const [deepLearningDatasetFilterOpen, setDeepLearningDatasetFilterOpen] = React.useState(false);
-
     const [sortedSessions, setSortedSessions] = React.useState<Session[]>([]);
 
     const [availDeepLearningCategories, setAvailDeepLearningCategories] = React.useState<string[]>([]);
     const [availableDeepLearningModels, setAvailableDeepLearningModels] = React.useState<string[]>([]);
     const [availableDeepLearningDatasets, setAvailableDeepLearningDatasets] = React.useState<string[]>([]);
+
+    const [openFilterMenus, setOpenFilterMenus] = React.useState<OpenFilterMenus>({
+        category: false,
+        model: false,
+        dataset: false,
+        status: false,
+        id: false,
+    });
 
     const [filters, setFilters] = React.useState<Filter>({
         category: [],
@@ -918,174 +928,6 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         return sessionIds || [];
     };
 
-    const sessionStatusFilterMenu = (
-        <ToolbarFilter
-            chips={filters.status}
-            deleteChip={(category, chip) => onDeleteFilter(category as FilterType, chip as string)}
-            deleteChipGroup={(category) => onDeleteFilterGroup(category as FilterType)}
-            categoryName={StatusFilter}
-        >
-            <Select
-                id="select-session-status"
-                aria-label="Select Input"
-                toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
-                    <MenuToggle
-                        ref={toggleRef}
-                        onClick={() => setStatusFilterSelectOpen(!statusFilterSelectOpen)}
-                        isExpanded={statusFilterSelectOpen}
-                        isFullWidth
-                    >
-                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                            <FlexItem>{StatusFilter}</FlexItem>
-                            <FlexItem>
-                                {filters.status.length > 0 && <Badge isRead>{filters.status.length}</Badge>}
-                            </FlexItem>
-                        </Flex>
-                    </MenuToggle>
-                )}
-                isOpen={statusFilterSelectOpen}
-                onOpenChange={(isOpen: boolean) => setStatusFilterSelectOpen(isOpen)}
-                onSelect={(event, selection) => onSelectFilter(StatusFilter, event, selection as string)}
-            >
-                {sessionStatuses.map((status: string) => (
-                    <SelectOption hasCheckbox key={status} value={status} isSelected={filters.status.includes(status)}>
-                        {getStatusLabel(status, 'N/A')}
-                    </SelectOption>
-                ))}
-            </Select>
-        </ToolbarFilter>
-    );
-
-    const deepLearningCategoryFilterMenu = (
-        <ToolbarFilter
-            chips={filters.category}
-            deleteChip={(category, chip) => onDeleteFilter(category as FilterType, chip as string)}
-            deleteChipGroup={(category) => onDeleteFilterGroup(category as FilterType)}
-            categoryName={CategoryFilter}
-        >
-            <Select
-                id="select-deep-learning-category"
-                aria-label="Select Input"
-                toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
-                    <MenuToggle
-                        ref={toggleRef}
-                        onClick={() => setDeepLearningCategoryFilterOpen(!deepLearningCategoryFilterOpen)}
-                        isExpanded={deepLearningCategoryFilterOpen}
-                        isFullWidth
-                    >
-                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                            <FlexItem>{CategoryFilter}</FlexItem>
-                            <FlexItem>
-                                {filters.category.length > 0 && <Badge isRead>{filters.category.length}</Badge>}
-                            </FlexItem>
-                        </Flex>
-                    </MenuToggle>
-                )}
-                isOpen={deepLearningCategoryFilterOpen}
-                onOpenChange={(isOpen: boolean) => setDeepLearningCategoryFilterOpen(isOpen)}
-                onSelect={(event?: React.MouseEvent, value?: string | number) =>
-                    onSelectFilter(CategoryFilter, event, value as string)
-                }
-            >
-                {availDeepLearningCategories.map((category: string) => (
-                    <SelectOption
-                        hasCheckbox
-                        key={category}
-                        value={category}
-                        isSelected={filters.category.includes(category)}
-                    >
-                        {category}
-                    </SelectOption>
-                ))}
-            </Select>
-        </ToolbarFilter>
-    );
-
-    const deepLearningModelsFilterMenu = (
-        <ToolbarFilter
-            chips={filters.model}
-            deleteChip={(category, chip) => onDeleteFilter(category as FilterType, chip as string)}
-            deleteChipGroup={(category) => onDeleteFilterGroup(category as FilterType)}
-            categoryName={ModelFilter}
-        >
-            <Select
-                id="select-deep-learning-model"
-                aria-label="Select Deep Learning Model"
-                toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
-                    <MenuToggle
-                        ref={toggleRef}
-                        onClick={() => setDeepLearningModelFilterOpen(!deepLearningModelFilterOpen)}
-                        isExpanded={deepLearningModelFilterOpen}
-                        isFullWidth
-                    >
-                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                            <FlexItem>{ModelFilter}</FlexItem>
-                            <FlexItem>
-                                {filters.model.length > 0 && <Badge isRead>{filters.model.length}</Badge>}
-                            </FlexItem>
-                        </Flex>
-                    </MenuToggle>
-                )}
-                isOpen={deepLearningModelFilterOpen}
-                onOpenChange={(isOpen: boolean) => setDeepLearningModelFilterOpen(isOpen)}
-                onSelect={(event?: React.MouseEvent, value?: string | number) =>
-                    onSelectFilter(ModelFilter, event, value as string)
-                }
-            >
-                {availableDeepLearningModels.map((model: string) => (
-                    <SelectOption hasCheckbox key={model} value={model} isSelected={filters.model.includes(model)}>
-                        {model}
-                    </SelectOption>
-                ))}
-            </Select>
-        </ToolbarFilter>
-    );
-
-    const deepLearningDatasetsFilterMenu = (
-        <ToolbarFilter
-            chips={filters.dataset}
-            deleteChip={(category, chip) => onDeleteFilter(category as FilterType, chip as string)}
-            deleteChipGroup={(category) => onDeleteFilterGroup(category as FilterType)}
-            categoryName={DatasetFilter}
-        >
-            <Select
-                id="select-deep-learning-dataset"
-                aria-label="Select Deep Learning Dataset"
-                toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
-                    <MenuToggle
-                        ref={toggleRef}
-                        onClick={() => setDeepLearningDatasetFilterOpen(!deepLearningDatasetFilterOpen)}
-                        isExpanded={deepLearningDatasetFilterOpen}
-                        isFullWidth
-                    >
-                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                            <FlexItem>{DatasetFilter}</FlexItem>
-                            <FlexItem>
-                                {filters.dataset.length > 0 && <Badge isRead>{filters.dataset.length}</Badge>}
-                            </FlexItem>
-                        </Flex>
-                    </MenuToggle>
-                )}
-                isOpen={deepLearningDatasetFilterOpen}
-                onOpenChange={(isOpen: boolean) => setDeepLearningDatasetFilterOpen(isOpen)}
-                onSelect={(event?: React.MouseEvent, value?: string | number) =>
-                    onSelectFilter(DatasetFilter, event, value as string)
-                }
-            >
-                {availableDeepLearningDatasets.map((dataset: string) => (
-                    <SelectOption
-                        hasCheckbox
-                        key={dataset}
-                        value={dataset}
-                        isSelected={filters.dataset.includes(dataset)}
-                    >
-                        {dataset}
-                    </SelectOption>
-                ))}
-            </Select>
-        </ToolbarFilter>
-    );
-
     const sessionIdFilterToolbarItem = (
         <ToolbarFilter
             chips={filters.id}
@@ -1126,16 +968,70 @@ export const WorkloadSessionTable: React.FunctionComponent<WorkloadSessionTableP
         </React.Fragment>
     );
 
+    const getValuesForFilterDropdownMenu = (filterType: FilterType): string[] => {
+        if (filterType == StatusFilter) {
+            return sessionStatuses;
+            // return sessionStatuses.map((status: string) => getStatusLabel(status));
+        } else if (filterType == CategoryFilter) {
+            return availDeepLearningCategories;
+        } else if (filterType == ModelFilter) {
+            return availableDeepLearningModels;
+        } else if (filterType == DatasetFilter) {
+            return availableDeepLearningDatasets;
+        }
+
+        console.error(`Unknown or unexpected filter type: ${filterType}`);
+
+        return [];
+    };
+
     const tableToolbar = (
         <Toolbar usePageInsets id="compact-toolbar" customChipGroupContent={customChipGroupContent}>
             <ToolbarContent>
                 <ToolbarToggleGroup toggleIcon={<FilterIcon />} breakpoint="xl">
                     {sessionIdFilterToolbarItem}
                     <ToolbarGroup variant={'filter-group'}>
-                        {sessionStatusFilterMenu}
-                        {deepLearningCategoryFilterMenu}
-                        {deepLearningModelsFilterMenu}
-                        {deepLearningDatasetsFilterMenu}
+                        {selectFilterTypes.map((filterType: FilterType) => (
+                            <SessionFilterSelectMenu
+                                key={`select-filter-${filterType}`}
+                                filterType={filterType}
+                                filters={filters[filterType.toLowerCase()]}
+                                values={getValuesForFilterDropdownMenu(filterType)}
+                                onSelectFilter={(ft: FilterType, event: React.MouseEvent | undefined, value: string) =>
+                                    onSelectFilter(ft, event, value)
+                                }
+                                onDeleteFilter={(ft: FilterType, value: string) => onDeleteFilter(ft, value)}
+                                onDeleteFilterGroup={(ft: FilterType) => onDeleteFilterGroup(ft)}
+                                open={openFilterMenus[filterType.toLowerCase()]}
+                                toggleOpen={(targetFilterType: FilterType, isOpen: boolean) =>
+                                    setOpenFilterMenus((prevOpenMenus: OpenFilterMenus): OpenFilterMenus => {
+                                        const openMenus: OpenFilterMenus = Object.assign({}, prevOpenMenus);
+
+                                        // If it is already open, then just close it.
+                                        if (!isOpen) {
+                                            openMenus[targetFilterType.toLowerCase()] = false;
+                                            return openMenus;
+                                        }
+
+                                        // Close all the other filter menus and open this one.
+                                        selectFilterTypes.forEach((ft: FilterType) => {
+                                            // Open the target filter type.
+                                            if (targetFilterType === ft) {
+                                                openMenus[targetFilterType.toLowerCase()] = true;
+                                                console.log(`Opening menu for filter ${targetFilterType}.`);
+                                                return;
+                                            }
+
+                                            console.log(`Closing menu for filter ${ft}.`);
+                                            // Close all the others.
+                                            openMenus[ft.toLowerCase()] = false;
+                                        });
+
+                                        return openMenus;
+                                    })
+                                }
+                            />
+                        ))}
                     </ToolbarGroup>
                 </ToolbarToggleGroup>
             </ToolbarContent>
