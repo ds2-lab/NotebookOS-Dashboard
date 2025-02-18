@@ -119,6 +119,14 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
 
     const randomizeSessionStates = () => {
         const sessions: Session[] = props.workload.sessions;
+        const sessionStates: string[] = [
+            'awaiting start',
+            'idle',
+            'training_submitted',
+            'training',
+            'terminated',
+            'erred',
+        ];
 
         for (let i = 0; i < sessions.length; i++) {
             const session = sessions[i];
@@ -134,6 +142,8 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
             session.trainings_completed = Math.floor(getRandomArbitrary(0, session.trainings.length));
 
             session.current_tick_number = Math.floor(getRandomArbitrary(0, session.stop_tick));
+
+            session.state = sessionStates[Math.floor(Math.random() * sessionStates.length)];
         }
     };
 

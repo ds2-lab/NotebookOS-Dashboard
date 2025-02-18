@@ -11,12 +11,12 @@ const default_hint: string = 'Filter by Session ID';
 export const SearchWithAutocomplete: React.FunctionComponent<SearchWithAutocompleteProps> = (props) => {
     const [value, setValue] = React.useState('');
     const [hint, setHint] = React.useState(default_hint);
-    const [autocompleteOptions, setAutocompleteOptions] = React.useState([]);
+    const [autocompleteOptions, setAutocompleteOptions] = React.useState<React.JSX.Element[]>([]);
 
     const [isAutocompleteOpen, setIsAutocompleteOpen] = React.useState(false);
 
-    const searchInputRef = React.useRef(null);
-    const autocompleteRef = React.useRef(null);
+    const searchInputRef = React.useRef<HTMLInputElement>(null);
+    const autocompleteRef = React.useRef<HTMLInputElement>(null);
 
     const onClear = () => {
         setValue('');
@@ -83,6 +83,11 @@ export const SearchWithAutocomplete: React.FunctionComponent<SearchWithAutocompl
         setHint(default_hint);
         props.setValue(itemId);
         setIsAutocompleteOpen(false);
+
+        if (!searchInputRef.current) {
+            return;
+        }
+
         searchInputRef.current.focus();
     };
 
@@ -105,8 +110,10 @@ export const SearchWithAutocomplete: React.FunctionComponent<SearchWithAutocompl
                 searchInputRef.current.focus();
                 // the up and down arrow keys move browser focus into the autocomplete menu
             } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                const firstElement = autocompleteRef.current.querySelector('li > button:not(:disabled)');
-                firstElement && firstElement.focus();
+                const firstElement = autocompleteRef.current?.querySelector('li > button:not(:disabled)');
+                if (firstElement) {
+                    (firstElement as HTMLElement).focus();
+                }
                 event.preventDefault(); // by default, the up and down arrow keys scroll the window
                 // the tab, enter, and space keys will close the menu, and the tab key will move browser
                 // focus forward one element (by default)
@@ -118,10 +125,10 @@ export const SearchWithAutocomplete: React.FunctionComponent<SearchWithAutocompl
             }
             // If the autocomplete is open and the browser focus is in the autocomplete menu
             // hitting tab will close the autocomplete and but browser focus back on the search input.
-        } else if (isAutocompleteOpen && autocompleteRef.current.contains(event.target) && event.key === 'Tab') {
+        } else if (isAutocompleteOpen && autocompleteRef.current?.contains(event.target) && event.key === 'Tab') {
             event.preventDefault();
             setIsAutocompleteOpen(false);
-            searchInputRef.current.focus();
+            searchInputRef.current?.focus();
         }
     };
 
@@ -174,7 +181,7 @@ export const SearchWithAutocomplete: React.FunctionComponent<SearchWithAutocompl
             isVisible={isAutocompleteOpen}
             enableFlip={false}
             // append the autocomplete menu to the search input in the DOM for the sake of the keyboard navigation experience
-            appendTo={() => document.querySelector('#autocomplete-search')}
+            appendTo={() => document.querySelector('#autocomplete-search')!}
         />
     );
 };

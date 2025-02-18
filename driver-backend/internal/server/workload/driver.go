@@ -581,7 +581,7 @@ func (d *Driver) loadWorkloadTemplateFromFile(workloadRegistrationRequest *domai
 			ErrInvalidTemplateFileSpecified, err, workloadRegistrationRequest.TemplateFilePath)
 	}
 	defer func() {
-		err := templateJsonFile.Close()
+		err = templateJsonFile.Close()
 		if err != nil {
 			d.logger.Warn("Error while closing workload template file.",
 				zap.String("workload_name", workloadRegistrationRequest.WorkloadName),
@@ -1040,6 +1040,12 @@ func (d *Driver) createOutputDirectory() error {
 
 // writeWorkloadToJsonFile writes the Workload struct to a JSON file, truncating the file if it already exists.
 func (d *Driver) writeWorkloadToJsonFile() {
+	defer func() {
+		if r := recover(); r != nil {
+			d.logger.Error("Recovered from panic in Driver::writeWorkloadToJsonFile")
+		}
+	}()
+
 	workloadJsonPath := filepath.Join(d.outputSubdirectoryPath, fmt.Sprintf("workload_%s.json", d.workload.GetId()))
 	d.logger.Debug("Writing Workload struct to JSON file.", zap.String("path", workloadJsonPath))
 

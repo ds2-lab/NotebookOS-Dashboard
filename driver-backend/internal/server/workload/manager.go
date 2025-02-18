@@ -112,7 +112,7 @@ func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLev
 	var err error
 	manager.workloadJobConfiguration, err = manager.readWorkloadJobConfigurations(configuration.WorkloadJobConfigFilepath)
 	if err != nil {
-		return nil
+		panic(err)
 	}
 
 	return manager
