@@ -178,7 +178,8 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
     const getEventCountChipGroup = () => {
         return (
             <ChipGroup
-                // @ts-ignore supposed to just pass a string here
+                /*
+                // @ts-ignore */
                 categoryName={
                     <React.Fragment>
                         <ClipboardCheckIcon /> {<strong>Events Processed</strong>}

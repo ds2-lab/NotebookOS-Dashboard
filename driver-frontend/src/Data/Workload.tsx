@@ -23,6 +23,7 @@ export const WorkloadStateTerminated: string = 'WorkloadTerminated'; // Workload
 export const WorkloadEventNames: string[] = [
     'workload-started',
     'session-ready',
+    'training-submitted',
     'training-started',
     'training-ended',
     'session-stopped',

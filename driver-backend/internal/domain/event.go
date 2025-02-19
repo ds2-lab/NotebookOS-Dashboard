@@ -11,11 +11,12 @@ const (
 	// EventSessionStarted triggered when the session is first seen.
 	EventSessionStarted SessionEventName = "session-started"
 	// EventSessionReady triggered when we have had sufficient info on resource specification and the session is ready to launch.
-	EventSessionReady           SessionEventName = "session-ready"
-	EventSessionTraining        SessionEventName = "training"
-	EventSessionTrainingStarted SessionEventName = "training-started"
-	EventSessionTrainingEnded   SessionEventName = "training-ended"
-	EventSessionStopped         SessionEventName = "session-stopped"
+	EventSessionReady             SessionEventName = "session-ready"
+	EventSessionTraining          SessionEventName = "training"
+	EventSessionTrainingStarted   SessionEventName = "training-started"
+	EventSessionTrainingSubmitted SessionEventName = "training-submitted"
+	EventSessionTrainingEnded     SessionEventName = "training-ended"
+	EventSessionStopped           SessionEventName = "session-stopped"
 
 	// EventInvalidName is a placeholder/default value that should not appear during normal operation.
 	EventInvalidName SessionEventName = "invalid-name"

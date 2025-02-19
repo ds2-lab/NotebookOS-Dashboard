@@ -915,7 +915,17 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		return err
 	}
 
-	trainingStarted, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt, sentRequestAt, startTrainingTimeoutInterval)
+	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
+		WithEventId(event.Id()).
+		WithSessionId(event.SessionID()).
+		WithEventName(domain.EventSessionTrainingSubmitted).
+		WithEventTimestamp(event.Timestamp).
+		WithProcessedAtTime(sentRequestAt).
+		WithError(err)) // Will be nil on success
+
+	trainingStarted, trainingStartedAt, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt,
+		sentRequestAt, startTrainingTimeoutInterval)
+
 	if !trainingStarted {
 		c.trainingEventsDelayed.Add(1)
 		return nil
@@ -934,13 +944,12 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		return err
 	}
 
-	// Record it as processed even if there was an error when processing the event.
 	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
 		WithEventId(event.Id()).
 		WithSessionId(event.SessionID()).
 		WithEventName(domain.EventSessionTrainingStarted).
 		WithEventTimestamp(event.Timestamp).
-		WithProcessedAtTime(sentRequestAt).
+		WithProcessedAtTime(trainingStartedAt).
 		WithError(err)) // Will be nil on success
 	c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-started", domain.Green)),
 		zap.String("workload_id", c.Workload.GetId()),
@@ -948,6 +957,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		zap.String("session_id", c.SessionId),
 		zap.Time("tick", tick),
 		zap.Time("submitted_at", sentRequestAt),
+		zap.Time("started_training_at", trainingStartedAt),
+		zap.Duration("delay", trainingStartedAt.Sub(sentRequestAt)),
 		zap.Duration("time_since_submission", time.Since(sentRequestAt)),
 		zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)),
 		zap.String("execute_request_msg_id", executeRequestId))
@@ -1112,7 +1123,7 @@ func (c *Client) incurDelay(delayAmount time.Duration) {
 //
 // waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
 func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time,
-	sentRequestAt time.Time, timeoutInterval time.Duration) (bool, error) {
+	sentRequestAt time.Time, timeoutInterval time.Duration) (bool, time.Time, error) {
 
 	c.logger.Debug("Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
@@ -1158,28 +1169,29 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 					c.EventQueue.Push(evt)
 					time.Sleep(sleepInterval)
 
-					return false, nil
+					return false, time.Time{}, nil
 				}
 			default:
 				{
-					startLatency := time.Since(sentRequestAt)
+					trainingStartedAt := v.(time.Time)
+					startLatency := time.Since(trainingStartedAt)
 					c.logger.Debug(domain.ColorizeText("Kernel started training.", domain.Green),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
 						zap.Duration("timeout_interval", timeoutInterval),
 						zap.Duration("start_latency", startLatency))
+
+					return true, trainingStartedAt, nil
 				}
 			}
 		}
 	case <-ctx.Done():
 		{
 			c.trainingStartTimedOut(sentRequestAt, timeoutInterval)
-			return false, nil
+			return false, time.Time{}, nil
 		}
 	}
-
-	return true, nil
 }
 
 // trainingStartTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
@@ -1338,7 +1350,7 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(kernelMessage jupyter.KernelMessa
 		c.incurDelay(time.Millisecond * time.Duration(delayMilliseconds))
 	}
 
-	c.TrainingStartedChannel <- struct{}{}
+	c.TrainingStartedChannel <- trainingStartedAt
 
 	return c.SessionId
 }

@@ -140,12 +140,12 @@ function getRemainingTrainings(session: Session): string | number {
 
 const sessionStatuses: string[] = ['awaiting start', 'idle', 'training_submitted', 'training', 'terminated', 'erred'];
 
-function getStatusLabel(status: string, error_message?: string): ReactElement {
+function getStatusLabel(status: string, error_message?: string, isCompact:boolean = false): ReactElement {
     switch (status) {
         case 'awaiting start':
             return (
                 <Tooltip position="right" content="This session has not yet been created or started yet.">
-                    <Label icon={<PendingIcon />} color="grey">
+                    <Label icon={<PendingIcon />} color="grey" isCompact={isCompact}>
                         {status}
                     </Label>
                 </Tooltip>
@@ -153,7 +153,7 @@ function getStatusLabel(status: string, error_message?: string): ReactElement {
         case 'idle':
             return (
                 <Tooltip position="right" content="This session is actively-running, but it is not currently training.">
-                    <Label icon={<ResourcesEmptyIcon />} color="blue">
+                    <Label icon={<ResourcesEmptyIcon />} color="blue" isCompact={isCompact}>
                         {status}
                     </Label>
                 </Tooltip>
@@ -161,7 +161,7 @@ function getStatusLabel(status: string, error_message?: string): ReactElement {
         case 'training_submitted':
             return (
                 <Tooltip position="right" content="This session is about to start actively training.">
-                    <Label icon={<InProgressIcon />} color="green">
+                    <Label icon={<InProgressIcon />} color="green" isCompact={isCompact}>
                         {status}
                     </Label>
                 </Tooltip>
@@ -169,7 +169,7 @@ function getStatusLabel(status: string, error_message?: string): ReactElement {
         case 'training':
             return (
                 <Tooltip position="right" content="This session is actively training.">
-                    <Label icon={<RunningIcon />} color="green">
+                    <Label icon={<RunningIcon />} color="green" isCompact={isCompact}>
                         {status}
                     </Label>
                 </Tooltip>
@@ -177,7 +177,7 @@ function getStatusLabel(status: string, error_message?: string): ReactElement {
         case 'terminated':
             return (
                 <Tooltip position="right" content="This session has been stopped permanently (without error).">
-                    <Label icon={<OffIcon />} color="orange">
+                    <Label icon={<OffIcon />} color="orange" isCompact={isCompact}>
                         {status}
                     </Label>
                 </Tooltip>
@@ -188,7 +188,7 @@ function getStatusLabel(status: string, error_message?: string): ReactElement {
                     position="right"
                     content={`This session has been terminated due to an unexpected error: ${error_message}`}
                 >
-                    <Label icon={<ErrorCircleOIcon />} color="red">
+                    <Label icon={<ErrorCircleOIcon />} color="red" isCompact={isCompact}>
                         {' '}
                         {status}
                     </Label>
@@ -197,7 +197,7 @@ function getStatusLabel(status: string, error_message?: string): ReactElement {
         default:
             return (
                 <Tooltip position="right" content="This session is in an unknown or unexpected state.">
-                    <Label icon={<UnknownIcon />} color="red">
+                    <Label icon={<UnknownIcon />} color="red" isCompact={isCompact}>
                         {' '}
                         unknown: {status}
                     </Label>
@@ -206,7 +206,7 @@ function getStatusLabel(status: string, error_message?: string): ReactElement {
     }
 }
 
-function getSessionStatusLabel(session: Session): ReactElement {
+function getSessionStatusLabel(session: Session, isCompact: boolean = false): ReactElement {
     if (session.discarded) {
         return (
             <Tooltip position="right" content="This session was discarded and will not be sampled in this workload.">
@@ -217,7 +217,7 @@ function getSessionStatusLabel(session: Session): ReactElement {
         );
     }
 
-    return getStatusLabel(session.state, session.error_message);
+    return getStatusLabel(session.state, session.error_message, isCompact);
 }
 
 // Since OnSort specifies sorted columns by index, we need sortable values for our object by column index.

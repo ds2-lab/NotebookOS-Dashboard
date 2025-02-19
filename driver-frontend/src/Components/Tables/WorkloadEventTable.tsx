@@ -2,7 +2,7 @@ import { Workload, WorkloadEvent } from '@Data/Workload';
 import { Card, CardBody, Label, Pagination, Tooltip } from '@patternfly/react-core';
 import {
     CheckCircleIcon,
-    CheckIcon,
+    CheckIcon, DataProcessorIcon,
     ErrorCircleOIcon,
     ExclamationCircleIcon,
     MigrationIcon,
@@ -10,7 +10,7 @@ import {
     OffIcon,
     PendingIcon,
     QuestionCircleIcon,
-    StarIcon,
+    StarIcon
 } from '@patternfly/react-icons';
 import { Table, Tbody, Td, Th, Thead, ThProps, Tr } from '@patternfly/react-table';
 import React, { ReactElement } from 'react';
@@ -33,6 +33,8 @@ export function GetEventIcon(event_name: string): ReactElement {
             return <PendingIcon />;
         case 'training':
             return <MonitoringIcon />;
+        case 'training-submitted':
+            return <DataProcessorIcon />;
         case 'training-started':
             return <MonitoringIcon />;
         case 'training-ended':
@@ -56,11 +58,13 @@ export function GetEventColor(
         case 'workload-started':
             return 'gold';
         case 'workload-complete':
-            return 'purple';
+            return 'gold';
         case 'session-started':
             return 'cyan';
         case 'session-ready':
             return 'grey';
+        case 'training-submitted':
+            return 'purple';
         case 'training-started':
             return 'green';
         case 'training-ended':
