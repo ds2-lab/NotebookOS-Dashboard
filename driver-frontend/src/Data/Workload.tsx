@@ -20,6 +20,16 @@ export const WorkloadStateFinished: string = 'WorkloadFinished'; // Workload sto
 export const WorkloadStateErred: string = 'WorkloadErred'; // Workload stopped due to an error.
 export const WorkloadStateTerminated: string = 'WorkloadTerminated'; // Workload stopped because it was explicitly terminated early/premature.
 
+export const WorkloadEventNames: string[] = [
+    'workload-started',
+    'session-ready',
+    'training-started',
+    'training-ended',
+    'session-stopped',
+    'workload-terminated',
+    'workload-stopped',
+];
+
 interface WorkloadPreset {
     name: string; // Human-readable name for this particular workload preset.
     description: string; // Human-readable description of the workload.
@@ -175,7 +185,7 @@ interface WorkloadStatistics {
     AggregateSessionLifetimesSec: number[];
     jupyter_training_start_latency_millis: number;
     jupyter_training_start_latencies_millis: number[];
-    event_counts: { [key: string]: number };
+    event_counts: Map<string, number>;
 }
 
 interface Workload {

@@ -21,67 +21,71 @@ export interface WorkloadEventTableProps {
     showDiscardedEvents?: boolean;
 }
 
-export function GetEventLabel(event_name: string): ReactElement {
+export function GetEventLabel(event_name: string, isCompact: boolean = false): ReactElement {
     switch (event_name) {
         case 'workload-started':
             return (
-                <Label color="gold" icon={<StarIcon />}>
+                <Label color="gold" icon={<StarIcon />} isCompact={isCompact}>
                     {event_name}
                 </Label>
             );
         case 'workload-complete':
             return (
-                <Label color="purple" icon={<CheckCircleIcon />}>
+                <Label color="purple" icon={<CheckCircleIcon />} isCompact={isCompact}>
                     {event_name}
                 </Label>
             );
         case 'session-started':
             return (
-                <Label color="cyan" icon={<MigrationIcon />}>
+                <Label color="cyan" icon={<MigrationIcon />} isCompact={isCompact}>
                     {event_name}
                 </Label>
             );
         case 'session-ready':
             return (
-                <Label color="grey" icon={<PendingIcon />}>
+                <Label color="grey" icon={<PendingIcon />} isCompact={isCompact}>
                     {event_name}
                 </Label>
             );
         case 'training':
             return (
-                <Label color="green" icon={<MonitoringIcon />}>
+                <Label color="green" icon={<MonitoringIcon />} isCompact={isCompact}>
                     {event_name}
                 </Label>
             );
         case 'training-started':
             return (
-                <Label color="green" icon={<MonitoringIcon />}>
+                <Label color="green" icon={<MonitoringIcon />} isCompact={isCompact}>
                     {event_name}
                 </Label>
             );
         case 'training-ended':
             return (
-                <Label color="blue" icon={<CheckIcon />}>
+                <Label color="blue" icon={<CheckIcon />} isCompact={isCompact}>
                     {event_name}
                 </Label>
             );
         case 'session-stopped':
             return (
-                <Label color="orange" icon={<OffIcon />}>
+                <Label color="orange" icon={<OffIcon />} isCompact={isCompact}>
                     {event_name}
                 </Label>
             );
         case 'update-gpu-util':
-            return <Label color="grey">{event_name}</Label>;
+            return (
+                <Label color="grey" isCompact={isCompact}>
+                    {event_name}
+                </Label>
+            );
         case 'workload-terminated':
             return (
-                <Label color="orange" icon={<ExclamationCircleIcon />}>
+                <Label color="orange" icon={<ExclamationCircleIcon />} isCompact={isCompact}>
                     {event_name}
                 </Label>
             );
         case null:
             return (
-                <Label color="gold" icon={<QuestionCircleIcon />}>
+                <Label color="gold" icon={<QuestionCircleIcon />} isCompact={isCompact}>
                     Unknown
                 </Label>
             );

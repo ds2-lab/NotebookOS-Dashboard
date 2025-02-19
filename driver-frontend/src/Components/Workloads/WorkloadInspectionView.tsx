@@ -1,6 +1,9 @@
 import {
+    Badge,
     Button,
     Checkbox,
+    Chip,
+    ChipGroup,
     DescriptionList,
     DescriptionListDescription,
     DescriptionListGroup,
@@ -18,7 +21,7 @@ import {
     TaskIcon,
 } from '@patternfly/react-icons';
 import { WorkloadEventTable, WorkloadSessionTable } from '@src/Components';
-import { Session, Workload } from '@src/Data';
+import { Session, Workload, WorkloadEventNames } from '@src/Data';
 import { GetToastContentWithHeaderAndBody } from '@src/Utils/toast_utils';
 import { RoundToNDecimalPlaces, RoundToTwoDecimalPlaces } from '@Utils/utils';
 import { uuidv4 } from 'lib0/random';
@@ -147,6 +150,47 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
         }
     };
 
+    const getEventCountChipBadge = (eventName: string) => {
+        if (eventName === 'total') {
+            return <Badge>{props.workload?.statistics.num_events_processed}</Badge>;
+        }
+
+        return <Badge>{props.workload?.statistics.event_counts[eventName] || 0}</Badge>;
+    };
+
+    const getEventCountChipGroup = () => {
+        // @ts-expect-error
+        return (
+            <ChipGroup
+                categoryName={
+                    <React.Fragment>
+                        <ClipboardCheckIcon /> {<strong>Events Processed</strong>}
+                    </React.Fragment>
+                }
+                numChips={1}
+            >
+                <Chip isReadOnly key={`total-num-events-counter`} badge={getEventCountChipBadge('total')}>
+                    {'total'}
+                </Chip>
+                {WorkloadEventNames.reduce(function (accum: React.JSX.Element[], eventName: string) {
+                    const count: number | undefined = props.workload?.statistics.event_counts[eventName];
+
+                    if (!count || count == 0) {
+                        return accum;
+                    }
+
+                    accum.push(
+                        <Chip isReadOnly key={`${eventName}-event-counter`} badge={getEventCountChipBadge(eventName)}>
+                            {eventName}
+                        </Chip>,
+                    );
+
+                    return accum;
+                }, [])}
+            </ChipGroup>
+        );
+    };
+
     return (
         <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXl' }}>
             <Flex
@@ -207,63 +251,72 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                 </FlexItem>
             </Flex>
             <FlexItem>
-                <Flex direction={{ default: 'row' }}>
-                    <FlexItem align={{ default: 'alignLeft' }}>
-                        <ClipboardCheckIcon /> {<strong>Events Processed:</strong>}{' '}
-                        {props.workload?.statistics.num_events_processed}
+                <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                    <Flex direction={{ default: 'row' }}>
+                        {/*<FlexItem align={{ default: 'alignLeft' }}>*/}
+                        {/*    <ClipboardCheckIcon /> {<strong>Events Processed:</strong>}{' '}*/}
+                        {/*    {props.workload?.statistics.num_events_processed}*/}
+                        {/*</FlexItem>*/}
+                        <FlexItem align={{ default: 'alignLeft' }}>{getEventCountChipGroup()}</FlexItem>
+                        <FlexItem align={{ default: 'alignRight' }}>
+                            <Checkbox
+                                label="Show Discarded Events"
+                                id={'show-discarded-events-checkbox'}
+                                isChecked={showDiscardedEvents}
+                                onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) =>
+                                    setShowDiscardedEvents(checked)
+                                }
+                            />
+                        </FlexItem>
+                    </Flex>
+                    <FlexItem>
+                        <WorkloadEventTable workload={props.workload} showDiscardedEvents={showDiscardedEvents} />
                     </FlexItem>
-                    <FlexItem align={{ default: 'alignRight' }}>
-                        <Checkbox
-                            label="Show Discarded Events"
-                            id={'show-discarded-events-checkbox'}
-                            isChecked={showDiscardedEvents}
-                            onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) =>
-                                setShowDiscardedEvents(checked)
-                            }
+                </Flex>
+            </FlexItem>
+            <FlexItem>
+                <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsNone' }}>
+                    <Flex direction={{ default: 'row' }}>
+                        <FlexItem align={{ default: 'alignLeft' }}>
+                            <ClipboardCheckIcon /> {<strong>Sessions: </strong>}
+                            {props.workload?.statistics.num_sessions_created} / {getTotalNumSessions()} (
+                            {RoundToTwoDecimalPlaces(
+                                100 * (props.workload?.statistics.num_sessions_created / getTotalNumSessions()),
+                            ) + '%'}
+                            ) created, {props.workload?.statistics.num_active_trainings} actively training
+                        </FlexItem>
+                        <FlexItem align={{ default: 'alignRight' }}>
+                            <Flex direction={{ default: 'row' }}>
+                                <Button variant="link" icon={<DiceIcon />} onClick={() => randomizeSessionStates()}>
+                                    Randomize Session States
+                                </Button>
+                                <Checkbox
+                                    label="Row Borders"
+                                    id={'row-borders-toggle-checkbox'}
+                                    isChecked={workloadSessionTableHasBorders}
+                                    onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) =>
+                                        setWorkloadSessionTableHasBorders(checked)
+                                    }
+                                />
+                                <Checkbox
+                                    label="Show Discarded Sessions"
+                                    id={'show-discarded-sessions-checkbox'}
+                                    isChecked={showDiscardedSessions}
+                                    onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) =>
+                                        setShowDiscardedSessions(checked)
+                                    }
+                                />
+                            </Flex>
+                        </FlexItem>
+                    </Flex>
+                    <FlexItem>
+                        <WorkloadSessionTable
+                            workload={props.workload}
+                            showDiscardedSessions={showDiscardedSessions}
+                            hasBorders={workloadSessionTableHasBorders}
                         />
                     </FlexItem>
                 </Flex>
-                <WorkloadEventTable workload={props.workload} showDiscardedEvents={showDiscardedEvents} />
-            </FlexItem>
-            <FlexItem>
-                <Flex direction={{ default: 'row' }}>
-                    <FlexItem align={{ default: 'alignLeft' }}>
-                        <ClipboardCheckIcon /> {<strong>Sessions: </strong>}
-                        {props.workload?.statistics.num_sessions_created} / {getTotalNumSessions()} (
-                        {RoundToTwoDecimalPlaces(
-                            100 * (props.workload?.statistics.num_sessions_created / getTotalNumSessions()),
-                        ) + '%'}
-                        ) created, {props.workload?.statistics.num_active_trainings} actively training
-                    </FlexItem>
-                    <FlexItem align={{ default: 'alignRight' }}>
-                        <Flex direction={{ default: 'row' }}>
-                            <Button variant="link" icon={<DiceIcon />} onClick={() => randomizeSessionStates()}>
-                                Randomize Session States
-                            </Button>
-                            <Checkbox
-                                label="Row Borders"
-                                id={'row-borders-toggle-checkbox'}
-                                isChecked={workloadSessionTableHasBorders}
-                                onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) =>
-                                    setWorkloadSessionTableHasBorders(checked)
-                                }
-                            />
-                            <Checkbox
-                                label="Show Discarded Sessions"
-                                id={'show-discarded-sessions-checkbox'}
-                                isChecked={showDiscardedSessions}
-                                onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) =>
-                                    setShowDiscardedSessions(checked)
-                                }
-                            />
-                        </Flex>
-                    </FlexItem>
-                </Flex>
-                <WorkloadSessionTable
-                    workload={props.workload}
-                    showDiscardedSessions={showDiscardedSessions}
-                    hasBorders={workloadSessionTableHasBorders}
-                />
             </FlexItem>
         </Flex>
     );

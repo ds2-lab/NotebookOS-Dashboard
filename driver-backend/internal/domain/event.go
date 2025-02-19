@@ -16,7 +16,6 @@ const (
 	EventSessionTrainingStarted SessionEventName = "training-started"
 	EventSessionTrainingEnded   SessionEventName = "training-ended"
 	EventSessionStopped         SessionEventName = "session-stopped"
-	EventSessionUpdateGpuUtil   SessionEventName = "update-gpu-util"
 
 	// EventInvalidName is a placeholder/default value that should not appear during normal operation.
 	EventInvalidName SessionEventName = "invalid-name"
