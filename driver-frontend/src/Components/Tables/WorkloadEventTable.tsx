@@ -1,8 +1,22 @@
 import { Workload, WorkloadEvent } from '@Data/Workload';
-import { Card, CardBody, Label, Pagination, Tooltip } from '@patternfly/react-core';
+import {
+    Card,
+    CardBody,
+    DescriptionList,
+    DescriptionListDescription,
+    DescriptionListGroup,
+    DescriptionListTerm,
+    Flex,
+    FlexItem,
+    Label,
+    Pagination,
+    Popover,
+    Tooltip,
+} from '@patternfly/react-core';
 import {
     CheckCircleIcon,
-    CheckIcon, DataProcessorIcon,
+    CheckIcon,
+    DataProcessorIcon,
     ErrorCircleOIcon,
     ExclamationCircleIcon,
     MigrationIcon,
@@ -10,9 +24,9 @@ import {
     OffIcon,
     PendingIcon,
     QuestionCircleIcon,
-    StarIcon
+    StarIcon,
 } from '@patternfly/react-icons';
-import { Table, Tbody, Td, Th, Thead, ThProps, Tr } from '@patternfly/react-table';
+import { Table, Tbody, Td, Th, ThProps, Thead, Tr } from '@patternfly/react-table';
 import React, { ReactElement } from 'react';
 
 export interface WorkloadEventTableProps {
@@ -217,6 +231,64 @@ export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps
         filteredEvents = filteredEvents?.filter((event: WorkloadEvent) => event.status != 'Discarded');
     }
 
+    const getEventPopoverHeader = (evt: WorkloadEvent) => {
+        return (
+            <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                <FlexItem>{`Event ${evt.id}`}</FlexItem>
+                <FlexItem>{GetEventLabel(evt.name)}</FlexItem>
+            </Flex>
+        );
+    };
+
+    const getEventPopoverBody = (evt: WorkloadEvent) => {
+        // const getMetadata = () => {
+        //     if (evt.metadata !== null && evt.metadata !== undefined) {
+        //         return Array.from(evt.metadata).map((key: string, value: string | number) => {
+        //             console.log(`key: ${key}, value: ${value}`);
+        //             return (
+        //                 <DescriptionListGroup key={`evt-${evt.id}-metadata-${key}`}>
+        //                     <DescriptionListTerm>key</DescriptionListTerm>
+        //                     <DescriptionListDescription>{value}</DescriptionListDescription>
+        //                 </DescriptionListGroup>
+        //             );
+        //         });
+        //     }
+        //
+        //     return <React.Fragment />;
+        // };
+
+        return (
+            <React.Fragment>
+                <DescriptionList columnModifier={{ lg: '3Col' }} displaySize={'lg'}>
+                    <DescriptionListGroup>
+                        <DescriptionListTerm>Timestamp</DescriptionListTerm>
+                        <DescriptionListDescription>{evt.timestamp}</DescriptionListDescription>
+                    </DescriptionListGroup>
+                    <DescriptionListGroup>
+                        <DescriptionListTerm>Processed At</DescriptionListTerm>
+                        <DescriptionListDescription>{evt.processed_at}</DescriptionListDescription>
+                    </DescriptionListGroup>
+                    {/*{getMetadata()}*/}
+                </DescriptionList>
+            </React.Fragment>
+        );
+    };
+
+    const getEventNameElement = (evt: WorkloadEvent) => {
+        return (
+            <Popover
+                alertSeverityVariant="info"
+                headerComponent="h1"
+                position={'right'}
+                hasAutoWidth={true}
+                headerContent={getEventPopoverHeader(evt)}
+                bodyContent={getEventPopoverBody(evt)}
+            >
+                {GetEventLabel(evt?.name)}
+            </Popover>
+        );
+    };
+
     return (
         <Card isCompact isRounded isFlat>
             <CardBody>
@@ -239,7 +311,7 @@ export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps
                             return (
                                 <Tr key={`workload-${props.workload?.id}-event-${evt?.idx}`}>
                                     <Td dataLabel={events_table_columns[0]}>{evt?.idx}</Td>
-                                    <Td dataLabel={events_table_columns[1]}>{GetEventLabel(evt?.name)}</Td>
+                                    <Td dataLabel={events_table_columns[1]}>{getEventNameElement(evt)}</Td>
                                     <Td dataLabel={events_table_columns[2]}>{evt?.session}</Td>
                                     <Td dataLabel={events_table_columns[3]}>
                                         {evt?.timestamp.substring(0, evt?.timestamp.length - 10)}

@@ -334,14 +334,30 @@ export const GetWorkloadStatusLabel = (workload: Workload) => {
 };
 
 interface WorkloadEvent {
+    // Index of the event relative to the workload in which the event occurred. The first event to occur has index 0.
     idx: number;
+    // Unique ID of the event.
     id: string;
+    // The name of the event.
     name: string;
+    // The ID of the session targeted by the event.
     session: string;
+    // The timestamp specified by the trace data/template/preset.
     timestamp: string;
+    // The real-world clocktime at which the event was processed.
     processed_at: string;
+    // The simulation clocktime at which the event was processed.
+    // May differ from the 'Timestamp' field if there were delays.
+    sim_processed_at: string;
+    // The number of times this event has been enqueued for processing.
+    num_times_enqueued: number;
+    // True if the event was processed without error.
     processed_successfully: boolean;
+    // Error message from the error that caused the event to not be processed successfully.
     error_message: string;
+    // Metadata.
+    metadata: Map<string, number | string>;
+    // Processed or Erred.
     status: string;
 }
 
