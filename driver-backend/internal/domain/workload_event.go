@@ -24,6 +24,7 @@ type WorkloadEvent struct {
 	SimProcessedAt        string      `json:"sim_processed_at"`        // The simulation clocktime at which the event was processed. May differ from the 'Timestamp' field if there were delays.
 	ProcessedSuccessfully bool        `json:"processed_successfully"`  // True if the event was processed without error.
 	ErrorMessage          string      `json:"error_message,omitempty"` // Error message from the error that caused the event to not be processed successfully.
+	NumTimesEnqueued      int32       `json:"num_times_enqueued"`      // The number of times this event has been enqueued for processing.
 	Status                EventStatus `json:"status"`
 }
 
@@ -98,6 +99,11 @@ func (evt *WorkloadEvent) WithEventTimestampAsString(eventTimestamp string) *Wor
 
 func (evt *WorkloadEvent) WithStatus(status EventStatus) *WorkloadEvent {
 	evt.Status = status
+	return evt
+}
+
+func (evt *WorkloadEvent) WithNumberOfTimesEnqueued(n int32) *WorkloadEvent {
+	evt.NumTimesEnqueued = n
 	return evt
 }
 

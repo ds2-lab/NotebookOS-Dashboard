@@ -1587,6 +1587,7 @@ func (d *Driver) ProcessWorkloadEvents() {
 		WithSessionId("-").
 		WithEventName(domain.EventWorkloadStarted).
 		WithEventTimestamp(d.clockTime.GetClockTime()).
+		WithNumberOfTimesEnqueued(1).
 		WithProcessedAtTime(d.workloadStartTime))
 
 	if d.workloadPreset != nil {
@@ -1711,6 +1712,7 @@ func (d *Driver) workloadComplete() {
 		WithSessionId("-").
 		WithEventName(domain.EventWorkloadComplete).
 		WithEventTimestamp(d.clockTime.GetClockTime()).
+		WithNumberOfTimesEnqueued(1).
 		WithProcessedAtTime(d.workloadEndTime))
 
 	d.logger.Info("The Workload Generator has finished generating events.", zap.String("workload_id", d.workload.GetId()), zap.String("workload_name", d.workload.WorkloadName()))

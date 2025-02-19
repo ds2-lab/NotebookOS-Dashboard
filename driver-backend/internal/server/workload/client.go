@@ -385,7 +385,7 @@ func (c *Client) Run() {
 		return
 	}
 
-	err := c.initialize()
+	numAttempts, err := c.initialize()
 	if err != nil {
 		c.logger.Error("Failed to initialize client.",
 			zap.String("session_id", c.SessionId),
@@ -402,6 +402,7 @@ func (c *Client) Run() {
 		WithSessionId(c.sessionReadyEvent.SessionID()).
 		WithEventName(c.sessionReadyEvent.Name).
 		WithEventTimestamp(c.sessionReadyEvent.Timestamp).
+		WithNumberOfTimesEnqueued(int32(numAttempts)).
 		WithProcessedAtTime(time.Now()).
 		WithError(err))
 
@@ -564,7 +565,9 @@ type parsedIoPubMessage struct {
 }
 
 // initialize creates the associated kernel and connects to it.
-func (c *Client) initialize() error {
+//
+// initialize returns the number of times the event was attempted before succeeding/failing entirely.
+func (c *Client) initialize() (int, error) {
 	evt := c.EventQueue.Pop()
 
 	if evt.Name != domain.EventSessionReady {
@@ -574,7 +577,7 @@ func (c *Client) initialize() error {
 			zap.String("event", evt.String()),
 			zap.String("workload_id", c.WorkloadId))
 
-		return fmt.Errorf("%w: \"%s\"", ErrInvalidFirstEvent, evt.Name.String())
+		return 0, fmt.Errorf("%w: \"%s\"", ErrInvalidFirstEvent, evt.Name.String())
 	}
 
 	c.logger.Debug("Initializing client.",
@@ -629,7 +632,7 @@ func (c *Client) initialize() error {
 			zap.String("workload_id", c.WorkloadId),
 			zap.Error(err))
 		c.failedToStart.Store(true)
-		return err
+		return maximumNumberOfAttempts - backoff.Steps + 1, err
 	}
 
 	c.sessionConnection = sessionConnection
@@ -673,12 +676,12 @@ func (c *Client) initialize() error {
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId), zap.Error(err))
-		return err
+		return maximumNumberOfAttempts - backoff.Steps + 1, err
 	}
 
 	c.sessionConnection = sessionConnection
 
-	return nil
+	return maximumNumberOfAttempts - backoff.Steps + 1, nil
 }
 
 // issueClockTicks issues clock ticks for this Client, driving this Client's execution.
@@ -878,6 +881,7 @@ func (c *Client) handleEvent(event *domain.Event, tick time.Time) error {
 			WithEventId(event.Id()).
 			WithSessionId(event.SessionID()).
 			WithEventName(event.Name).
+			WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
 			WithEventTimestamp(event.Timestamp).
 			WithProcessedAtTime(time.Now()).
 			WithError(err))
@@ -921,6 +925,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithEventName(domain.EventSessionTrainingSubmitted).
 		WithEventTimestamp(event.Timestamp).
 		WithProcessedAtTime(sentRequestAt).
+		WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
 		WithError(err)) // Will be nil on success
 
 	trainingStarted, trainingStartedAt, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt,
@@ -950,6 +955,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithEventName(domain.EventSessionTrainingStarted).
 		WithEventTimestamp(event.Timestamp).
 		WithProcessedAtTime(trainingStartedAt).
+		WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
 		WithError(err)) // Will be nil on success
 	c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-started", domain.Green)),
 		zap.String("workload_id", c.Workload.GetId()),
@@ -974,6 +980,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithEventName(domain.EventSessionTrainingEnded).
 		WithEventTimestamp(event.Timestamp).
 		WithProcessedAtTime(time.Now()).
+		WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
 		WithError(err)) // Will be nil on success
 
 	if err == nil {
