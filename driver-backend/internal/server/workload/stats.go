@@ -80,6 +80,7 @@ type Statistics struct {
 	TotalNumTicks               int64                   `json:"total_num_ticks"  csv:"total_num_ticks"`
 	WorkloadDuration            time.Duration           `json:"workload_duration"  csv:"-"` // The total time that the workload executed for. This is only set once the workload has completed.
 	WorkloadState               State                   `json:"workload_state"  csv:"workload_state"`
+	EventCounts                 map[string]int          `json:"event_counts" csv:"-"`
 	EventsProcessed             []*domain.WorkloadEvent `json:"events_processed"  csv:"-"`
 }
 
@@ -97,6 +98,7 @@ func NewStatistics(sessionsSamplePercentage float64) *Statistics {
 		JupyterSessionTerminationLatenciesMillis: make([]int64, 0),
 		JupyterExecRequestTimesMillis:            make([]int64, 0),
 		TotalReplyLatenciesMillis:                make([]int64, 0),
+		EventCounts:                              make(map[string]int),
 		SessionsSamplePercentage:                 sessionsSamplePercentage,
 		TimeElapsed:                              time.Duration(0),
 		CurrentTick:                              0,

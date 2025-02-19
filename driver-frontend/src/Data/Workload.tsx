@@ -175,6 +175,7 @@ interface WorkloadStatistics {
     AggregateSessionLifetimesSec: number[];
     jupyter_training_start_latency_millis: number;
     jupyter_training_start_latencies_millis: number[];
+    event_counts: { [key: string]: number };
 }
 
 interface Workload {

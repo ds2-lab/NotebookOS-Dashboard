@@ -8,11 +8,7 @@ import { WorkloadContext } from '@src/Providers';
 import React from 'react';
 import { useParams } from 'react-router';
 
-interface IndividualWorkloadPageProps {}
-
-export const IndividualWorkloadPage: React.FunctionComponent<IndividualWorkloadPageProps> = (
-    props: IndividualWorkloadPageProps,
-) => {
+export const IndividualWorkloadPage: React.FunctionComponent = () => {
     const params = useParams();
 
     const { workloadsMap, exportWorkload, startWorkload, stopWorkload } = React.useContext(WorkloadContext);

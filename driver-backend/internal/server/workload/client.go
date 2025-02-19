@@ -904,15 +904,6 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 	defer startTrainingCancel()
 
 	sentRequestAt, executeRequestId, err := c.submitTrainingToKernel(event)
-	// Record it as processed even if there was an error when processing the event.
-	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
-		WithEventId(event.Id()).
-		WithSessionId(event.SessionID()).
-		WithEventName(domain.EventSessionTrainingStarted).
-		WithEventTimestamp(event.Timestamp).
-		WithProcessedAtTime(time.Now()).
-		WithError(err)) // Will be nil on success
-
 	if err != nil {
 		c.logger.Error("Failed to submit training to kernel.",
 			zap.String("workload_id", c.Workload.GetId()),
@@ -923,14 +914,6 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		c.trainingEventsDelayed.Add(1)
 		return err
 	}
-
-	c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-started", domain.Green)),
-		zap.String("workload_id", c.Workload.GetId()),
-		zap.String("workload_name", c.Workload.WorkloadName()),
-		zap.String("session_id", c.SessionId),
-		zap.Time("tick", tick),
-		zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)),
-		zap.String("execute_request_msg_id", executeRequestId))
 
 	trainingStarted, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt, sentRequestAt, startTrainingTimeoutInterval)
 	if !trainingStarted {
@@ -950,6 +933,24 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		c.trainingEventsDelayed.Add(1)
 		return err
 	}
+
+	// Record it as processed even if there was an error when processing the event.
+	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
+		WithEventId(event.Id()).
+		WithSessionId(event.SessionID()).
+		WithEventName(domain.EventSessionTrainingStarted).
+		WithEventTimestamp(event.Timestamp).
+		WithProcessedAtTime(sentRequestAt).
+		WithError(err)) // Will be nil on success
+	c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-started", domain.Green)),
+		zap.String("workload_id", c.Workload.GetId()),
+		zap.String("workload_name", c.Workload.WorkloadName()),
+		zap.String("session_id", c.SessionId),
+		zap.Time("tick", tick),
+		zap.Time("submitted_at", sentRequestAt),
+		zap.Duration("time_since_submission", time.Since(sentRequestAt)),
+		zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)),
+		zap.String("execute_request_msg_id", executeRequestId))
 
 	stopTrainingTimeoutInterval := c.getTimeoutInterval(event)
 	stopTrainingCtx, stopTrainingCancel := context.WithTimeout(context.Background(), stopTrainingTimeoutInterval)

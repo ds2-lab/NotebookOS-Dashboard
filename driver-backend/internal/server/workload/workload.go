@@ -719,6 +719,14 @@ func (w *Workload) ProcessedEvent(evt *domain.WorkloadEvent) {
 	evt.Index = len(w.Statistics.EventsProcessed)
 	w.Statistics.EventsProcessed = append(w.Statistics.EventsProcessed, evt)
 
+	// Increment event counter.
+	count, ok := w.Statistics.EventCounts[evt.Name]
+	if !ok {
+		w.Statistics.EventCounts[evt.Name] = 1
+	} else {
+		w.Statistics.EventCounts[evt.Name] = count + 1
+	}
+
 	if metrics.PrometheusMetricsWrapperInstance != nil && metrics.PrometheusMetricsWrapperInstance.WorkloadEventsProcessed != nil {
 		metrics.PrometheusMetricsWrapperInstance.WorkloadEventsProcessed.
 			With(prometheus.Labels{"workload_id": w.Id}).
