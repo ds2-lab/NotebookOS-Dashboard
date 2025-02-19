@@ -1194,8 +1194,8 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 				}
 			default:
 				{
-					trainingStartedAt := v.(time.Time)
-					startLatency := time.Since(trainingStartedAt)
+					trainingStartedAt := v.(int64)
+					startLatency := time.Since(time.UnixMilli(trainingStartedAt))
 					c.logger.Debug(domain.ColorizeText("Kernel started training.", domain.Green),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
