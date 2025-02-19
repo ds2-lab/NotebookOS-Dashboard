@@ -15,17 +15,18 @@ const (
 type EventStatus string
 
 type WorkloadEvent struct {
-	Index                 int         `json:"idx"`                     // Index of the event relative to the workload in which the event occurred. The first event to occur has index 0.
-	Id                    string      `json:"id"`                      // Unique ID of the event.
-	Name                  string      `json:"name"`                    // The name of the event.
-	Session               string      `json:"session"`                 // The ID of the session targeted by the event.
-	Timestamp             string      `json:"timestamp"`               // The timestamp specified by the trace data/template/preset.
-	ProcessedAt           string      `json:"processed_at"`            // The real-world clocktime at which the event was processed.
-	SimProcessedAt        string      `json:"sim_processed_at"`        // The simulation clocktime at which the event was processed. May differ from the 'Timestamp' field if there were delays.
-	ProcessedSuccessfully bool        `json:"processed_successfully"`  // True if the event was processed without error.
-	ErrorMessage          string      `json:"error_message,omitempty"` // Error message from the error that caused the event to not be processed successfully.
-	NumTimesEnqueued      int32       `json:"num_times_enqueued"`      // The number of times this event has been enqueued for processing.
-	Status                EventStatus `json:"status"`
+	Index                 int                    `json:"idx"`                     // Index of the event relative to the workload in which the event occurred. The first event to occur has index 0.
+	Id                    string                 `json:"id"`                      // Unique ID of the event.
+	Name                  string                 `json:"name"`                    // The name of the event.
+	Session               string                 `json:"session"`                 // The ID of the session targeted by the event.
+	Timestamp             string                 `json:"timestamp"`               // The timestamp specified by the trace data/template/preset.
+	ProcessedAt           string                 `json:"processed_at"`            // The real-world clocktime at which the event was processed.
+	SimProcessedAt        string                 `json:"sim_processed_at"`        // The simulation clocktime at which the event was processed. May differ from the 'Timestamp' field if there were delays.
+	ProcessedSuccessfully bool                   `json:"processed_successfully"`  // True if the event was processed without error.
+	ErrorMessage          string                 `json:"error_message,omitempty"` // Error message from the error that caused the event to not be processed successfully.
+	NumTimesEnqueued      int32                  `json:"num_times_enqueued"`      // The number of times this event has been enqueued for processing.
+	Metadata              map[string]interface{} `json:"metadata,omitempty"`
+	Status                EventStatus            `json:"status"`
 }
 
 // NewEmptyWorkloadEvent returns an "empty" workload event -- with none of its fields populated.
@@ -59,6 +60,15 @@ func NewWorkloadEvent(idx int, id string, name string, session string, timestamp
 	}
 
 	return event
+}
+
+func (evt *WorkloadEvent) WithMetadata(key string, value interface{}) *WorkloadEvent {
+	if evt.Metadata == nil {
+		evt.Metadata = make(map[string]interface{})
+	}
+
+	evt.Metadata[key] = value
+	return evt
 }
 
 // WithIndex should be used with caution; the workload implementation should be the only entity that uses this function.

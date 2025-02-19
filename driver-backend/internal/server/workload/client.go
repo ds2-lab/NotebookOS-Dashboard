@@ -385,6 +385,7 @@ func (c *Client) Run() {
 		return
 	}
 
+	initStart := time.Now()
 	numAttempts, err := c.initialize()
 	if err != nil {
 		c.logger.Error("Failed to initialize client.",
@@ -396,6 +397,12 @@ func (c *Client) Run() {
 		return
 	}
 
+	timeElapsed := time.Since(initStart)
+	c.logger.Debug("Successfully initialized client.",
+		zap.String("session_id", c.SessionId),
+		zap.String("workload_id", c.WorkloadId),
+		zap.Duration("time_elapsed", timeElapsed))
+
 	c.Workload.SessionCreated(c.SessionId)
 	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
 		WithEventId(c.sessionReadyEvent.Id()).
@@ -404,6 +411,7 @@ func (c *Client) Run() {
 		WithEventTimestamp(c.sessionReadyEvent.Timestamp).
 		WithNumberOfTimesEnqueued(int32(numAttempts)).
 		WithProcessedAtTime(time.Now()).
+		WithMetadata("duration_milliseconds", timeElapsed.Milliseconds()).
 		WithError(err))
 
 	var wg sync.WaitGroup
@@ -874,6 +882,7 @@ func (c *Client) handleEvent(event *domain.Event, tick time.Time) error {
 	case domain.EventSessionTraining:
 		err = c.handleTrainingEvent(event, tick)
 	case domain.EventSessionStopped:
+		stopStartTime := time.Now()
 		err = c.handleSessionStoppedEvent(event)
 
 		// Record it as processed even if there was an error when processing the event.
@@ -884,6 +893,7 @@ func (c *Client) handleEvent(event *domain.Event, tick time.Time) error {
 			WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
 			WithEventTimestamp(event.Timestamp).
 			WithProcessedAtTime(time.Now()).
+			WithMetadata("duration_milliseconds", time.Since(stopStartTime).Milliseconds()).
 			WithError(err))
 	default:
 		c.logger.Error("Received event of unknown or unexpected type.",
@@ -926,6 +936,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithEventTimestamp(event.Timestamp).
 		WithProcessedAtTime(sentRequestAt).
 		WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
+		WithMetadata("latency_milliseconds", time.Since(sentRequestAt).Milliseconds()).
 		WithError(err)) // Will be nil on success
 
 	trainingStarted, trainingStartedAt, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt,
@@ -955,8 +966,10 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithEventName(domain.EventSessionTrainingStarted).
 		WithEventTimestamp(event.Timestamp).
 		WithProcessedAtTime(trainingStartedAt).
+		WithMetadata("delay_milliseconds", trainingStartedAt.Sub(sentRequestAt).Milliseconds()).
 		WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
 		WithError(err)) // Will be nil on success
+
 	c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-started", domain.Green)),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -980,6 +993,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithEventName(domain.EventSessionTrainingEnded).
 		WithEventTimestamp(event.Timestamp).
 		WithProcessedAtTime(time.Now()).
+		WithMetadata("duration_milliseconds", time.Since(trainingStartedAt).Milliseconds()).
 		WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
 		WithError(err)) // Will be nil on success
 
