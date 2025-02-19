@@ -21,82 +21,65 @@ export interface WorkloadEventTableProps {
     showDiscardedEvents?: boolean;
 }
 
-export function GetEventLabel(event_name: string, isCompact: boolean = false): ReactElement {
+export function GetEventIcon(event_name: string): ReactElement {
     switch (event_name) {
         case 'workload-started':
-            return (
-                <Label color="gold" icon={<StarIcon />} isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
+            return <StarIcon />;
         case 'workload-complete':
-            return (
-                <Label color="purple" icon={<CheckCircleIcon />} isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
+            return <CheckCircleIcon />;
         case 'session-started':
-            return (
-                <Label color="cyan" icon={<MigrationIcon />} isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
+            return <MigrationIcon />;
         case 'session-ready':
-            return (
-                <Label color="grey" icon={<PendingIcon />} isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
+            return <PendingIcon />;
         case 'training':
-            return (
-                <Label color="green" icon={<MonitoringIcon />} isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
+            return <MonitoringIcon />;
         case 'training-started':
-            return (
-                <Label color="green" icon={<MonitoringIcon />} isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
+            return <MonitoringIcon />;
         case 'training-ended':
-            return (
-                <Label color="blue" icon={<CheckIcon />} isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
+            return <CheckIcon />;
         case 'session-stopped':
-            return (
-                <Label color="orange" icon={<OffIcon />} isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
-        case 'update-gpu-util':
-            return (
-                <Label color="grey" isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
+            return <OffIcon />;
         case 'workload-terminated':
-            return (
-                <Label color="orange" icon={<ExclamationCircleIcon />} isCompact={isCompact}>
-                    {event_name}
-                </Label>
-            );
+            return <ExclamationCircleIcon />;
         case null:
-            return (
-                <Label color="gold" icon={<QuestionCircleIcon />} isCompact={isCompact}>
-                    Unknown
-                </Label>
-            );
+            return <QuestionCircleIcon />;
         default:
             // console.error(`Unexpected event name: "${event_name}"`);
-            return (
-                <Label color="gold" icon={<QuestionCircleIcon />}>
-                    {event_name}
-                </Label>
-            );
+            return <QuestionCircleIcon />;
     }
+}
+
+export function GetEventColor(
+    event_name: string,
+): 'blue' | 'cyan' | 'green' | 'orange' | 'purple' | 'red' | 'grey' | 'gold' {
+    switch (event_name) {
+        case 'workload-started':
+            return 'gold';
+        case 'workload-complete':
+            return 'purple';
+        case 'session-started':
+            return 'cyan';
+        case 'session-ready':
+            return 'grey';
+        case 'training-started':
+            return 'green';
+        case 'training-ended':
+            return 'blue';
+        case 'session-stopped':
+            return 'orange';
+        case 'workload-terminated':
+            return 'orange';
+        default:
+            return 'red';
+    }
+}
+
+export function GetEventLabel(eventName: string, isCompact: boolean = false): ReactElement {
+    return (
+        <Label color={GetEventColor(eventName)} icon={GetEventIcon(eventName)} isCompact={isCompact}>
+            {eventName}
+        </Label>
+    );
 }
 
 export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps> = (props) => {

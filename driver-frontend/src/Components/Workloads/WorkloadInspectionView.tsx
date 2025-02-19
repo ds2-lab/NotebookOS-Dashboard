@@ -20,7 +20,9 @@ import {
     StopwatchIcon,
     TaskIcon,
 } from '@patternfly/react-icons';
-import { WorkloadEventTable, WorkloadSessionTable } from '@src/Components';
+import { css } from '@patternfly/react-styles';
+import styles from '@patternfly/react-styles/css/components/Label/label';
+import { GetEventColor, GetEventIcon, WorkloadEventTable, WorkloadSessionTable } from '@src/Components';
 import { Session, Workload, WorkloadEventNames } from '@src/Data';
 import { GetToastContentWithHeaderAndBody } from '@src/Utils/toast_utils';
 import { RoundToNDecimalPlaces, RoundToTwoDecimalPlaces } from '@Utils/utils';
@@ -39,6 +41,17 @@ interface IWorkloadInspectionViewProps {
 function getRandomArbitrary(min: number, max: number): number {
     return Math.random() * (max - min) + min;
 }
+
+const colorStyles = {
+    blue: styles.modifiers.blue,
+    cyan: styles.modifiers.cyan,
+    green: styles.modifiers.green,
+    orange: styles.modifiers.orange,
+    purple: styles.modifiers.purple,
+    red: styles.modifiers.red,
+    gold: styles.modifiers.gold,
+    grey: '',
+};
 
 export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspectionViewProps> = (
     props: IWorkloadInspectionViewProps,
@@ -155,13 +168,17 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
             return <Badge>{props.workload?.statistics.num_events_processed}</Badge>;
         }
 
-        return <Badge>{props.workload?.statistics.event_counts[eventName] || 0}</Badge>;
+        return (
+            <Badge className={css(colorStyles[GetEventColor(eventName)])}>
+                {props.workload?.statistics.event_counts[eventName] || 0}
+            </Badge>
+        );
     };
 
     const getEventCountChipGroup = () => {
-        // @ts-expect-error
         return (
             <ChipGroup
+                // @ts-ignore supposed to just pass a string here
                 categoryName={
                     <React.Fragment>
                         <ClipboardCheckIcon /> {<strong>Events Processed</strong>}
@@ -180,8 +197,13 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                     }
 
                     accum.push(
-                        <Chip isReadOnly key={`${eventName}-event-counter`} badge={getEventCountChipBadge(eventName)}>
-                            {eventName}
+                        <Chip
+                            isReadOnly
+                            key={`${eventName}-event-counter`}
+                            badge={getEventCountChipBadge(eventName)}
+                            className={css(colorStyles[GetEventColor(eventName)])}
+                        >
+                            {GetEventIcon(eventName)} {eventName}
                         </Chip>,
                     );
 
