@@ -939,8 +939,9 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithMetadata("latency_milliseconds", time.Since(sentRequestAt).Milliseconds()).
 		WithError(err)) // Will be nil on success
 
-	trainingStarted, trainingStartedAt, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt,
+	trainingStarted, trainingStartedAtUnixMillis, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt,
 		sentRequestAt, startTrainingTimeoutInterval)
+	trainingStartedAt := time.UnixMilli(trainingStartedAtUnixMillis)
 
 	if !trainingStarted {
 		c.trainingEventsDelayed.Add(1)
@@ -1144,7 +1145,7 @@ func (c *Client) incurDelay(delayAmount time.Duration) {
 //
 // waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
 func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time,
-	sentRequestAt time.Time, timeoutInterval time.Duration) (bool, time.Time, error) {
+	sentRequestAt time.Time, timeoutInterval time.Duration) (bool, int64, error) {
 
 	c.logger.Debug("Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
@@ -1190,7 +1191,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 					c.EventQueue.Push(evt)
 					time.Sleep(sleepInterval)
 
-					return false, time.Time{}, nil
+					return false, -1, nil
 				}
 			default:
 				{
@@ -1210,7 +1211,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 	case <-ctx.Done():
 		{
 			c.trainingStartTimedOut(sentRequestAt, timeoutInterval)
-			return false, time.Time{}, nil
+			return false, -1, nil
 		}
 	}
 }
