@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"math"
+	"math/rand"
 	"reflect"
 	"strings"
 	"sync"
@@ -1126,12 +1127,27 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 			case error:
 				{
 					err := v.(error)
+
+					numTimesEnqueued := evt.GetNumTimesEnqueued()
+
+					// Backoff.
+					baseSleepInterval := time.Second * 2
+					maxSleepInterval := time.Minute
+					sleepInterval := (baseSleepInterval * time.Duration(numTimesEnqueued+1)) + (time.Millisecond * time.Duration(rand.Int63n(5000)))
+
+					// Clamp with jitter.
+					if sleepInterval > maxSleepInterval {
+						sleepInterval = maxSleepInterval + (time.Millisecond * time.Duration(rand.Int63n(5000)))
+					}
+
 					c.logger.Warn(domain.ColorizeText("Session failed to start training.", domain.Orange),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
+						zap.Int32("num_failures", numTimesEnqueued),
 						zap.Duration("timeout_interval", timeoutInterval),
 						zap.Duration("time_elapsed", time.Since(sentRequestAt)),
+						zap.Duration("sleep_interval", sleepInterval),
 						zap.Error(err))
 
 					// If we fail to start training for some reason, then we'll just try again later.
@@ -1139,6 +1155,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 
 					// Put the event back in the queue.
 					c.EventQueue.Push(evt)
+					time.Sleep(sleepInterval)
 
 					return false, nil
 				}
