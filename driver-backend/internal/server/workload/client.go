@@ -1196,13 +1196,13 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 			default:
 				{
 					trainingStartedAt := v.(int64)
-					startLatency := time.Since(time.UnixMilli(trainingStartedAt))
+					delayMilliseconds := trainingStartedAt - c.lastTrainingSubmittedAt.UnixMilli()
 					c.logger.Debug(domain.ColorizeText("Kernel started training.", domain.Green),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
 						zap.Duration("timeout_interval", timeoutInterval),
-						zap.Duration("start_latency", startLatency))
+						zap.Int64("start_latency_milliseconds", delayMilliseconds))
 
 					return true, trainingStartedAt, nil
 				}
