@@ -1178,6 +1178,10 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 						sleepInterval = maxSleepInterval + (time.Millisecond * time.Duration(rand.Int63n(5000)))
 					}
 
+					c.Workload.UpdateStatistics(func(stats *Statistics) {
+						stats.NumFailedExecutionAttempts += 1
+					})
+
 					c.logger.Warn(domain.ColorizeText("Session failed to start training.", domain.Orange),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),

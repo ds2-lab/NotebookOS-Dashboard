@@ -179,7 +179,7 @@ func NewServer(opts *domain.Configuration) domain.Server {
 	return s
 }
 
-func (s *serverImpl) clearClusterStatistics() (*workload.ClusterStatistics, error) {
+func (s *serverImpl) clearClusterStatistics() (*workload.SerializableClusterStatistics, error) {
 	requestId := uuid.NewString()
 	s.logger.Debug("Clearing cluster statistics.",
 		zap.String("request_id", requestId),
@@ -195,7 +195,7 @@ func (s *serverImpl) clearClusterStatistics() (*workload.ClusterStatistics, erro
 		return nil, err
 	}
 
-	var clusterStatistics *workload.ClusterStatistics
+	var clusterStatistics *workload.SerializableClusterStatistics
 
 	buffer := bytes.NewBuffer(resp.SerializedClusterStatistics)
 	decoder := gob.NewDecoder(buffer)
@@ -224,7 +224,7 @@ func (s *serverImpl) GetSchedulingPolicy() (string, bool) {
 	return policy, true
 }
 
-func (s *serverImpl) RefreshAndClearClusterStatistics(update bool, clear bool) (*workload.ClusterStatistics, error) {
+func (s *serverImpl) RefreshAndClearClusterStatistics(update bool, clear bool) (*workload.SerializableClusterStatistics, error) {
 	if clear {
 		return s.clearClusterStatistics()
 	}
