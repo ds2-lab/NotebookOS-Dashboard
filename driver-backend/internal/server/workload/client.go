@@ -414,6 +414,8 @@ func (c *Client) Run() {
 		WithMetadata("duration_milliseconds", timeElapsed.Milliseconds()).
 		WithError(err))
 
+	time.Sleep((time.Second * 10) + (time.Second * time.Duration(rand.Int31n(10))))
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -1011,6 +1013,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 			zap.Float64("percent_done", float64(trainingEventsHandled)/float64(len(c.Session.TrainingEvents))),
 			zap.Time("tick", tick),
 			zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)))
+
+		time.Sleep(time.Second*2 + (time.Millisecond * time.Duration(rand.Int63n(2500))))
 	}
 
 	return err // Will be nil on success
@@ -1475,7 +1479,8 @@ func (c *Client) CreateExecuteRequestArguments(evt *domain.Event) (*jupyter.Requ
 		AwaitResponse(false).
 		OnResponseCallback(c.OnReceiveExecuteReply).
 		AddMetadata("resource_request", resourceRequest).
-		AddMetadata("training_duration_millis", milliseconds)
+		AddMetadata("training_duration_millis", milliseconds).
+		AddMetadata("execution_index", c.trainingEventsHandled.Load()+1)
 
 	if c.AssignedModel != "" {
 		argsBuilder = argsBuilder.AddMetadata("model", c.AssignedModel)
