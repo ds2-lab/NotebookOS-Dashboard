@@ -414,7 +414,7 @@ func (c *Client) Run() {
 		WithMetadata("duration_milliseconds", timeElapsed.Milliseconds()).
 		WithError(err))
 
-	time.Sleep((time.Second * 10) + (time.Second * time.Duration(rand.Int31n(10))))
+	time.Sleep((time.Second * 5) + (time.Second * time.Duration(rand.Int31n(5))))
 
 	var wg sync.WaitGroup
 	wg.Add(2)
