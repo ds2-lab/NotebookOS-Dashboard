@@ -1291,7 +1291,9 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(kernelMessage jupyter.KernelMessa
 	c.logger.Debug("Received 'smr_lead_task' message from kernel.",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
-		zap.String("session_id", c.SessionId))
+		zap.String("session_id", c.SessionId),
+		zap.String("jupyter_message_id", kernelMessage.GetHeader().MessageId),
+		zap.String("parent_jupyter_message_id", kernelMessage.GetParentHeader().MessageId))
 
 	c.Workload.TrainingStarted(c.SessionId, c.convertCurrentTickTimestampToTickNumber())
 
