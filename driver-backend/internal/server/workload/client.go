@@ -1071,7 +1071,11 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 		return time.Time{}, executeRequestId, err
 	}
 
-	c.lastTrainingSubmittedAt = time.Now()
+	// We reset this once the training is handled, in case we have to resubmit,
+	// as resubmissions count against the delay.
+	if c.lastTrainingSubmittedAt.Equal(time.UnixMilli(0)) {
+		c.lastTrainingSubmittedAt = time.Now()
+	}
 
 	c.Workload.TrainingSubmitted(c.SessionId, evt)
 
@@ -1576,6 +1580,11 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 
 // waitForTrainingToEnd waits until we receive an "execute_request" from the kernel.
 func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, execReqMsgId string, timeoutInterval time.Duration) error {
+	defer func() {
+		// Reset this value regardless of whether we successfully stop training or not.
+		c.lastTrainingSubmittedAt = time.UnixMilli(0)
+	}()
+
 	select {
 	case v := <-c.TrainingStoppedChannel:
 		{
