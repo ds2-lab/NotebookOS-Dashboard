@@ -1169,13 +1169,13 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 					numTimesEnqueued := evt.GetNumTimesEnqueued()
 
 					// Backoff.
-					baseSleepInterval := time.Second * 2
-					maxSleepInterval := time.Minute
-					sleepInterval := (baseSleepInterval * time.Duration(numTimesEnqueued+1)) + (time.Millisecond * time.Duration(rand.Int63n(5000)))
+					baseSleepInterval := time.Millisecond * 1250
+					maxSleepInterval := time.Second * 10
+					sleepInterval := (baseSleepInterval * time.Duration(numTimesEnqueued+1)) + (time.Millisecond * time.Duration(rand.Int63n(2500)))
 
 					// Clamp with jitter.
 					if sleepInterval > maxSleepInterval {
-						sleepInterval = maxSleepInterval + (time.Millisecond * time.Duration(rand.Int63n(5000)))
+						sleepInterval = maxSleepInterval + (time.Millisecond * time.Duration(rand.Int63n(1250)))
 					}
 
 					c.Workload.UpdateStatistics(func(stats *Statistics) {
