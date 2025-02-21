@@ -1229,7 +1229,33 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 	}
 }
 
-// trainingStartTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
+// trainingStartTimedOut is called by waitForTrainingToEnd when we don't receive a notification that the submitted
+// training event stopped being processed after the timeout interval elapsed.
+func (c *Client) trainingStoppedTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration, execReqMsgId string, err error) {
+	timeElapsed := time.Since(sentRequestAt)
+	c.logger.Error("Timed-out waiting for \"execute_reply\" message while stopping training.",
+		zap.String("session_id", c.SessionId),
+		zap.String("workload_id", c.Workload.GetId()),
+		zap.String("workload_name", c.Workload.WorkloadName()),
+		zap.String("execute_request_msg_id", execReqMsgId),
+		zap.Duration("timeout_interval", timeoutInterval),
+		zap.Duration("time_elapsed", timeElapsed),
+		zap.Error(err))
+
+	c.notifyCallback(&proto.Notification{
+		Id:    uuid.NewString(),
+		Title: fmt.Sprintf("Have Spent Over %v Waiting for 'Training Stopped' Notification", timeElapsed),
+		Message: fmt.Sprintf("Submitted \"execute_request\" to kernel \"%s\" during workload \"%s\" (ID=\"%s\") "+
+			"over %v ago and have not yet received \"execute_reply\" message.",
+			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed),
+		Panicked:         false,
+		NotificationType: domain.WarningNotification.Int32(),
+	})
+
+	// TODO: Resubmit the event?
+}
+
+// trainingStoppedTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
 // training event started being processed after the timeout interval elapses.
 func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration) {
 	timeElapsed := time.Since(sentRequestAt)
@@ -1665,14 +1691,7 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, 
 		{
 			err := ctx.Err()
 			if err != nil {
-				c.logger.Error("Timed-out waiting for \"execute_reply\" message while stopping training.",
-					zap.String("session_id", c.SessionId),
-					zap.String("workload_id", c.Workload.GetId()),
-					zap.String("workload_name", c.Workload.WorkloadName()),
-					zap.String("execute_request_msg_id", execReqMsgId),
-					zap.Duration("timeout_interval", timeoutInterval),
-					zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
-					zap.Error(err))
+				c.trainingStoppedTimedOut(c.lastTrainingSubmittedAt, timeoutInterval, execReqMsgId, err)
 
 				// We'll just return (nothing) so that the workload doesn't end.
 				return nil
