@@ -15,15 +15,19 @@ import {
     ClipboardCheckIcon,
     ClockIcon,
     CodeIcon,
+    CubeIcon,
     DiceIcon,
     MonitoringIcon,
+    ServerIcon,
     StopwatchIcon,
     TaskIcon,
+    WarningTriangleIcon,
 } from '@patternfly/react-icons';
 import { css } from '@patternfly/react-styles';
 import styles from '@patternfly/react-styles/css/components/Label/label';
 import { GetEventColor, GetEventIcon, WorkloadEventTable, WorkloadSessionTable } from '@src/Components';
-import { Session, Workload, WorkloadEventNames } from '@src/Data';
+import { ClusterNode, Session, Workload, WorkloadEventNames } from '@src/Data';
+import { useKernels, useNodes } from '@src/Providers';
 import { GetToastContentWithHeaderAndBody } from '@src/Utils/toast_utils';
 import { RoundToNDecimalPlaces, RoundToTwoDecimalPlaces } from '@Utils/utils';
 import { uuidv4 } from 'lib0/random';
@@ -67,6 +71,25 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
     const [showDiscardedEvents, setShowDiscardedEvents] = React.useState<boolean>(false);
     const [showDiscardedSessions, setShowDiscardedSessions] = React.useState<boolean>(false);
     const [workloadSessionTableHasBorders, setWorkloadSessionTableHasBorders] = React.useState<boolean>(false);
+
+    const { nodes } = useNodes();
+    const { kernels } = useKernels(false);
+
+    function getNumEnabledNodes(): number {
+        let numEnabled: number = 0;
+
+        if (!nodes) {
+            return 0;
+        }
+
+        nodes.forEach((node: ClusterNode) => {
+            if (node.Enabled) {
+                numEnabled += 1;
+            }
+        });
+
+        return numEnabled;
+    }
 
     const shouldShowTickNotification = (workloadId: string, tick: number): boolean => {
         if (!showedTickNotifications || !showedTickNotifications.current) {
@@ -269,6 +292,28 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                                 Time Elapsed <StopwatchIcon />
                             </DescriptionListTerm>
                             <DescriptionListDescription>{getTimeElapsedString()}</DescriptionListDescription>
+                        </DescriptionListGroup>
+                        <DescriptionListGroup>
+                            <DescriptionListTerm>
+                                Number of Hosts <ServerIcon />
+                            </DescriptionListTerm>
+                            <DescriptionListDescription>{getNumEnabledNodes()}</DescriptionListDescription>
+                        </DescriptionListGroup>
+                        <DescriptionListGroup>
+                            <DescriptionListTerm>
+                                Number of Kernels <CubeIcon />
+                            </DescriptionListTerm>
+                            <DescriptionListDescription>
+                                {kernels !== undefined ? kernels.length : 0}
+                            </DescriptionListDescription>
+                        </DescriptionListGroup>
+                        <DescriptionListGroup>
+                            <DescriptionListTerm>
+                                Failed Training Events <WarningTriangleIcon />
+                            </DescriptionListTerm>
+                            <DescriptionListDescription>
+                                {props.workload ? props.workload.statistics.num_failed_execution_attempts : 0}
+                            </DescriptionListDescription>
                         </DescriptionListGroup>
                     </DescriptionList>
                 </FlexItem>

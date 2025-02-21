@@ -111,6 +111,7 @@ interface WorkloadStatistics {
     jupyter_session_creation_latencies_millis: number[];
     cumulative_jupyter_session_termination_latency_millis: number;
     jupyter_session_termination_latencies_millis: number[];
+    num_failed_execution_attempts: number;
     num_times_session_delayed_resource_contention: number;
     aggregate_session_delay_ms: number;
     cumulative_num_static_training_replicas: number;
