@@ -511,7 +511,7 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 		err               error
 	)
 
-	for sessionConnection == nil && backoff.Steps > 0 {
+	for sessionConnection == nil && backoff.Steps > 0 && c.Workload.IsInProgress() {
 		c.logger.Debug("Issuing create-session request now.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.WorkloadId),
@@ -614,7 +614,7 @@ func (c *Client) initialize() (int, error) {
 	//
 	// The delay/backoff interval in this outer retry loop is significantly longer than the inner retry loop
 	// found within createKernel.
-	for sessionConnection == nil && backoff.Steps >= 0 {
+	for sessionConnection == nil && backoff.Steps >= 0 && c.Workload.IsInProgress() {
 		sessionConnection, err = c.createKernel(evt)
 
 		// If the session connection was created successfully, then exit the loop.
@@ -829,7 +829,7 @@ func (c *Client) incrementClockTime(time time.Time) (time.Time, time.Duration, e
 func (c *Client) processEventsForTick(tick time.Time) error {
 	numEventsProcessed := 0
 
-	for c.EventQueue.HasEventsForTick(tick) {
+	for c.EventQueue.HasEventsForTick(tick) && c.Workload.IsInProgress() {
 		event := c.EventQueue.Pop()
 
 		c.logger.Debug("Handling workload event.",
