@@ -871,6 +871,15 @@ func (c *Client) processEventsForTick(tick time.Time) error {
 		numEventsProcessed += 1
 	}
 
+	if numEventsProcessed > 0 {
+		c.logger.Debug("Finished processing events for tick.",
+			zap.String("session", c.SessionId),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.Int("num_events_processed", numEventsProcessed),
+			zap.Time("tick", tick))
+	}
+
 	return nil
 }
 
@@ -1022,6 +1031,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 
 		trainingEventsHandled := c.trainingEventsHandled.Add(1)
 
+		sleepInterval := (time.Second * 2) + (time.Millisecond * time.Duration(rand.Intn(32)))
+
 		c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-stopped", domain.LightGreen)),
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.Workload.GetId()),
@@ -1031,9 +1042,10 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 			zap.Int("total_training_events_for_session", len(c.Session.TrainingEvents)),
 			zap.Float64("percent_done", float64(trainingEventsHandled)/float64(len(c.Session.TrainingEvents))),
 			zap.Time("tick", tick),
-			zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)))
+			zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)),
+			zap.Duration("upcoming_sleep_interval", sleepInterval))
 
-		time.Sleep(time.Second*2 + (time.Millisecond * time.Duration(rand.Int63n(2500))))
+		time.Sleep(sleepInterval)
 	}
 
 	return err // Will be nil on success
