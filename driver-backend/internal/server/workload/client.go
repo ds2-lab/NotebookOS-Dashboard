@@ -738,6 +738,9 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 	c.logger.Debug("Client has finished issuing clock ticks.",
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.WorkloadId),
+		zap.String("workload_state", c.Workload.GetState().String()),
+		zap.Int32("explicitly_stopped", c.explicitlyStopped.Load()),
+		zap.Bool("handled_stop_event", c.handledStopEvent.Load()),
 		zap.Time("final_tick", c.currentTick.GetClockTime()))
 }
 
