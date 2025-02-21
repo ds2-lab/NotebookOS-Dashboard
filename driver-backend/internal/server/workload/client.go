@@ -230,6 +230,7 @@ func (b *ClientBuilder) Build() *Client {
 		maxSleepDuringInitSec:            b.maxSleepDuringInitSec,
 		dropSessionsWithNoTrainingEvents: b.dropSessionsWithNoTrainingEvents,
 		MaxCreationAttempts:              b.maxCreationAttempts,
+		lastTrainingSubmittedAt:          time.UnixMilli(0),
 	}
 
 	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()
@@ -990,17 +991,17 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 	defer stopTrainingCancel()
 
 	err = c.waitForTrainingToEnd(stopTrainingCtx, event, executeRequestId, stopTrainingTimeoutInterval)
-	c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
-		WithEventId(event.Id()).
-		WithSessionId(event.SessionID()).
-		WithEventName(domain.EventSessionTrainingEnded).
-		WithEventTimestamp(event.Timestamp).
-		WithProcessedAtTime(time.Now()).
-		WithMetadata("duration_milliseconds", time.Since(trainingStartedAt).Milliseconds()).
-		WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
-		WithError(err)) // Will be nil on success
-
 	if err == nil {
+		c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
+			WithEventId(event.Id()).
+			WithSessionId(event.SessionID()).
+			WithEventName(domain.EventSessionTrainingEnded).
+			WithEventTimestamp(event.Timestamp).
+			WithProcessedAtTime(time.Now()).
+			WithMetadata("duration_milliseconds", time.Since(trainingStartedAt).Milliseconds()).
+			WithNumberOfTimesEnqueued(event.GetNumTimesEnqueued()).
+			WithError(err)) // Will be nil on success
+
 		trainingEventsHandled := c.trainingEventsHandled.Add(1)
 
 		c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-stopped", domain.LightGreen)),
