@@ -742,6 +742,21 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 		zap.Int32("explicitly_stopped", c.explicitlyStopped.Load()),
 		zap.Bool("handled_stop_event", c.handledStopEvent.Load()),
 		zap.Time("final_tick", c.currentTick.GetClockTime()))
+
+	if !c.handledStopEvent.Load() {
+		err := c.Session.SetState(domain.SessionClientExited)
+		if err != nil {
+			c.logger.Error("Failed to set state to SessionClientExited.",
+				zap.String("session_id", c.SessionId),
+				zap.String("session_state", c.Session.GetState().String()),
+				zap.String("workload_id", c.WorkloadId),
+				zap.String("workload_state", c.Workload.GetState().String()),
+				zap.Int32("explicitly_stopped", c.explicitlyStopped.Load()),
+				zap.Bool("handled_stop_event", c.handledStopEvent.Load()),
+				zap.Time("final_tick", c.currentTick.GetClockTime()),
+				zap.Error(err))
+		}
+	}
 }
 
 // run is the private, core implementation of Run.

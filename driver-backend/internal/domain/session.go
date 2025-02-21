@@ -18,6 +18,7 @@ const (
 	SessionStopped           SessionState = "terminated"         // The session has been terminated (without an error).
 	SessionErred             SessionState = "erred"              // An error occurred, forcing the session to terminate.
 	SessionDiscarded         SessionState = "discarded"          // Session was not sampled for the workload.
+	SessionClientExited      SessionState = "client-exited"      // The Session's client exited early.
 )
 
 var (
