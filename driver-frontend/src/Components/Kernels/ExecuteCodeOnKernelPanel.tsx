@@ -584,7 +584,7 @@ export const ExecuteCodeOnKernelPanel: React.FunctionComponent<IExecuteCodeOnKer
             }
 
             const future = kernelConnection.requestExecute({ code: code }, metadata, {
-                target_replica: targetReplicaId,
+                target_replica_id: targetReplicaId,
                 send_timestamp_unix_milli: Date.now(),
             });
 

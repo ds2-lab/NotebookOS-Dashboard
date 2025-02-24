@@ -29,6 +29,7 @@ import {
 } from '@patternfly/react-core';
 
 import { FilterIcon, PlusIcon, SpinnerIcon, SyncIcon, TrashIcon } from '@patternfly/react-icons';
+import { AuthorizationContext } from '@Providers/AuthProvider';
 import { ExecutionOutputTabsDataProvider } from '@Providers/ExecutionOutputTabsDataProvider';
 import { useKernelAndSessionManagers } from '@Providers/KernelAndSessionManagerProvider';
 import { useKernels } from '@Providers/KernelProvider';
@@ -72,6 +73,8 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
     const [kernelToDelete, setKernelToDelete] = React.useState<string>('');
     const { kernels, kernelsAreLoading, refreshKernels } = useKernels(false);
     const { refreshNodes } = useNodes();
+
+    const { authenticated } = React.useContext(AuthorizationContext);
 
     const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
@@ -441,6 +444,18 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
                 GetToastContentWithHeaderAndBody(
                     `Cannot Start New Kernel(s)`,
                     'Session Manager is initializing. Please try again in a few seconds.',
+                    'warning',
+                    DefaultDismiss,
+                ),
+            );
+            return;
+        }
+
+        if (!authenticated) {
+            toast.custom(() =>
+                GetToastContentWithHeaderAndBody(
+                    `Cannot Start New Kernel(s)`,
+                    'You are not authenticated. Please reload the page and login again to authenticate.',
                     'warning',
                     DefaultDismiss,
                 ),
