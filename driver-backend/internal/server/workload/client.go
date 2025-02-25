@@ -527,7 +527,10 @@ func (c *Client) createKernel(evt *domain.Event) (*jupyter.SessionConnection, er
 		err               error
 	)
 
-	for sessionConnection == nil && backoff.Steps > 0 && c.Workload.IsInProgress() {
+	// Keep looping as long as the standard conditions for "continuing to do whatever it is the Client is doing" are
+	// true and while we've not yet successfully created and established the Jupyter session connection and have not
+	// yet run out of attempts to do so.
+	for sessionConnection == nil && backoff.Steps > 0 && c.shouldContinue() {
 		c.logger.Debug("Issuing create-session request now.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.WorkloadId),
@@ -630,7 +633,11 @@ func (c *Client) initialize() (int, error) {
 	//
 	// The delay/backoff interval in this outer retry loop is significantly longer than the inner retry loop
 	// found within createKernel.
-	for sessionConnection == nil && backoff.Steps >= 0 && c.Workload.IsInProgress() {
+	//
+	// Keep looping as long as the standard conditions for "continuing to do whatever it is the Client is doing" are
+	// true and while we've not yet successfully created and established the Jupyter session connection and have not
+	// yet run out of attempts to do so.
+	for sessionConnection == nil && backoff.Steps >= 0 && c.shouldContinue() {
 		sessionConnection, err = c.createKernel(evt)
 
 		// If the session connection was created successfully, then exit the loop.
@@ -720,9 +727,9 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.WorkloadId))
 
-	// Keep iterating as long as the workload hasn't been terminated, we've not been
-	// explicitly instructed to stop, and we haven't processed our 'session-stopped' event.
-	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 && !c.handledStopEvent.Load() && !c.terminatedEarly.Load() {
+	// Keep issuing clock ticks as long as the standard conditions for "continuing to do whatever it is the Client is
+	// doing" are true.
+	for c.shouldContinue() {
 		tickStart := time.Now()
 
 		// Increment the clock.
@@ -789,10 +796,11 @@ func (c *Client) run(wg *sync.WaitGroup) {
 		}
 	}()
 
-	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 {
+	// Keep handling clock ticks as long as the standard conditions for "continuing to do whatever it is the Client is
+	// doing" are true.
+	for c.shouldContinue() {
 		select {
 		case tick := <-c.ticker.TickDelivery:
-
 			err := c.handleTick(tick)
 
 			if err != nil {
@@ -801,6 +809,21 @@ func (c *Client) run(wg *sync.WaitGroup) {
 			}
 		}
 	}
+}
+
+// shouldContinue generically returns a flag indicating whether the Client should keep doing whatever its doing --
+// typically executing some sort of loop.
+//
+// This is used while initializing the client, while issuing clock ticks, while looping over the events to handle for
+// a particular tick, etc.
+//
+// In general, a Client should keep doing whatever it's doing as long as the following conditions are true:
+// - The workload hasn't been aborted entirely
+// - This client hasn't handled its 'stop' event, which naturally (and non-erroneously) stops the client
+// - This client hasn't been explicitly told to stop
+// - This client didn't make the decision itself to abort early due to timing out while handling an event
+func (c *Client) shouldContinue() bool {
+	return c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 && !c.handledStopEvent.Load() && !c.terminatedEarly.Load()
 }
 
 func (c *Client) handleTick(tick time.Time) error {
@@ -863,7 +886,9 @@ func (c *Client) incrementClockTime(time time.Time) (time.Time, time.Duration, e
 func (c *Client) processEventsForTick(tick time.Time) error {
 	numEventsProcessed := 0
 
-	for c.EventQueue.HasEventsForTick(tick) && c.Workload.IsInProgress() {
+	// Keep looping as long as the standard conditions for "continuing to do whatever it is the Client is doing" are
+	// true and there are more events to process for the current tick.
+	for c.EventQueue.HasEventsForTick(tick) && c.shouldContinue() {
 		event := c.EventQueue.Pop()
 
 		c.logger.Debug("Handling workload event.",
@@ -888,6 +913,8 @@ func (c *Client) processEventsForTick(tick time.Time) error {
 			c.stopSession()
 
 			c.terminatedEarly.Store(true)
+
+			return nil
 		}
 
 		if err != nil {
