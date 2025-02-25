@@ -126,7 +126,7 @@ type Workload interface {
 	SessionCreated(sessionId string)
 	// SessionStopped is Called when a Session is stopped for/in the Workload.
 	// Just updates some internal metrics.
-	SessionStopped(sessionId string, evt *Event)
+	SessionStopped(sessionId string)
 	// TrainingStarted is Called when a training starts during/in the workload.
 	// Just updates some internal metrics.
 	TrainingStarted(sessionId string, tickNumber int64)

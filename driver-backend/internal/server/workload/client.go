@@ -30,6 +30,8 @@ var (
 
 	ErrInvalidFirstEvent = errors.New("client received invalid first event")
 
+	errShutdownClient = errors.New("client should terminate")
+
 	SmrLeadTask jupyter.MessageType = "smr_lead_task"
 )
 
@@ -64,6 +66,9 @@ type ClientBuilder struct {
 
 	// maxCreationAttempts is the maximum number of times the Client will attempt to create its kernel before giving up.
 	maxCreationAttempts int
+
+	// isKernelTrainingCallback is used to query whether our kernel is actively training as far as the cluster gateway knows.
+	isKernelTrainingCallback IsKernelTrainingCallback
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
@@ -79,6 +84,11 @@ func NewClientBuilder() *ClientBuilder {
 // exponential backoff when it is first being created.
 func (b *ClientBuilder) WithMaxInitializationSleepIntervalSeconds(intervalSec int) *ClientBuilder {
 	b.maxSleepDuringInitSec = intervalSec
+	return b
+}
+
+func (b *ClientBuilder) WithIsKernelTrainingCallback(callback IsKernelTrainingCallback) *ClientBuilder {
+	b.isKernelTrainingCallback = callback
 	return b
 }
 
@@ -223,6 +233,7 @@ func (b *ClientBuilder) Build() *Client {
 		sessionReadyEvent:                b.sessionReadyEvent,
 		notifyCallback:                   b.notifyCallback,
 		waitGroup:                        b.waitGroup,
+		isKernelTrainingCallback:         b.isKernelTrainingCallback,
 		schedulingPolicy:                 b.schedulingPolicy,
 		AssignedModel:                    b.assignedModel,
 		AssignedDataset:                  b.assignedDataset,
@@ -280,6 +291,8 @@ func (b *ClientBuilder) Build() *Client {
 	return client
 }
 
+type IsKernelTrainingCallback func(kernelId string) (bool, error)
+
 // Client encapsulates a Session and runs as a dedicated goroutine, processing events for that Session.
 type Client struct {
 	Workload *Workload
@@ -323,6 +336,8 @@ type Client struct {
 	dropSessionsWithNoTrainingEvents bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
 	MaxCreationAttempts              int                                    // MaxCreationAttempts is the maximum number of times the Client will attempt to create its kernel before giving up.
 	handledStopEvent                 atomic.Bool                            // handledStopEvent is set to true when the client handles the 'session-stopped' event for its session.
+	terminatedEarly                  atomic.Bool                            // terminatedEarly indicates that the Client exited early because one of its requests timed out.
+	isKernelTrainingCallback         IsKernelTrainingCallback               // isKernelTrainingCallback is used to query whether our kernel is actively training as far as the cluster gateway knows.
 }
 
 func (c *Client) closeLogFile() error {
@@ -707,7 +722,7 @@ func (c *Client) issueClockTicks(wg *sync.WaitGroup) {
 
 	// Keep iterating as long as the workload hasn't been terminated, we've not been
 	// explicitly instructed to stop, and we haven't processed our 'session-stopped' event.
-	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 && !c.handledStopEvent.Load() {
+	for c.Workload.IsInProgress() && c.explicitlyStopped.Load() <= 0 && !c.handledStopEvent.Load() && !c.terminatedEarly.Load() {
 		tickStart := time.Now()
 
 		// Increment the clock.
@@ -861,6 +876,20 @@ func (c *Client) processEventsForTick(tick time.Time) error {
 
 		err := c.handleEvent(event, tick)
 
+		if errors.Is(err, errShutdownClient) {
+			c.logger.Warn("Received errShutdownClient. Client will terminate early.",
+				zap.String("event_name", event.Name.String()),
+				zap.String("session", c.SessionId),
+				zap.String("event_name", event.Name.String()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.Time("tick", tick))
+
+			c.stopSession()
+
+			c.terminatedEarly.Store(true)
+		}
+
 		if err != nil {
 			workloadWillAbort := c.handleError(event, err, tick)
 			if workloadWillAbort {
@@ -913,7 +942,7 @@ func (c *Client) handleEvent(event *domain.Event, tick time.Time) error {
 		err = c.handleTrainingEvent(event, tick)
 	case domain.EventSessionStopped:
 		stopStartTime := time.Now()
-		err = c.handleSessionStoppedEvent(event)
+		err = c.handleSessionStoppedEvent()
 
 		// Record it as processed even if there was an error when processing the event.
 		c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
@@ -1263,26 +1292,49 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 // training event stopped being processed after the timeout interval elapsed.
 func (c *Client) trainingStoppedTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration, execReqMsgId string, err error) {
 	timeElapsed := time.Since(sentRequestAt)
-	c.logger.Error("Timed-out waiting for \"execute_reply\" message while stopping training.",
+
+	c.logger.Warn("Have been waiting for \"execute_reply\" message for a long time.",
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("execute_request_msg_id", execReqMsgId),
-		zap.Duration("timeout_interval", timeoutInterval),
+		zap.Duration("cumulative_timeout_interval", timeoutInterval),
 		zap.Duration("time_elapsed", timeElapsed),
 		zap.Error(err))
+
+	var activelyTrainingStatus string
+
+	isTraining, rpcError := c.isKernelTrainingCallback(c.SessionId)
+	if rpcError != nil {
+		c.logger.Warn("Failed to query training status of our kernel.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqMsgId),
+			zap.Duration("timeout_interval", timeoutInterval),
+			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+			zap.Error(rpcError))
+
+		activelyTrainingStatus = "UNKNOWN"
+	} else if isTraining {
+		activelyTrainingStatus = "YES"
+	} else {
+		// TODO: If this happens, then something is fairly wrong, no?
+		// 		 In theory, we could also return the Jupyter message ID of the last "execute_request"
+		//		 processed by the kernel and, if it is equal to the one we're waiting on, then we
+		//		 could assume that the ZMQ message was dropped.
+		activelyTrainingStatus = "NO"
+	}
 
 	c.notifyCallback(&proto.Notification{
 		Id:    uuid.NewString(),
 		Title: fmt.Sprintf("Have Spent Over %v Waiting for 'Training Stopped' Notification", timeElapsed),
 		Message: fmt.Sprintf("Submitted \"execute_request\" to kernel \"%s\" during workload \"%s\" (ID=\"%s\") "+
-			"over %v ago and have not yet received \"execute_reply\" message.",
-			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed),
+			"over %v ago and have not yet received \"execute_reply\" message. Actively training: %s.",
+			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed, activelyTrainingStatus),
 		Panicked:         false,
 		NotificationType: domain.WarningNotification.Int32(),
 	})
-
-	// TODO: Resubmit the event?
 }
 
 // trainingStoppedTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
@@ -1576,7 +1628,7 @@ func (c *Client) getAdjustedDuration(evt *domain.Event) time.Duration {
 // getTimeoutInterval computes a "meaningful" timeout interval based on the scheduling policy, taking into account
 // approximately how long the network I/O before/after training is expected to take and whatnot.
 func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
-	baseInterval := time.Second * 330
+	baseInterval := time.Second * 345
 
 	// Load the scheduling policy.
 	schedulingPolicy := c.schedulingPolicy
@@ -1637,8 +1689,69 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 	return interval
 }
 
+// waitForTrainingToStart waits for a training to begin being processed by a kernel replica.
+//
+// waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
+func (c *Client) waitForTrainingToEnd(ctx context.Context, evt *domain.Event, execReqMsgId string, originalTimeoutInterval time.Duration) error {
+	startedWaitingAt := time.Now()
+	maximumWaitTime := time.Minute * 15
+
+	// Wait for the training to end.
+	err := c.doWaitForTrainingToEnd(ctx, evt, execReqMsgId, originalTimeoutInterval)
+	if err == nil {
+		// Training ended. We can return.
+		return nil
+	}
+
+	// Log a message and send a warning notification.
+	c.trainingStoppedTimedOut(c.lastTrainingSubmittedAt, originalTimeoutInterval, execReqMsgId, err)
+
+	cumulativeTimeoutInterval := originalTimeoutInterval
+	timeoutInterval := time.Minute * 2
+
+	// Keep waiting for a while.
+	// We'll start printing more frequent warnings.
+	for time.Since(startedWaitingAt) < maximumWaitTime {
+		cumulativeTimeoutInterval = cumulativeTimeoutInterval + timeoutInterval
+
+		// Wait a little longer for the training to end.
+		err = c.doWaitForTrainingToEnd(ctx, evt, execReqMsgId, timeoutInterval)
+		if err == nil {
+			// Training has finally ended. We can return.
+			return nil
+		}
+
+		// Error related to timing out? If so, log a message, send a notification, and keep on waiting.
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, jupyter.ErrRequestTimedOut) {
+			c.trainingStoppedTimedOut(c.lastTrainingSubmittedAt, cumulativeTimeoutInterval, execReqMsgId, err)
+			continue
+		}
+
+		// We received some other error. We'll just return it. Something is wrong, apparently.
+		return err
+	}
+
+	c.logger.Error("Completely timeout waiting for training to end.",
+		zap.String("session_id", c.SessionId),
+		zap.String("workload_id", c.Workload.GetId()),
+		zap.String("workload_name", c.Workload.WorkloadName()),
+		zap.String("execute_request_msg_id", execReqMsgId),
+		zap.Duration("original_timeout_interval", originalTimeoutInterval),
+		zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
+
+	// If there's an existing error, then we'll join it with an errShutdownClient.
+	// errShutdownClient will instruct the client to terminate early.
+	if err != nil {
+		return errors.Join(errShutdownClient, err)
+	}
+
+	// TODO: Have the client shut down.
+	// errShutdownClient will instruct the client to terminate early.
+	return errShutdownClient
+}
+
 // waitForTrainingToEnd waits until we receive an "execute_request" from the kernel.
-func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, execReqMsgId string, timeoutInterval time.Duration) error {
+func (c *Client) doWaitForTrainingToEnd(ctx context.Context, event *domain.Event, execReqMsgId string, timeoutInterval time.Duration) error {
 	defer func() {
 		// Reset this value regardless of whether we successfully stop training or not.
 		c.lastTrainingSubmittedAt = time.UnixMilli(0)
@@ -1720,30 +1833,20 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, event *domain.Event, 
 	case <-ctx.Done():
 		{
 			err := ctx.Err()
-			if err != nil {
-				c.trainingStoppedTimedOut(c.lastTrainingSubmittedAt, timeoutInterval, execReqMsgId, err)
-
-				// We'll just return (nothing) so that the workload doesn't end.
-				return nil
+			if err != nil && errors.Is(err, context.DeadlineExceeded) {
+				return err // We'll check for context.DeadlineExceeded.
 			}
 
-			// No error attached to the context. Just log an error message without the error struct
-			// and return an error of our own.
-			c.logger.Error("Timed-out waiting for \"execute_reply\" message while stopping training.",
-				zap.String("session_id", c.SessionId),
-				zap.String("workload_id", c.Workload.GetId()),
-				zap.String("workload_name", c.Workload.WorkloadName()),
-				zap.String("execute_request_msg_id", execReqMsgId),
-				zap.Duration("timeout_interval", timeoutInterval),
-				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
-
-			return jupyter.ErrRequestTimedOut
+			return err
 		}
 	}
 }
 
-// handleSessionStoppedEvent handles a domain.EventSessionStopped *domain.Event.
-func (c *Client) handleSessionStoppedEvent(evt *domain.Event) error {
+// stopSession instructs the Client to terminate its Jupyter kernel.
+//
+// stopSession is called while handling a "session-stopped" event and if the client times out while handling
+// another event, such as "training-started" or "training-stopped".
+func (c *Client) stopSession() {
 	c.logger.Debug("Stopping session.",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1772,14 +1875,21 @@ func (c *Client) handleSessionStoppedEvent(evt *domain.Event) error {
 		With(prometheus.Labels{"workload_id": c.Workload.GetId()}).
 		Observe(sessionLifetimeDuration.Seconds())
 
-	c.Workload.SessionStopped(c.SessionId, evt)
-	c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("session-stopped", domain.LightOrange)),
+	c.Workload.SessionStopped(c.SessionId)
+}
+
+// handleSessionStoppedEvent handles a domain.EventSessionStopped *domain.Event.
+func (c *Client) handleSessionStoppedEvent() error {
+	defer c.handledStopEvent.Store(true) // Even if there was an error, this Client is done.
+
+	c.stopSession()
+
+	c.logger.Debug(
+		fmt.Sprintf("Handled \"%s\" event successfully.",
+			domain.ColorizeText("session-stopped", domain.LightOrange)),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId))
-
-	// Even if there was an error, this Client is done.
-	c.handledStopEvent.Store(true)
 
 	return nil
 }

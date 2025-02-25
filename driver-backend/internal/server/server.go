@@ -209,6 +209,28 @@ func (s *serverImpl) clearClusterStatistics() (*workload.ClusterStatistics, erro
 	return clusterStatistics.ToClusterStatistics(), nil
 }
 
+// IsKernelActivelyTraining is used to query whether the Cluster Gateway believes that a particular kernel is
+// actively training or not
+func (s *serverImpl) IsKernelActivelyTraining(kernelId string) (bool, error) {
+	if s.gatewayRpcClient == nil {
+		return false, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	arg := &proto.KernelId{
+		Id: kernelId,
+	}
+
+	resp, err := s.gatewayRpcClient.IsKernelActivelyTraining(ctx, arg)
+	if err != nil {
+		return false, err
+	}
+
+	return resp.IsTraining, nil
+}
+
 // GetSchedulingPolicy returns the configured scheduling policy along with a flag indicating whether the returned
 // policy name is valid.
 func (s *serverImpl) GetSchedulingPolicy() (string, bool) {

@@ -76,6 +76,10 @@ type CallbackProvider interface {
 	// GetSchedulingPolicy returns the configured scheduling policy along with a flag indicating whether the returned
 	// policy name is valid.
 	GetSchedulingPolicy() (string, bool)
+
+	// IsKernelActivelyTraining is used to query whether the Cluster Gateway believes that a particular kernel is
+	// actively training or not
+	IsKernelActivelyTraining(kernelId string) (bool, error)
 }
 
 func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLevel, callbackProvider CallbackProvider) *BasicWorkloadManager {

@@ -206,6 +206,7 @@ type Driver struct {
 	timeCompressTrainingDurations      bool                                       // timeCompressTrainingDurations indicates whether the Workload's TimescaleAdjustmentFactor should be used to compress the duration of training events.
 	DropSessionsWithNoTrainingEvents   bool                                       // DropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
 	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
+	isKernelTrainingCallback           IsKernelTrainingCallback                   // isKernelTrainingCallback is used to query whether a kernel is actively training as far as the cluster gateway knows.
 	rng                                *rand.Rand
 	Clients                            map[string]*Client
 	clientsWaitGroup                   sync.WaitGroup
@@ -291,6 +292,7 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		maxClientSleepDuringInitSeconds:    opts.MaxClientSleepDuringInitSeconds,
 		workloadJsonOutputFrequency:        opts.WorkloadJsonOutputFrequency,
 		DropSessionsWithNoTrainingEvents:   opts.DropSessionsWithNoTrainings,
+		isKernelTrainingCallback:           callbackProvider.IsKernelActivelyTraining,
 	}
 
 	driver.pauseCond = sync.NewCond(&driver.pauseMutex)
@@ -1953,6 +1955,7 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 				WithAtom(d.atom).
 				WithDeepLearningModel(model).
 				WithDataset(dataset).
+				WithIsKernelTrainingCallback(d.isKernelTrainingCallback).
 				WithModelDatasetCategory(category).
 				WithSchedulingPolicy(d.getSchedulingPolicy()).
 				WithKernelManager(d.KernelManager).

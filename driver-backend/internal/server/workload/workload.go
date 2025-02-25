@@ -783,7 +783,7 @@ func (w *Workload) SessionCreated(sessionId string) {
 
 // SessionStopped is called when a Session is stopped for/in the Workload.
 // Just updates some internal metrics.
-func (w *Workload) SessionStopped(sessionId string, _ *domain.Event) {
+func (w *Workload) SessionStopped(sessionId string) {
 	metrics.PrometheusMetricsWrapperInstance.WorkloadActiveNumSessions.
 		With(prometheus.Labels{"workload_id": w.Id}).
 		Sub(1)
