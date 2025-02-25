@@ -421,6 +421,7 @@ const (
 	DistributedCluster_Ping_FullMethodName                        = "/gateway.DistributedCluster/Ping"
 	DistributedCluster_PingKernel_FullMethodName                  = "/gateway.DistributedCluster/PingKernel"
 	DistributedCluster_ListKernels_FullMethodName                 = "/gateway.DistributedCluster/ListKernels"
+	DistributedCluster_IsKernelActivelyTraining_FullMethodName    = "/gateway.DistributedCluster/IsKernelActivelyTraining"
 	DistributedCluster_SetTotalVirtualGPUs_FullMethodName         = "/gateway.DistributedCluster/SetTotalVirtualGPUs"
 	DistributedCluster_GetClusterActualGpuInfo_FullMethodName     = "/gateway.DistributedCluster/GetClusterActualGpuInfo"
 	DistributedCluster_GetClusterVirtualGpuInfo_FullMethodName    = "/gateway.DistributedCluster/GetClusterVirtualGpuInfo"
@@ -461,6 +462,8 @@ type DistributedClusterClient interface {
 	PingKernel(ctx context.Context, in *PingInstruction, opts ...grpc.CallOption) (*Pong, error)
 	// Return a list of all of the current kernel IDs.
 	ListKernels(ctx context.Context, in *Void, opts ...grpc.CallOption) (*ListKernelsResponse, error)
+	// IsKernelTraining is used to query whether or not a particular kernel is actively training.
+	IsKernelActivelyTraining(ctx context.Context, in *KernelId, opts ...grpc.CallOption) (*IsKernelTrainingReply, error)
 	// Set the maximum number of vGPU resources available on a particular node (identified by the local daemon).
 	SetTotalVirtualGPUs(ctx context.Context, in *SetVirtualGPUsRequest, opts ...grpc.CallOption) (*VirtualGpuInfo, error)
 	// Return the current GPU resource metrics on the node.
@@ -598,6 +601,16 @@ func (c *distributedClusterClient) ListKernels(ctx context.Context, in *Void, op
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListKernelsResponse)
 	err := c.cc.Invoke(ctx, DistributedCluster_ListKernels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *distributedClusterClient) IsKernelActivelyTraining(ctx context.Context, in *KernelId, opts ...grpc.CallOption) (*IsKernelTrainingReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IsKernelTrainingReply)
+	err := c.cc.Invoke(ctx, DistributedCluster_IsKernelActivelyTraining_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -813,6 +826,8 @@ type DistributedClusterServer interface {
 	PingKernel(context.Context, *PingInstruction) (*Pong, error)
 	// Return a list of all of the current kernel IDs.
 	ListKernels(context.Context, *Void) (*ListKernelsResponse, error)
+	// IsKernelTraining is used to query whether or not a particular kernel is actively training.
+	IsKernelActivelyTraining(context.Context, *KernelId) (*IsKernelTrainingReply, error)
 	// Set the maximum number of vGPU resources available on a particular node (identified by the local daemon).
 	SetTotalVirtualGPUs(context.Context, *SetVirtualGPUsRequest) (*VirtualGpuInfo, error)
 	// Return the current GPU resource metrics on the node.
@@ -913,6 +928,9 @@ func (UnimplementedDistributedClusterServer) PingKernel(context.Context, *PingIn
 }
 func (UnimplementedDistributedClusterServer) ListKernels(context.Context, *Void) (*ListKernelsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListKernels not implemented")
+}
+func (UnimplementedDistributedClusterServer) IsKernelActivelyTraining(context.Context, *KernelId) (*IsKernelTrainingReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IsKernelActivelyTraining not implemented")
 }
 func (UnimplementedDistributedClusterServer) SetTotalVirtualGPUs(context.Context, *SetVirtualGPUsRequest) (*VirtualGpuInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetTotalVirtualGPUs not implemented")
@@ -1096,6 +1114,24 @@ func _DistributedCluster_ListKernels_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DistributedClusterServer).ListKernels(ctx, req.(*Void))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DistributedCluster_IsKernelActivelyTraining_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KernelId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DistributedClusterServer).IsKernelActivelyTraining(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DistributedCluster_IsKernelActivelyTraining_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DistributedClusterServer).IsKernelActivelyTraining(ctx, req.(*KernelId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1474,6 +1510,10 @@ var DistributedCluster_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DistributedCluster_ListKernels_Handler,
 		},
 		{
+			MethodName: "IsKernelActivelyTraining",
+			Handler:    _DistributedCluster_IsKernelActivelyTraining_Handler,
+		},
+		{
 			MethodName: "SetTotalVirtualGPUs",
 			Handler:    _DistributedCluster_SetTotalVirtualGPUs_Handler,
 		},
@@ -1793,6 +1833,7 @@ const (
 	LocalGateway_SetClose_FullMethodName                  = "/gateway.LocalGateway/SetClose"
 	LocalGateway_AddReplica_FullMethodName                = "/gateway.LocalGateway/AddReplica"
 	LocalGateway_UpdateReplicaAddr_FullMethodName         = "/gateway.LocalGateway/UpdateReplicaAddr"
+	LocalGateway_StartSyncLog_FullMethodName              = "/gateway.LocalGateway/StartSyncLog"
 	LocalGateway_PrepareToMigrate_FullMethodName          = "/gateway.LocalGateway/PrepareToMigrate"
 	LocalGateway_ResourcesSnapshot_FullMethodName         = "/gateway.LocalGateway/ResourcesSnapshot"
 	LocalGateway_GetLocalDaemonInfo_FullMethodName        = "/gateway.LocalGateway/GetLocalDaemonInfo"
@@ -1837,6 +1878,8 @@ type LocalGatewayClient interface {
 	// Used to instruct a set of kernel replicas to update the peer address of a particular node.
 	// This is primarily used during migrations.
 	UpdateReplicaAddr(ctx context.Context, in *ReplicaInfoWithAddr, opts ...grpc.CallOption) (*Void, error)
+	// StartSyncLog instructs the LocalGateway to send a "start_synclog_request" message to the specified kernel replica.
+	StartSyncLog(ctx context.Context, in *ReplicaInfo, opts ...grpc.CallOption) (*Void, error)
 	// Used to instruct a specific kernel replica to prepare to be migrated to a new node.
 	// This involves writing the contents of the etcd-raft data directory to remote storage so that
 	// it can be read back from make build-linux-amd64 by the new replica.
@@ -1997,6 +2040,16 @@ func (c *localGatewayClient) UpdateReplicaAddr(ctx context.Context, in *ReplicaI
 	return out, nil
 }
 
+func (c *localGatewayClient) StartSyncLog(ctx context.Context, in *ReplicaInfo, opts ...grpc.CallOption) (*Void, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Void)
+	err := c.cc.Invoke(ctx, LocalGateway_StartSyncLog_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *localGatewayClient) PrepareToMigrate(ctx context.Context, in *ReplicaInfo, opts ...grpc.CallOption) (*PrepareToMigrateResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PrepareToMigrateResponse)
@@ -2120,6 +2173,8 @@ type LocalGatewayServer interface {
 	// Used to instruct a set of kernel replicas to update the peer address of a particular node.
 	// This is primarily used during migrations.
 	UpdateReplicaAddr(context.Context, *ReplicaInfoWithAddr) (*Void, error)
+	// StartSyncLog instructs the LocalGateway to send a "start_synclog_request" message to the specified kernel replica.
+	StartSyncLog(context.Context, *ReplicaInfo) (*Void, error)
 	// Used to instruct a specific kernel replica to prepare to be migrated to a new node.
 	// This involves writing the contents of the etcd-raft data directory to remote storage so that
 	// it can be read back from make build-linux-amd64 by the new replica.
@@ -2195,6 +2250,9 @@ func (UnimplementedLocalGatewayServer) AddReplica(context.Context, *ReplicaInfoW
 }
 func (UnimplementedLocalGatewayServer) UpdateReplicaAddr(context.Context, *ReplicaInfoWithAddr) (*Void, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateReplicaAddr not implemented")
+}
+func (UnimplementedLocalGatewayServer) StartSyncLog(context.Context, *ReplicaInfo) (*Void, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartSyncLog not implemented")
 }
 func (UnimplementedLocalGatewayServer) PrepareToMigrate(context.Context, *ReplicaInfo) (*PrepareToMigrateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PrepareToMigrate not implemented")
@@ -2460,6 +2518,24 @@ func _LocalGateway_UpdateReplicaAddr_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LocalGateway_StartSyncLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReplicaInfo)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LocalGatewayServer).StartSyncLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LocalGateway_StartSyncLog_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LocalGatewayServer).StartSyncLog(ctx, req.(*ReplicaInfo))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _LocalGateway_PrepareToMigrate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReplicaInfo)
 	if err := dec(in); err != nil {
@@ -2676,6 +2752,10 @@ var LocalGateway_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateReplicaAddr",
 			Handler:    _LocalGateway_UpdateReplicaAddr_Handler,
+		},
+		{
+			MethodName: "StartSyncLog",
+			Handler:    _LocalGateway_StartSyncLog_Handler,
 		},
 		{
 			MethodName: "PrepareToMigrate",

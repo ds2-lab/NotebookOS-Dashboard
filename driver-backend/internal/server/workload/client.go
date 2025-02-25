@@ -317,7 +317,7 @@ type Client struct {
 	waitGroup                        *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
 	AssignedModel                    string                                 // AssignedModel is the name of the model assigned to this client.
 	AssignedDataset                  string                                 // AssignedDataset is the name of the dataset assigned to this client.
-	ModelDatasetCategory             string                                 `json:"model_dataset_category"` // ModelDatasetCategory is the category of the AssignedModel and AssignedDataset.
+	ModelDatasetCategory             string                                 // ModelDatasetCategory is the category of the AssignedModel and AssignedDataset.
 	explicitlyStopped                atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
 	closeLogFileFunc                 func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
 	dropSessionsWithNoTrainingEvents bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.

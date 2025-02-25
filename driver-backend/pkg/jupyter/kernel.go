@@ -1099,17 +1099,20 @@ func (conn *BasicKernelConnection) updateConnectionStatus(status KernelConnectio
 		var statusMessage KernelMessage
 		var err error
 
-		for numTries <= maxNumTries {
+		for numTries < maxNumTries {
 			statusMessage, err = conn.RequestKernelInfo()
 			if err != nil {
 				numTries += 1
-				conn.sugaredLogger.Errorf("Attempt %d/%d to request-info from kernel %s FAILED. Error: %s", numTries, maxNumTries, conn.kernelId, err)
+				conn.sugaredLogger.Errorf("Attempt %d/%d to request-info from kernel %s FAILED. Error: %s",
+					numTries, maxNumTries, conn.kernelId, err)
 				time.Sleep(time.Duration(1.25*float64(numTries)) * time.Second)
 				conn.tryCallOnError(err)
 				continue
 			} else {
 				success = true
-				conn.logger.Debug("Successfully retrieved kernel info on connected-status-changed.", zap.String("kernel-info", statusMessage.String()), zap.Duration("time-elapsed", time.Since(st)))
+				conn.logger.Debug("Successfully retrieved kernel info on connected-status-changed.",
+					zap.String("kernel-info", statusMessage.String()),
+					zap.Duration("time-elapsed", time.Since(st)))
 				break
 			}
 		}

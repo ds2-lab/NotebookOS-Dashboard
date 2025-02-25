@@ -61,6 +61,9 @@ service DistributedCluster {
   // Return a list of all of the current kernel IDs.
   rpc ListKernels(Void) returns (ListKernelsResponse) {}
 
+  // IsKernelTraining is used to query whether or not a particular kernel is actively training.
+  rpc IsKernelActivelyTraining(KernelId) returns (IsKernelTrainingReply) {}
+
   // Set the maximum number of vGPU resources available on a particular node (identified by the local daemon).
   rpc SetTotalVirtualGPUs(SetVirtualGPUsRequest) returns (VirtualGpuInfo) {}
 
@@ -152,6 +155,11 @@ service DistributedCluster {
   //
   // ClearClusterStatistics returns the serialized ClusterStatistics struct before it was cleared.
   rpc ClearClusterStatistics(Void) returns (ClusterStatisticsResponse) {}
+}
+
+message IsKernelTrainingReply {
+  string kernelId = 1;
+  bool isTraining = 2;
 }
 
 message ClusterStatisticsRequest {
@@ -638,6 +646,9 @@ service LocalGateway {
   // Used to instruct a set of kernel replicas to update the peer address of a particular node.
   // This is primarily used during migrations.
   rpc UpdateReplicaAddr(ReplicaInfoWithAddr) returns (Void) {}
+
+  // StartSyncLog instructs the LocalGateway to send a "start_synclog_request" message to the specified kernel replica.
+  rpc StartSyncLog(ReplicaInfo) returns (Void) {}
 
   // Used to instruct a specific kernel replica to prepare to be migrated to a new node.
   // This involves writing the contents of the etcd-raft data directory to remote storage so that
