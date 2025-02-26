@@ -1720,6 +1720,11 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 //
 // waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
 func (c *Client) waitForTrainingToEnd(ctx context.Context, evt *domain.Event, execReqMsgId string, originalTimeoutInterval time.Duration) error {
+	defer func() {
+		// Reset this value regardless of whether we successfully stop training or not.
+		c.lastTrainingSubmittedAt = time.UnixMilli(0)
+	}()
+
 	startedWaitingAt := time.Now()
 	maximumWaitTime := time.Minute * 15
 
@@ -1779,11 +1784,6 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, evt *domain.Event, ex
 
 // waitForTrainingToEnd waits until we receive an "execute_request" from the kernel.
 func (c *Client) doWaitForTrainingToEnd(ctx context.Context, event *domain.Event, execReqMsgId string, timeoutInterval time.Duration) error {
-	defer func() {
-		// Reset this value regardless of whether we successfully stop training or not.
-		c.lastTrainingSubmittedAt = time.UnixMilli(0)
-	}()
-
 	select {
 	case v := <-c.TrainingStoppedChannel:
 		{
