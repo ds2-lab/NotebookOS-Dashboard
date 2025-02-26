@@ -1719,17 +1719,17 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 // waitForTrainingToStart waits for a training to begin being processed by a kernel replica.
 //
 // waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
-func (c *Client) waitForTrainingToEnd(ctx context.Context, evt *domain.Event, execReqMsgId string, originalTimeoutInterval time.Duration) error {
+func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domain.Event, execReqMsgId string, originalTimeoutInterval time.Duration) error {
 	defer func() {
 		// Reset this value regardless of whether we successfully stop training or not.
 		c.lastTrainingSubmittedAt = time.UnixMilli(0)
 	}()
 
 	startedWaitingAt := time.Now()
-	maximumWaitTime := time.Minute * 15
+	maximumWaitTime := time.Minute * 10
 
 	// Wait for the training to end.
-	err := c.doWaitForTrainingToEnd(ctx, evt, execReqMsgId, originalTimeoutInterval)
+	err := c.doWaitForTrainingToEnd(initialContext, evt, execReqMsgId, originalTimeoutInterval)
 	if err == nil {
 		// Training ended. We can return.
 		return nil
@@ -1745,21 +1745,25 @@ func (c *Client) waitForTrainingToEnd(ctx context.Context, evt *domain.Event, ex
 	// We'll start printing more frequent warnings.
 	for time.Since(startedWaitingAt) < maximumWaitTime {
 		cumulativeTimeoutInterval = cumulativeTimeoutInterval + timeoutInterval
+		ctx, cancel := context.WithTimeout(context.Background(), timeoutInterval)
 
 		// Wait a little longer for the training to end.
 		err = c.doWaitForTrainingToEnd(ctx, evt, execReqMsgId, timeoutInterval)
 		if err == nil {
 			// Training has finally ended. We can return.
+			cancel()
 			return nil
 		}
 
 		// Error related to timing out? If so, log a message, send a notification, and keep on waiting.
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, jupyter.ErrRequestTimedOut) {
 			c.trainingStoppedTimedOut(c.lastTrainingSubmittedAt, cumulativeTimeoutInterval, execReqMsgId, err)
+			cancel()
 			continue
 		}
 
 		// We received some other error. We'll just return it. Something is wrong, apparently.
+		cancel()
 		return err
 	}
 

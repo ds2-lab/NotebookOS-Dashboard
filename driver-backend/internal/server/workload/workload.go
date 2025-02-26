@@ -818,6 +818,7 @@ func (w *Workload) TrainingSubmitted(sessionId string, evt *domain.Event) {
 	defer w.mu.Unlock()
 
 	w.Statistics.NumSubmittedTrainings += 1
+	w.Statistics.NumOutstandingExecRequests += 1
 
 	val, ok := w.sessionsMap[sessionId]
 	if !ok {
@@ -857,6 +858,7 @@ func (w *Workload) TrainingStarted(sessionId string, tickNumber int64) {
 	defer w.mu.Unlock()
 
 	w.Statistics.NumActiveTrainings += 1
+	w.Statistics.NumOutstandingExecRequests -= 1
 
 	w.logger.Debug("Session has started training.",
 		zap.String("session_id", sessionId),
