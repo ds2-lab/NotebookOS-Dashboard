@@ -47,6 +47,10 @@ func init() {
 	gob.Register(time.Time{})
 }
 
+var (
+	ErrInvalidWorkloadExportFormat = errors.New("invalid workload export format specified")
+)
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -423,13 +427,12 @@ func (s *serverImpl) jwtAuthenticator() func(c *gin.Context) (interface{}, error
 	return func(c *gin.Context) (interface{}, error) {
 		var login *auth.LoginRequest
 		if err := c.ShouldBind(&login); err != nil {
-			s.logger.Warn("Received login request with missing login values.")
+			s.logger.Warn("Received login request with missing login values.",
+				zap.Error(err))
 			return "", jwt.ErrMissingLoginValues
 		}
 		userID := login.Username
 		password := login.Password
-
-		//s.logger.Debug("Received authentication request.", zap.String("username", userID), zap.String("password", password))
 
 		if userID == s.adminUsername && password == s.adminPassword {
 			return &auth.AuthorizedUser{Username: userID}, nil
@@ -684,7 +687,7 @@ func (s *serverImpl) setupRoutes() error {
 	///////////////////////
 	// Workload HTTP API //
 	///////////////////////
-	workloadHttpGroup := apiGroup.Group(domain.WorkloadEndpoint, authMiddleware.MiddlewareFunc())
+	workloadHttpGroup := s.app.Group(s.getPath(domain.WorkloadsEndpoint), authMiddleware.MiddlewareFunc())
 	{
 		// Meant to refer to one of the functions of the NetworkHandler struct of the server.
 		type singleWorkloadRequest func(msgId string, workloadId string) (*domain.WorkloadResponse, error)
@@ -719,7 +722,21 @@ func (s *serverImpl) setupRoutes() error {
 		})
 
 		workloadHttpGroup.POST("/:workload_id/export", func(c *gin.Context) {
-			handleRequest(c, s.workloadNetworkHandler.GetWorkload)
+			format := c.DefaultQuery("format", "json")
+
+			if format != "json" && format != "csv" {
+				_ = c.Error(fmt.Errorf("%w: \"%s\"", ErrInvalidWorkloadExportFormat, format))
+				return
+			}
+
+			if format == "json" {
+				handleRequest(c, s.workloadNetworkHandler.GetWorkload)
+				return
+			}
+
+			// CSV
+			workloadId := c.Param("workload_id")
+			s.handleWorkloadStatisticsRequestWithArg(c, workloadId)
 		})
 	}
 
@@ -753,12 +770,11 @@ func (s *serverImpl) setupRoutes() error {
 	return nil
 }
 
-func (s *serverImpl) handleWorkloadStatisticsRequest(c *gin.Context) {
-	workloadId := c.Query("workload_id")
-
+func (s *serverImpl) handleWorkloadStatisticsRequestWithArg(c *gin.Context, workloadId string) {
 	if workloadId == "" {
 		s.logger.Error("'api/workload-statistics' request did not have required \"workload_id\" query parameter.")
 		c.Status(http.StatusBadRequest)
+		_ = c.Error(fmt.Errorf("empty workload id"))
 		return
 	}
 
@@ -767,10 +783,16 @@ func (s *serverImpl) handleWorkloadStatisticsRequest(c *gin.Context) {
 		s.logger.Error("Unknown workload specified.",
 			zap.Any("workload_id", workloadId))
 		c.Status(http.StatusBadRequest)
+		_ = c.Error(fmt.Errorf("invalid workload id \"%s\"", workloadId))
 		return
 	}
 
 	outputFileContents, err := driver.GetOutputFileContents()
+
+	if len(outputFileContents) == 0 {
+		s.logger.Warn("Exported CSV for workload, but data is empty.",
+			zap.String("workload_id", workloadId))
+	}
 
 	if err != nil {
 		_ = c.AbortWithError(http.StatusInternalServerError, err)
@@ -782,6 +804,11 @@ func (s *serverImpl) handleWorkloadStatisticsRequest(c *gin.Context) {
 
 	// Write the CSV data to the response
 	c.String(http.StatusOK, string(outputFileContents))
+}
+
+func (s *serverImpl) handleWorkloadStatisticsRequest(c *gin.Context) {
+	workloadId := c.Query("workload_id")
+	s.handleWorkloadStatisticsRequestWithArg(c, workloadId)
 }
 
 func (s *serverImpl) HandleWorkloadError(workloadId string, err error) {

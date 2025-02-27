@@ -31,7 +31,12 @@ const (
 
 	// WorkloadEndpoint is used internally (by the frontend) to trigger the start of a new workload or
 	// retrieve the list of workloads.
+	//
+	// WorkloadEndpoint is used as the workload websocket endpoint.
 	WorkloadEndpoint = "workload"
+
+	// WorkloadsEndpoint is its own gin route group used for HTTP workload API.
+	WorkloadsEndpoint = "workloads"
 
 	// GeneralWebsocketEndpoint is used for WebSocket-based communication between the frontend and backend
 	// that is unrelated to workloads or logs.

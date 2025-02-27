@@ -1,6 +1,6 @@
 import { WorkloadInspectionView } from '@Components/Workloads/WorkloadInspectionView';
-import { Button, Modal, ModalVariant, Title, TitleSizes } from '@patternfly/react-core';
-import { ArrowRightIcon, CloseIcon, ExportIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
+import { Button, Flex, FlexItem, Modal, ModalVariant, Title, TitleSizes, Tooltip } from '@patternfly/react-core';
+import { ArrowRightIcon, CloseIcon, CopyIcon, ExportIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
 import { AuthorizationContext } from '@Providers/AuthProvider';
 import useNavigation from '@Providers/NavigationProvider';
 import { GetWorkloadStatusLabel, IsInProgress, IsReadyAndWaiting, Workload } from '@src/Data/Workload';
@@ -18,6 +18,7 @@ export const InspectWorkloadModal: React.FunctionComponent<InspectWorkloadModalP
     const { authenticated } = React.useContext(AuthorizationContext);
 
     const { exportWorkload, startWorkload, stopWorkload } = React.useContext(WorkloadContext);
+    const [showCopySuccessContent, setShowCopySuccessContent] = React.useState<boolean>(false);
 
     const { navigate } = useNavigation();
 
@@ -35,6 +36,33 @@ export const InspectWorkloadModal: React.FunctionComponent<InspectWorkloadModalP
 
                 {GetWorkloadStatusLabel(props.workload)}
             </Title>
+            <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                <FlexItem>
+                    <Title headingLevel="h3">{props.workload?.id}</Title>
+                </FlexItem>
+                <FlexItem>
+                    <Tooltip
+                        content={
+                            showCopySuccessContent ? 'Copied successfully workload ID' : 'Copy workload ID to clipboard'
+                        }
+                        position={'right'}
+                        entryDelay={75}
+                        exitDelay={200}
+                        onTooltipHidden={() => setShowCopySuccessContent(false)}
+                    >
+                        <Button
+                            variant={'link'}
+                            isInline
+                            icon={<CopyIcon />}
+                            onClick={async () => {
+                                await navigator.clipboard.writeText(props.workload?.id);
+
+                                setShowCopySuccessContent(true);
+                            }}
+                        />
+                    </Tooltip>
+                </FlexItem>
+            </Flex>
         </React.Fragment>
     );
 

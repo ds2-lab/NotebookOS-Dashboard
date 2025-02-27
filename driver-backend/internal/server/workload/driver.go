@@ -456,7 +456,7 @@ func (d *Driver) GetOutputFileContents() ([]byte, error) {
 
 	csvBuffer, err := io.ReadAll(d.outputFile)
 
-	if err != nil {
+	if err != nil || len(csvBuffer) == 0 {
 		d.logger.Warn("Failed to read contents of workload statistics file. Will try opening the file explicitly.",
 			zap.String("workload_id", d.workload.GetId()),
 			zap.String("workload_name", d.workload.WorkloadName()),
