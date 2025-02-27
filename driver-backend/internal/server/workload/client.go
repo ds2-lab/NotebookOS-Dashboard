@@ -1772,7 +1772,7 @@ func (c *Client) getAdjustedDuration(evt *domain.Event) time.Duration {
 // getTimeoutInterval computes a "meaningful" timeout interval based on the scheduling policy, taking into account
 // approximately how long the network I/O before/after training is expected to take and whatnot.
 func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
-	baseInterval := time.Second * 345
+	baseInterval := time.Second * 300
 
 	// Load the scheduling policy.
 	schedulingPolicy := c.schedulingPolicy
@@ -1813,7 +1813,7 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 		return baseInterval + c.getAdjustedDuration(evt) // We make it a bit higher since we know I/O is on the critical path.
 	}
 
-	vramBytes := resourceRequest.VRAM * 1000000000
+	vramBytes := resourceRequest.VRAM * 1.0e9
 	readTime := (vramBytes / float64(remoteStorageDefinition.DownloadRate)) * (1 + float64(remoteStorageDefinition.DownloadRateVariancePercentage))
 	writeTime := (vramBytes / float64(remoteStorageDefinition.UploadRate)) * (1 + float64(remoteStorageDefinition.UploadRateVariancePercentage))
 	expectedNetworkIoLatency := readTime + writeTime
@@ -1854,108 +1854,124 @@ func (c *Client) handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt *domai
 		zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
 
 	resp, err := c.getJupyterMessageCallback(c.SessionId, execReqMsgId, "execute_reply")
-	if err == nil {
-		jupyterMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
-		if conversionErr != nil {
-			c.logger.Error("Failed to convert proto JupyterMessage to standard JupyterMessage",
-				zap.String("session_id", c.SessionId),
-				zap.String("workload_id", c.Workload.GetId()),
-				zap.String("workload_name", c.Workload.WorkloadName()),
-				zap.String("execute_request_msg_id", execReqMsgId),
-				zap.String("execute_reply_message_proto", resp.String()),
-				zap.Error(err))
 
-			return conversionErr
-		}
-
-		c.outstandingExecuteRequestMapMutex.Lock()
-		receivedFlag, loaded := c.outstandingExecuteRequestMap[jupyterMsg.GetParentHeader().MessageId]
-		c.outstandingExecuteRequestMapMutex.Unlock()
-
-		if !loaded {
-			c.logger.Error("No request flag associated with \"execute_request\" message upon receiving \"execute_reply\" via gRPC",
-				zap.String("workload_id", c.Workload.GetId()),
-				zap.String("workload_name", c.Workload.WorkloadName()),
-				zap.String("session_id", c.SessionId),
-				zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
-				zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
-				zap.String("execute_reply_message", jupyterMsg.String()))
-
-			title := fmt.Sprintf("No Request Flag for \"execute_request\" Message \"%s\" Targeting Kernel \"%s\"",
-				jupyterMsg.GetParentHeader().MessageId, c.SessionId)
-			message := fmt.Sprintf("Cannot properly handle 'training-stopped' event after receiving \"execute_reply\" message \"%s\" via gRPC.",
-				jupyterMsg.GetHeader().MessageId)
-
-			c.notifyCallback(&proto.Notification{
-				Id:               uuid.NewString(),
-				Title:            title,
-				Message:          message,
-				NotificationType: domain.ErrorNotification.Int32(),
-				Panicked:         false,
-			})
-
-			return nil
-		}
-
-		// In cases where a message is significantly delayed, we may resort to retrieving it via gRPC.
-		// In this case, we don't want things to get messed up if we eventually receive the delayed ZMQ message here.
-		// For example, we could misinterpret a delayed "execute_reply" as being for the current training and think that
-		// the current training has ended when it hasn't.
-		//
-		// So, we check if we're the ones to atomically flip the associated 'received' flag from 0 to 1. If so,
-		// then we can handle the message. If not, then we discard it.
-		if !receivedFlag.CompareAndSwap(0, 1) {
-			c.logger.Warn("Failed to flip 'received' flag from 0 to 1 for \"execute_reply\". Must have already received message via ZMQ.",
-				zap.String("workload_id", c.Workload.GetId()),
-				zap.String("workload_name", c.Workload.WorkloadName()),
-				zap.String("session_id", c.SessionId),
-				zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
-				zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
-				zap.String("execute_reply_message", jupyterMsg.String()))
-
-			return nil
-		}
-
-		// We'll estimate the e2e latency, because the messages being dropped is more likely a bug of some sort...
-		content := jupyterMsg.GetContent().(map[string]interface{})
-		val := content["execution_finished_unix_millis"]
-		execEndedTimeUnixMillis := int64(val.(float64))
-		execEndedTime := time.UnixMilli(execEndedTimeUnixMillis)
-
-		estimatedReplyLatencyMillis := c.Workload.Statistics.GetAverageTotalReplyLatencyMillis()
-		estimatedReplyLatency := time.Duration(float64(time.Millisecond) * estimatedReplyLatencyMillis)
-
-		estimatedReceivedAt := execEndedTime.Add(estimatedReplyLatency)
-
-		estimatedEndToEndLatency := estimatedReceivedAt.Sub(c.lastTrainingSubmittedAt)
-
-		c.logger.Debug("Retrieved \"execute_reply\" message via gRPC.",
+	if err != nil {
+		c.logger.Warn("Failed to retrieve \"execute_reply\" message via gRPC.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("execute_request_msg_id", execReqMsgId),
-			zap.Time("estimated_received_at", estimatedReceivedAt),
-			zap.Float64("estimated_reply_latency_millis", estimatedReplyLatencyMillis),
-			zap.Duration("estimated_reply_latency", estimatedReplyLatency),
-			zap.Duration("estimated_end_to_end_latency", estimatedEndToEndLatency),
 			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
-			zap.String("execute_reply_message", resp.String()))
+			zap.Error(err))
+		return err
+	}
 
-		// If we estimated an invalid latency, then just use the average so far...
-		if estimatedEndToEndLatency < 0 {
-			estimatedEndToEndLatency = time.Duration(float64(time.Millisecond) * c.Workload.Statistics.GetAverageEndToEndExecuteRequestLatencyMillis())
-		}
+	return c.handleTrainingStopViaGrpc(evt, execReqMsgId, resp, cumulativeTimeoutInterval)
+}
 
-		notification := &trainingStoppedNotification{
-			Response:   jupyterMsg,
-			ReceivedAt: estimatedReceivedAt,
-		}
+// handleTrainingStopViaGrpc is called by handleKernelNotTrainingWhenTrainingStopTimeoutOccurs if the "execute_reply"
+// message that the target Client has been waiting on was retrieved successfully via gRPC.
+func (c *Client) handleTrainingStopViaGrpc(evt *domain.Event, execReqMsgId string, resp *proto.GetJupyterMessageResponse,
+	cumulativeTimeoutInterval time.Duration) error {
 
-		c.handleTrainingEnded(evt, notification, execReqMsgId, cumulativeTimeoutInterval, estimatedEndToEndLatency)
+	jupyterMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
+	if conversionErr != nil {
+		c.logger.Error("Failed to convert proto JupyterMessage to standard JupyterMessage",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqMsgId),
+			zap.String("execute_reply_message_proto", resp.String()),
+			zap.Error(conversionErr))
+
+		return conversionErr
+	}
+
+	c.outstandingExecuteRequestMapMutex.Lock()
+	receivedFlag, loaded := c.outstandingExecuteRequestMap[jupyterMsg.GetParentHeader().MessageId]
+	c.outstandingExecuteRequestMapMutex.Unlock()
+
+	if !loaded {
+		c.logger.Error("No request flag associated with \"execute_request\" message upon receiving \"execute_reply\" via gRPC",
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId),
+			zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
+			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+			zap.String("execute_reply_message", jupyterMsg.String()))
+
+		title := fmt.Sprintf("No Request Flag for \"execute_request\" Message \"%s\" Targeting Kernel \"%s\"",
+			jupyterMsg.GetParentHeader().MessageId, c.SessionId)
+		message := fmt.Sprintf("Cannot properly handle 'training-stopped' event after receiving \"execute_reply\" message \"%s\" via gRPC.",
+			jupyterMsg.GetHeader().MessageId)
+
+		c.notifyCallback(&proto.Notification{
+			Id:               uuid.NewString(),
+			Title:            title,
+			Message:          message,
+			NotificationType: domain.ErrorNotification.Int32(),
+			Panicked:         false,
+		})
+
 		return nil
 	}
 
-	return err
+	// In cases where a message is significantly delayed, we may resort to retrieving it via gRPC.
+	// In this case, we don't want things to get messed up if we eventually receive the delayed ZMQ message here.
+	// For example, we could misinterpret a delayed "execute_reply" as being for the current training and think that
+	// the current training has ended when it hasn't.
+	//
+	// So, we check if we're the ones to atomically flip the associated 'received' flag from 0 to 1. If so,
+	// then we can handle the message. If not, then we discard it.
+	if !receivedFlag.CompareAndSwap(0, 1) {
+		c.logger.Warn("Failed to flip 'received' flag from 0 to 1 for \"execute_reply\". Must have already received message via ZMQ.",
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId),
+			zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
+			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+			zap.String("execute_reply_message", jupyterMsg.String()))
+
+		return nil
+	}
+
+	// We'll estimate the e2e latency, because the messages being dropped is more likely a bug of some sort...
+	content := jupyterMsg.GetContent().(map[string]interface{})
+	val := content["execution_finished_unix_millis"]
+	execEndedTimeUnixMillis := int64(val.(float64))
+	execEndedTime := time.UnixMilli(execEndedTimeUnixMillis)
+
+	estimatedReplyLatencyMillis := c.Workload.Statistics.GetAverageTotalReplyLatencyMillis()
+	estimatedReplyLatency := time.Duration(float64(time.Millisecond) * estimatedReplyLatencyMillis)
+
+	estimatedReceivedAt := execEndedTime.Add(estimatedReplyLatency)
+
+	estimatedEndToEndLatency := estimatedReceivedAt.Sub(c.lastTrainingSubmittedAt)
+
+	c.logger.Debug("Retrieved \"execute_reply\" message via gRPC.",
+		zap.String("session_id", c.SessionId),
+		zap.String("workload_id", c.Workload.GetId()),
+		zap.String("workload_name", c.Workload.WorkloadName()),
+		zap.String("execute_request_msg_id", execReqMsgId),
+		zap.Time("estimated_received_at", estimatedReceivedAt),
+		zap.Float64("estimated_reply_latency_millis", estimatedReplyLatencyMillis),
+		zap.Duration("estimated_reply_latency", estimatedReplyLatency),
+		zap.Duration("estimated_end_to_end_latency", estimatedEndToEndLatency),
+		zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+		zap.String("execute_reply_message", resp.String()))
+
+	// If we estimated an invalid latency, then just use the average so far...
+	if estimatedEndToEndLatency < 0 {
+		estimatedEndToEndLatency = time.Duration(float64(time.Millisecond) * c.Workload.Statistics.GetAverageEndToEndExecuteRequestLatencyMillis())
+	}
+
+	notification := &trainingStoppedNotification{
+		Response:   jupyterMsg,
+		ReceivedAt: estimatedReceivedAt,
+	}
+
+	c.handleTrainingEnded(evt, notification, execReqMsgId, cumulativeTimeoutInterval, estimatedEndToEndLatency)
+	return nil
 }
 
 // waitForTrainingToStart waits for a training to begin being processed by a kernel replica.
