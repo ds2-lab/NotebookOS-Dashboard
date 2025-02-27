@@ -72,6 +72,8 @@ type serverImpl struct {
 	// workloadManager is responsible for managing workloads submitted to the server for execution/orchestration.
 	workloadManager *workload.BasicWorkloadManager
 
+	workloadNetworkHandler *workload.NetworkHandler
+
 	// nodeHandler is responsible for handling HTTP GET and HTTP PATCH requests for the nodes within the cluster.
 	//
 	// Initially, nodeHandler returns HTTP 503 "Service Unavailable" for all requests.
@@ -130,7 +132,9 @@ func NewServer(opts *domain.Configuration) domain.Server {
 		prometheusEndpoint:      opts.PrometheusEndpoint,
 	}
 
-	s.workloadManager = workload.NewWorkloadManager(opts, &atom, s)
+	s.workloadNetworkHandler = workload.NewNetworkHandler(&atom)
+	s.workloadManager = workload.NewWorkloadManager(opts, &atom, s, s.workloadNetworkHandler)
+	s.workloadNetworkHandler.Initialize(s.workloadManager, s.workloadManager.WorkloadStartedChan())
 
 	// Default to "/"
 	if s.baseUrl == "" {
@@ -370,10 +374,11 @@ func (s *serverImpl) handleRpcRegistrationComplete(nodeType domain.NodeType, rpc
 // ErrorHandlerMiddleware is gin middleware to handle errors that occur while the request handlers
 // are processing/handling a request.
 func (s *serverImpl) ErrorHandlerMiddleware(c *gin.Context) {
-	c.Next() // Execute all the handlers.
-
-	s.logger.Debug("Serving request.", zap.String("origin", c.Request.Header.Get("Origin")),
+	s.logger.Debug("Serving request.",
+		zap.String("origin", c.Request.Header.Get("Origin")),
 		zap.String("url", c.Request.URL.String()))
+
+	c.Next() // Execute all the handlers.
 
 	errorsEncountered := make([]error, 0)
 	for _, err := range c.Errors {
@@ -674,6 +679,48 @@ func (s *serverImpl) setupRoutes() error {
 
 		// Used by the frontend to instruct a Local Daemon to reconnect to the Cluster Gateway.
 		apiGroup.POST(domain.InstructLocalDaemonReconnect, handlers.NewForceLocalDaemonToReconnectHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
+	}
+
+	///////////////////////
+	// Workload HTTP API //
+	///////////////////////
+	workloadHttpGroup := apiGroup.Group(domain.WorkloadEndpoint, authMiddleware.MiddlewareFunc())
+	{
+		// Meant to refer to one of the functions of the NetworkHandler struct of the server.
+		type singleWorkloadRequest func(msgId string, workloadId string) (*domain.WorkloadResponse, error)
+
+		// Handle a request targeting a specific workload.
+		handleRequest := func(c *gin.Context, handler singleWorkloadRequest) {
+			workloadId := c.Param("workload_id")
+
+			resp, requestErr := handler("", workloadId)
+			if requestErr != nil {
+				_ = c.Error(requestErr)
+				return
+			}
+
+			c.JSON(http.StatusOK, resp)
+		}
+
+		workloadHttpGroup.POST("/:workload_id/start", func(c *gin.Context) {
+			handleRequest(c, s.workloadNetworkHandler.StartWorkload)
+		})
+
+		workloadHttpGroup.POST("/:workload_id/stop", func(c *gin.Context) {
+			handleRequest(c, s.workloadNetworkHandler.StopWorkload)
+		})
+
+		workloadHttpGroup.POST("/:workload_id/pause", func(c *gin.Context) {
+			handleRequest(c, s.workloadNetworkHandler.PauseWorkload)
+		})
+
+		workloadHttpGroup.POST("/:workload_id/unpause", func(c *gin.Context) {
+			handleRequest(c, s.workloadNetworkHandler.UnpauseWorkload)
+		})
+
+		workloadHttpGroup.POST("/:workload_id/export", func(c *gin.Context) {
+			handleRequest(c, s.workloadNetworkHandler.GetWorkload)
+		})
 	}
 
 	///////////////////////////

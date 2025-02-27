@@ -34,6 +34,7 @@ type BasicWorkloadManager struct {
 	workloadJobConfiguration *domain.WorkloadJobConfiguration                // workloadJobConfiguration specifies which models and datasets are available during workloads.
 	pushGoroutineActive      atomic.Int32                                    // Indicates whether there is already a goroutine serving the "push" routine, which pushes updated workload data to the frontend.
 	pushUpdateInterval       time.Duration                                   // The interval at which we push updates to the workloads to the frontend.
+	workloadNetworkHandler   *NetworkHandler                                 // networkHandler handles workload-related requests from arbitrary sources (WebSockets, HTTP, etc.)
 	workloadWebsocketHandler *WebsocketHandler                               // Workload WebSocket handler. Accepts and processes WebSocket requests related to workloads.
 	workloadDrivers          *orderedmap.OrderedMap[string, *Driver]         // Map from workload ID to the associated driver.
 	workloadsMap             *orderedmap.OrderedMap[string, domain.Workload] // Map from workload ID to workload
@@ -86,7 +87,9 @@ type CallbackProvider interface {
 	GetJupyterMessage(kernelId string, messageId string, messageType string) (*proto.GetJupyterMessageResponse, error)
 }
 
-func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLevel, callbackProvider CallbackProvider) *BasicWorkloadManager {
+func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLevel, callbackProvider CallbackProvider,
+	workloadNetworkHandler *NetworkHandler) *BasicWorkloadManager {
+
 	manager := &BasicWorkloadManager{
 		atom:                atom,
 		configuration:       configuration,
@@ -95,12 +98,7 @@ func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLev
 		workloads:           make([]domain.Workload, 0),
 		workloadStartedChan: make(chan string, 4),
 		pushUpdateInterval:  time.Second * time.Duration(configuration.PushUpdateInterval),
-		//onCriticalError:          provider.HandleCriticalWorkloadError,
-		//onNonCriticalError:       provider.HandleWorkloadError,
-		//notifyCallback:           provider.SendNotification,
-		//refreshClusterStatistics: provider.RefreshAndClearClusterStatistics,
-		//getSchedulingPolicy:      provider.GetSchedulingPolicy,
-		callbackProvider: callbackProvider,
+		callbackProvider:    callbackProvider,
 	}
 
 	zapConfig := zap.NewDevelopmentEncoderConfig()
@@ -114,7 +112,8 @@ func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLev
 	manager.logger = logger
 	manager.sugaredLogger = logger.Sugar()
 
-	manager.workloadWebsocketHandler = NewWebsocketHandler(configuration, manager, manager.workloadStartedChan, atom)
+	manager.workloadNetworkHandler = workloadNetworkHandler
+	manager.workloadWebsocketHandler = NewWebsocketHandler(configuration, manager.workloadNetworkHandler, atom)
 	manager.pushGoroutineActive.Store(0)
 
 	var err error
@@ -124,6 +123,10 @@ func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLev
 	}
 
 	return manager
+}
+
+func (m *BasicWorkloadManager) WorkloadStartedChan() chan string {
+	return m.workloadStartedChan
 }
 
 // GetWorkloadWebsocketHandler returns a function that can handle WebSocket requests for workload operations.
@@ -144,6 +147,14 @@ func (m *BasicWorkloadManager) GetWorkloads() []domain.Workload {
 	defer m.mu.Unlock()
 
 	return m.workloads
+}
+
+// GetWorkload returns a specific, currently-registered workload.
+func (m *BasicWorkloadManager) GetWorkload(workloadId string) (domain.Workload, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.workloadsMap.Get(workloadId)
 }
 
 // GetActiveWorkloads returns a map from Workload ID to Workload struct containing workloads that are active when the method is called.

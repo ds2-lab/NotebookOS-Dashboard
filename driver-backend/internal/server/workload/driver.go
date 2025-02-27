@@ -72,6 +72,7 @@ del sock
 
 var (
 	ErrWorkloadPresetNotFound              = errors.New("could not find workload preset with specified key")
+	ErrWorkloadNotFound                    = errors.New("could not find registered workload with specified id")
 	ErrWorkloadAlreadyRegistered           = errors.New("driver already has a workload registered with it")
 	ErrUnsupportedWorkloadType             = errors.New("unsupported workload type")
 	ErrWorkloadRegistrationMissingTemplate = errors.New("workload registration request for template-based workload is missing the template itself")

@@ -53,27 +53,24 @@ type WebsocketHandler struct {
 	atom          *zap.AtomicLevel
 
 	configuration           *domain.Configuration                 // The system/server configuration. This is passed to workload drivers when we create them during workload registration.
-	workloadManager         *BasicWorkloadManager                 // Provides access to all the workloads.
 	workloadMessageIndex    atomic.Int32                          // Monotonically increasing index assigned to each outgoing workload message.
 	handlers                map[string]websocketRequestHandler    // A map from operation ID to the associated request handler.
 	subscribers             map[string]domain.ConcurrentWebSocket // Websockets that have submitted a workload and thus will want updates for that workload.
-	workloadStartedChan     chan<- string                         // Channel of workload IDs. When a workload is started, its ID is submitted to this channel.
 	expectedOriginPort      int                                   // The origin port expected for incoming WebSocket connections.
 	expectedOriginAddresses []string
+
+	networkHandler *NetworkHandler
 
 	numActiveWsConnections atomic.Int32
 }
 
-func NewWebsocketHandler(configuration *domain.Configuration, workloadManager *BasicWorkloadManager,
-	workloadStartedChan chan<- string, atom *zap.AtomicLevel) *WebsocketHandler {
-
+func NewWebsocketHandler(configuration *domain.Configuration, networkHandler *NetworkHandler, atom *zap.AtomicLevel) *WebsocketHandler {
 	handler := &WebsocketHandler{
 		configuration:           configuration,
-		workloadManager:         workloadManager,
+		networkHandler:          networkHandler,
 		atom:                    atom,
 		handlers:                make(map[string]websocketRequestHandler),
 		subscribers:             make(map[string]domain.ConcurrentWebSocket),
-		workloadStartedChan:     workloadStartedChan,
 		expectedOriginPort:      configuration.ExpectedOriginPort,
 		expectedOriginAddresses: make([]string, 0, len(configuration.ExpectedOriginAddresses)),
 	}
@@ -311,11 +308,12 @@ func (h *WebsocketHandler) serveWorkloadWebsocket(c *gin.Context) {
 
 // Return the currently-registered workloads.
 func (h *WebsocketHandler) handleGetWorkloads(msgId string, _ []byte, _ domain.ConcurrentWebSocket) ([]byte, error) {
-	workloads := h.workloadManager.GetWorkloads()
+	resp, err := h.networkHandler.GetWorkloads(msgId)
+	if err != nil {
+		return nil, err
+	}
 
-	responseBuilder := newResponseBuilder(msgId, OpGetWorkloads)
-	response := responseBuilder.WithModifiedWorkloads(workloads).BuildResponse()
-	return response.Encode()
+	return resp.Encode()
 }
 
 // Add a websocket to the subscribers field. This is used for workload-related communication.
@@ -340,15 +338,12 @@ func (h *WebsocketHandler) handleToggleDebugLogs(msgId string, message []byte, w
 		return nil, err
 	}
 
-	modifiedWorkload, err := h.workloadManager.ToggleDebugLogging(req.WorkloadId, req.Enabled)
+	resp, err := h.networkHandler.ToggleDebugLogs(msgId, req.WorkloadId, req.Enabled)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Consider broadcasting the response?
-	responseBuilder := newResponseBuilder(msgId, OpWorkloadToggleDebugLogs)
-	response := responseBuilder.WithModifiedWorkload(modifiedWorkload).BuildResponse()
-	return response.Encode()
+	return resp.Encode()
 }
 
 // Handle a request to start a particular workload.
@@ -365,21 +360,12 @@ func (h *WebsocketHandler) handleStartWorkload(msgId string, message []byte, ws 
 		panic(fmt.Sprintf("Unexpected operation field in StartStopWorkloadRequest: \"%s\"", req.Operation))
 	}
 
-	h.logger.Debug("Starting workload.", zap.String("workload_id", req.WorkloadId))
-
-	startedWorkload, err := h.workloadManager.StartWorkload(req.WorkloadId)
+	resp, err := h.networkHandler.StartWorkload(msgId, req.WorkloadId)
 	if err != nil {
 		return nil, err
 	}
 
-	// Notify the server-push goroutine that the workload has started.
-	h.workloadStartedChan <- req.WorkloadId
-
-	// TODO: Consider broadcasting the response?
-	startedWorkload.UpdateTimeElapsed()
-	responseBuilder := newResponseBuilder(msgId, OpStartWorkload)
-	response := responseBuilder.WithModifiedWorkload(startedWorkload).BuildResponse()
-	return response.Encode()
+	return resp.Encode()
 }
 
 // Handle a request to stop a particular workload.
@@ -396,18 +382,12 @@ func (h *WebsocketHandler) handleStopWorkload(msgId string, message []byte, ws d
 		panic(fmt.Sprintf("Unexpected operation field in StartStopWorkloadRequest: \"%s\"", req.Operation))
 	}
 
-	h.logger.Debug("Stopping workload.", zap.String("workload_id", req.WorkloadId))
-	stoppedWorkload, err := h.workloadManager.StopWorkload(req.WorkloadId)
+	resp, err := h.networkHandler.StopWorkload(msgId, req.WorkloadId)
 	if err != nil {
-		h.logger.Error("Failed to stop workload.", zap.String("workload_id", req.WorkloadId), zap.Error(err))
 		return nil, err
 	}
 
-	// TODO: Consider broadcasting the response?
-	stoppedWorkload.UpdateTimeElapsed()
-	responseBuilder := newResponseBuilder(msgId, OpStopWorkload)
-	response := responseBuilder.WithModifiedWorkload(stoppedWorkload).BuildResponse()
-	return response.Encode()
+	return resp.Encode()
 }
 
 // Handle a request to stop 1 or more active workloads.
@@ -425,38 +405,12 @@ func (h *WebsocketHandler) handleStopWorkloads(msgId string, message []byte, ws 
 		panic(fmt.Sprintf("Unexpected operation field in StartStopWorkloadsRequest: \"%s\"", req.Operation))
 	}
 
-	// Create a slice for all the workloads that were stopped.
-	// Optimistically pre-allocate enough slots for every workload specified in the request to be successfully stopped.
-	// It should usually work, as the frontend generally prevents users for submitting invalid requests.
-	// It would only "go wrong" if the frontend's state is out of sync, which should be very uncommon.
-	var stoppedWorkloads = make([]domain.Workload, 0, len(req.WorkloadIDs))
-
-	// Errors accumulated while stopping the workloads specified in the request.
-	var errs = make([]error, 0)
-
-	h.logger.Debug("Stopping workloads.", zap.Int("num-workloads", len(req.WorkloadIDs)))
-	for _, workloadId := range req.WorkloadIDs {
-		h.logger.Debug("Stopping workload.", zap.String("workload_id", workloadId))
-
-		stoppedWorkload, err := h.workloadManager.StopWorkload(workloadId)
-		if err != nil {
-			h.logger.Error("Failed to stop workload.", zap.String("workload_id", workloadId), zap.Error(err))
-			errs = append(errs, err)
-			continue
-		}
-
-		stoppedWorkload.UpdateTimeElapsed()
-		stoppedWorkloads = append(stoppedWorkloads, stoppedWorkload)
+	resp, err := h.networkHandler.StopWorkloads(msgId, req.WorkloadIDs)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(errs) > 0 {
-		h.logger.Error("Failed to stop one or more workloads.", zap.Int("num-errors", len(errs)), zap.Errors("errors", errs))
-		return nil, errors.Join(errs...)
-	}
-
-	responseBuilder := newResponseBuilder(msgId, OpStopWorkloads)
-	response := responseBuilder.WithModifiedWorkloads(stoppedWorkloads).BuildResponse()
-	return response.Encode()
+	return resp.Encode()
 }
 
 // Handle a request to pause (i.e., temporarily suspend/halt the execution of) an actively-running workload.
@@ -473,18 +427,12 @@ func (h *WebsocketHandler) handlePauseWorkload(msgId string, message []byte, _ d
 		panic(fmt.Sprintf("Unexpected operation field in PauseUnpauseWorkloadRequest: \"%s\"", req.Operation))
 	}
 
-	h.logger.Debug("Pausing workload.", zap.String("workload_id", req.WorkloadId))
-	pausedWorkload, err := h.workloadManager.PauseWorkload(req.WorkloadId)
+	resp, err := h.networkHandler.PauseWorkload(msgId, req.WorkloadId)
 	if err != nil {
-		h.logger.Error("Failed to pause workload.", zap.String("workload_id", req.WorkloadId), zap.Error(err))
 		return nil, err
 	}
 
-	// TODO: Consider broadcasting the response?
-	pausedWorkload.UpdateTimeElapsed()
-	responseBuilder := newResponseBuilder(msgId, OpStopWorkload)
-	response := responseBuilder.WithModifiedWorkload(pausedWorkload).BuildResponse()
-	return response.Encode()
+	return resp.Encode()
 }
 
 // Handle a request to unpause (i.e., resume the execution of) a active workload that has previously been paused.
@@ -501,18 +449,12 @@ func (h *WebsocketHandler) handleUnpauseWorkload(msgId string, message []byte, w
 		panic(fmt.Sprintf("Unexpected operation field in PauseUnpauseWorkloadRequest: \"%s\"", req.Operation))
 	}
 
-	h.logger.Debug("Unpausing workload.", zap.String("workload_id", req.WorkloadId))
-	unpausedWorkload, err := h.workloadManager.UnpauseWorkload(req.WorkloadId)
+	resp, err := h.networkHandler.UnpauseWorkload(msgId, req.WorkloadId)
 	if err != nil {
-		h.logger.Error("Failed to unpause workload.", zap.String("workload_id", req.WorkloadId), zap.Error(err))
 		return nil, err
 	}
 
-	// TODO: Consider broadcasting the response?
-	unpausedWorkload.UpdateTimeElapsed()
-	responseBuilder := newResponseBuilder(msgId, OpStopWorkload)
-	response := responseBuilder.WithModifiedWorkload(unpausedWorkload).BuildResponse()
-	return response.Encode()
+	return resp.Encode()
 }
 
 // Handle a request to register a new workload.
@@ -529,15 +471,12 @@ func (h *WebsocketHandler) handleRegisterWorkload(msgId string, message []byte, 
 
 	h.logger.Debug("Received WorkloadRegistrationRequest", zap.Any("wrapper-request", req))
 
-	workload, err := h.workloadManager.RegisterWorkload(req.WorkloadRegistrationRequest, ws)
+	resp, err := h.networkHandler.handleRegisterWorkload(msgId, req, ws)
 	if err != nil {
-		h.logger.Error("Failed to register new workload.", zap.Any("workload-registration-request", req.WorkloadRegistrationRequest), zap.Error(err))
 		return nil, err
 	}
 
-	responseBuilder := newResponseBuilder(msgId, OpRegisterWorkloads)
-	response := responseBuilder.WithNewWorkload(workload).BuildResponse()
-	return response.Encode()
+	return resp.Encode()
 }
 
 // broadcastToWorkloadWebsockets sends a binary websocket message to all workload websockets
