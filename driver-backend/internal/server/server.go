@@ -209,6 +209,28 @@ func (s *serverImpl) clearClusterStatistics() (*workload.ClusterStatistics, erro
 	return clusterStatistics.ToClusterStatistics(), nil
 }
 
+func (s *serverImpl) GetJupyterMessage(kernelId string, messageId string, messageType string) (*proto.GetJupyterMessageResponse, error) {
+	if s.gatewayRpcClient == nil {
+		return nil, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	arg := &proto.GetJupyterMessageRequest{
+		KernelId:         kernelId,
+		MessageType:      messageType,
+		JupyterMessageId: messageId,
+	}
+
+	resp, err := s.gatewayRpcClient.GetJupyterMessage(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
 // IsKernelActivelyTraining is used to query whether the Cluster Gateway believes that a particular kernel is
 // actively training or not
 func (s *serverImpl) IsKernelActivelyTraining(kernelId string) (bool, error) {
@@ -216,7 +238,7 @@ func (s *serverImpl) IsKernelActivelyTraining(kernelId string) (bool, error) {
 		return false, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	arg := &proto.KernelId{

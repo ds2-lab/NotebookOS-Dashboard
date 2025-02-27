@@ -80,6 +80,10 @@ type CallbackProvider interface {
 	// IsKernelActivelyTraining is used to query whether the Cluster Gateway believes that a particular kernel is
 	// actively training or not
 	IsKernelActivelyTraining(kernelId string) (bool, error)
+
+	// GetJupyterMessage tries to retrieve the Jupyter message of the given type and with the given ID that is
+	// associated with the given kernel.
+	GetJupyterMessage(kernelId string, messageId string, messageType string) (*proto.GetJupyterMessageResponse, error)
 }
 
 func NewWorkloadManager(configuration *domain.Configuration, atom *zap.AtomicLevel, callbackProvider CallbackProvider) *BasicWorkloadManager {
@@ -357,7 +361,7 @@ func (m *BasicWorkloadManager) pushWorkloadUpdate(payload []byte) error {
 }
 
 // Used to push updates about active workloads to the frontend.
-func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */ ) {
+func (m *BasicWorkloadManager) serverPushRoutine( /* doneChan chan struct{} */) {
 	activeWorkloads := m.GetActiveWorkloads()
 
 	// Function that continuously pulls workload IDs out of the 'workloadStartedChan' until there are none left.

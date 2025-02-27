@@ -51,8 +51,13 @@ type Statistics struct {
 	// JupyterTrainingStartLatenciesDashboardMillis field of ClustStatistics; however, it is measured from the dashboard directly.
 	JupyterTrainingStartLatenciesDashboardMillis []float64 `json:"jupyter_training_start_latencies_dashboard_millis" csv:"-"`
 
+	// TotalReplyLatencyMillis is the sum of the latencies of sending the response from the kernel to the client for
+	// all "execute_reply" messages received throughout the entire duration of the associated workload's execution.
 	TotalReplyLatencyMillis   int64   `json:"total_reply_latency_millis" csv:"total_reply_latency_millis"`
-	TotalReplyLatenciesMillis []int64 `json:"total_reply_latencies_millis" csv:"total_reply_latencies_millis"`
+	TotalReplyLatenciesMillis []int64 `json:"total_reply_latencies_millis" csv:"-"`
+
+	TotalExecuteRequestEndToEndLatencyMillis   int64   `json:"total_execute_request_end_to_end_latency_millis" csv:"total_execute_request_end_to_end_latency_millis"`
+	TotalExecuteRequestEndToEndLatenciesMillis []int64 `json:"total_execute_request_end_to_end_latencies_millis" csv:"-"`
 
 	NumTimesSessionDelayedResourceContention int `json:"num_times_session_delayed_resource_contention" csv:"num_times_session_delayed_resource_contention"`
 
@@ -89,25 +94,44 @@ type Statistics struct {
 
 func NewStatistics(sessionsSamplePercentage float64) *Statistics {
 	return &Statistics{
-		RegisteredTime:                           time.Now(),
-		NumTasksExecuted:                         0,
-		NumEventsProcessed:                       0,
-		NumSessionsCreated:                       0,
-		NumActiveSessions:                        0,
-		NumActiveTrainings:                       0,
-		NumOutstandingExecRequests:               0,
-		EventsProcessed:                          make([]*domain.WorkloadEvent, 0),
-		TickDurationsMillis:                      make([]int64, 0),
-		JupyterSessionCreationLatenciesMillis:    make([]int64, 0),
-		JupyterSessionTerminationLatenciesMillis: make([]int64, 0),
-		JupyterExecRequestTimesMillis:            make([]int64, 0),
-		TotalReplyLatenciesMillis:                make([]int64, 0),
-		EventCounts:                              make(map[string]int),
-		SessionsSamplePercentage:                 sessionsSamplePercentage,
-		TimeElapsed:                              time.Duration(0),
-		CurrentTick:                              0,
-		WorkloadState:                            Ready,
+		RegisteredTime:                             time.Now(),
+		NumTasksExecuted:                           0,
+		NumEventsProcessed:                         0,
+		NumSessionsCreated:                         0,
+		NumActiveSessions:                          0,
+		NumActiveTrainings:                         0,
+		NumOutstandingExecRequests:                 0,
+		EventsProcessed:                            make([]*domain.WorkloadEvent, 0),
+		TickDurationsMillis:                        make([]int64, 0),
+		JupyterSessionCreationLatenciesMillis:      make([]int64, 0),
+		JupyterSessionTerminationLatenciesMillis:   make([]int64, 0),
+		JupyterExecRequestTimesMillis:              make([]int64, 0),
+		TotalReplyLatenciesMillis:                  make([]int64, 0),
+		TotalExecuteRequestEndToEndLatenciesMillis: make([]int64, 0),
+		EventCounts:                                make(map[string]int),
+		SessionsSamplePercentage:                   sessionsSamplePercentage,
+		TimeElapsed:                                time.Duration(0),
+		CurrentTick:                                0,
+		WorkloadState:                              Ready,
 	}
+}
+
+// GetAverageEndToEndExecuteRequestLatencyMillis returns the average end-to-end latency, in milliseconds, observed by
+// "execute_request" messages sent throughout the entire duration of the associated workload's execution.
+func (s *Statistics) GetAverageEndToEndExecuteRequestLatencyMillis() float64 {
+	sum := float64(s.TotalExecuteRequestEndToEndLatencyMillis)
+	count := float64(len(s.TotalExecuteRequestEndToEndLatenciesMillis))
+
+	return sum / count
+}
+
+// GetAverageTotalReplyLatencyMillis returns the average latency of sending the response from the kernel to the client
+// for all "execute_reply" messages received throughout the entire duration of the associated workload's execution.
+func (s *Statistics) GetAverageTotalReplyLatencyMillis() float64 {
+	sum := float64(s.TotalReplyLatencyMillis)
+	count := float64(len(s.TotalReplyLatenciesMillis))
+
+	return sum / count
 }
 
 type ClusterEventName string
