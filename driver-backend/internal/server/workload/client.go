@@ -1286,8 +1286,7 @@ func (c *Client) OnReceiveExecuteReply(response jupyter.KernelMessage) {
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
-		zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
-		zap.String("execute_reply_message", response.String()))
+		zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId))
 
 	err := c.claimTrainingStoppedNotification(response, response.GetParentHeader().MessageId, zmq)
 	if err != nil {
@@ -1423,7 +1422,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	// in case it was dropped or otherwise delayed.
 	if isTraining {
 		startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
-		if err == nil {
+		if startedAtUnixMillis > 0 && err == nil {
 			return true, startedAtUnixMillis, nil
 		}
 	}
@@ -1437,7 +1436,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 
 		trainingStarted, startedAtUnixMillis, err = c.doWaitForTrainingToStart(ctx, evt, startedHandlingAt, sentRequestAt,
 			originalTimeoutInterval, execReqId)
-		if trainingStarted && err == nil {
+		if trainingStarted && startedAtUnixMillis > 0 && err == nil {
 			cancel()
 			return true, startedAtUnixMillis, nil
 		}
@@ -1451,7 +1450,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			// the kernel is not yet training -- though this is unlikely to succeed in that case. The gateway learns that
 			// the kernel is no longer training by receiving the "smr_lead_task" message.
 			startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
-			if trainingStarted && err == nil {
+			if startedAtUnixMillis > 0 && err == nil {
 				return true, startedAtUnixMillis, nil
 			}
 
@@ -1965,7 +1964,6 @@ func (c *Client) checkIfTrainingStartedViaGrpc(execReqMsgId string) (int64, erro
 		zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
 
 	resp, err := c.getJupyterMessageCallback(c.SessionId, execReqMsgId, "smr_lead_task")
-
 	if err != nil {
 		c.logger.Warn("Failed to retrieve \"smr_lead_task\" message via gRPC.",
 			zap.String("session_id", c.SessionId),

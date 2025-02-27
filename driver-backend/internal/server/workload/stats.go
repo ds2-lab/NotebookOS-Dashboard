@@ -71,6 +71,7 @@ type Statistics struct {
 	NextExpectedEventName       domain.EventName        `json:"next_expected_event_name"  csv:"next_expected_event_name"`
 	NextExpectedEventTarget     string                  `json:"next_expected_event_target"  csv:"next_expected_event_target"`
 	NumActiveSessions           int64                   `json:"num_active_sessions"  csv:"num_active_sessions"`
+	TotalNumTrainingEvents      int64                   `json:"total_num_training_events"  csv:"total_num_training_events"`
 	NumActiveTrainings          int64                   `json:"num_active_trainings"  csv:"num_active_trainings"`
 	NumDiscardedSessions        int                     `json:"num_discarded_sessions"  csv:"num_discarded_sessions"`
 	NumEventsProcessed          int64                   `json:"num_events_processed"  csv:"num_events_processed"`

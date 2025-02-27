@@ -348,6 +348,8 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 	w.sessionsSet = true
 	w.Statistics.TotalNumSessions = len(sessions)
 
+	totalNumTrainingEvents := int64(0)
+
 	// Add each session to our internal mapping and initialize the session.
 	for _, session := range sessions {
 		if session.CurrentResourceRequest == nil {
@@ -411,6 +413,8 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 				w.logger.Error("Failed to set session state.", zap.String("session_id", session.GetId()), zap.Error(err))
 			}
 
+			totalNumTrainingEvents += int64(len(session.TrainingEvents))
+
 			w.logger.Debug("Registered Session.",
 				zap.String("session_id", session.GetId()),
 				zap.Int("num_trainings", len(session.TrainingEvents)),
@@ -418,6 +422,8 @@ func (w *Workload) unsafeSetSessions(sessions []*domain.WorkloadTemplateSession)
 				zap.String("current_resource_request", session.CurrentResourceRequest.String()))
 		}
 	}
+
+	w.Statistics.TotalNumTrainingEvents = totalNumTrainingEvents
 
 	if w.Statistics.NumDiscardedSessions > 0 {
 		w.logger.Debug("Discarded unsampled sessions.",

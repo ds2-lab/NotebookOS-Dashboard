@@ -87,6 +87,10 @@ function WorkloadProvider({ children }: { children: React.ReactNode }) {
         {
             onOpen: () => {
                 console.log("Connected to workload websocket. Sending 'subscribe' message now.");
+
+                setWorkloadsMap(new Map<string, Workload>());
+                setWorkloads([]);
+
                 sendMessage(
                     JSON.stringify({
                         op: 'subscribe',

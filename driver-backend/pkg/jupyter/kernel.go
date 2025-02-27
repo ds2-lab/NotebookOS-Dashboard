@@ -489,8 +489,7 @@ func (conn *BasicKernelConnection) handleExecuteRequestResponse(request KernelMe
 			zap.String("kernel_id", conn.kernelId),
 			zap.String("request_id", request.GetHeader().MessageId),
 			zap.String("reply_id", response.GetHeader().MessageId),
-			zap.Duration("latency", latency),
-			zap.Any("response", response))
+			zap.Duration("latency", latency))
 		requestArgs.ExtraArguments.ResponseCallback(response)
 	}
 
@@ -851,7 +850,9 @@ func (conn *BasicKernelConnection) serveMessages() {
 				responseChannel <- kernelMessage
 				conn.logger.Debug("Response delivered (via channel) for websocket message.",
 					zap.String("request_message_id", kernelMessage.GetParentHeader().MessageId),
-					zap.String("response_message_id", kernelMessage.GetHeader().MessageId))
+					zap.String("response_message_id", kernelMessage.GetHeader().MessageId),
+					zap.String("response_message_type", kernelMessage.GetHeader().MessageType.String()),
+					zap.String("response_session", kernelMessage.GetHeader().Session))
 			} else {
 				conn.logger.Warn("Could not find response channel associated with message.",
 					zap.String("request_message_id", kernelMessage.GetParentHeader().MessageId),

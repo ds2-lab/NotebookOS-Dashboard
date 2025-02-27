@@ -353,8 +353,7 @@ func (m *BasicWorkloadManager) RegisterWorkload(request *domain.WorkloadRegistra
 
 	m.logger.Debug("Successfully registered workload with Workload Manager.",
 		zap.String("workload_id", workloadId),
-		zap.String("workload_name", workload.WorkloadName()),
-		zap.String("workload", workload.String()))
+		zap.String("workload_name", workload.WorkloadName()))
 
 	return workload, err
 }
