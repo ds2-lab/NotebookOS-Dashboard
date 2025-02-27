@@ -26,6 +26,11 @@ import (
 	"time"
 )
 
+const (
+	zmq  requestSource = "ZMQ"
+	gRPC requestSource = "gRPC"
+)
+
 var (
 	// ErrClientNotRunning  = errors.New("cannot stop client as it is not running")
 
@@ -35,6 +40,12 @@ var (
 
 	SmrLeadTask jupyter.MessageType = "smr_lead_task"
 )
+
+type requestSource string
+
+func (s requestSource) String() string {
+	return string(s)
+}
 
 // ClientBuilder constructs a Client instance step-by-step.
 type ClientBuilder struct {
@@ -240,7 +251,8 @@ func (b *ClientBuilder) Build() *Client {
 		errorChan:                        b.errorChan,
 		TrainingStartedChannel:           make(chan interface{}, 1),
 		TrainingStoppedChannel:           make(chan interface{}, 1),
-		outstandingExecuteRequestMap:     make(map[string]*atomic.Int32),
+		trainingEndedRequestMap:          make(map[string]*atomic.Int32),
+		trainingStartedRequestMap:        make(map[string]*atomic.Int32),
 		Session:                          b.session,
 		kernelSessionManager:             b.kernelSessionManager,
 		sessionReadyEvent:                b.sessionReadyEvent,
@@ -328,51 +340,53 @@ type Client struct {
 	Workload *Workload
 	Session  *domain.WorkloadTemplateSession
 
-	maxSleepDuringInitSec             int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
-	SessionId                         string                                 // SessionId is the Jupyter kernel/session ID of this Client
-	WorkloadId                        string                                 // WorkloadId is the ID of the workload that the Client is a part of.
-	errorChan                         chan<- error                           // errorChan is used to notify the WorkloadDriver that an error has occurred.
-	kernelConnection                  jupyter.KernelConnection               // kernelConnection is the Client's Jupyter kernel connection. The Client uses this to send messages to its kernel.
-	sessionConnection                 *jupyter.SessionConnection             // sessionConnection is the Client's Jupyter session connection.
-	kernelSessionManager              jupyter.KernelSessionManager           // kernelSessionManager is used by the Client to create its sessionConnection and subsequently its kernelConnection.
-	sessionReadyEvent                 *domain.Event                          // sessionReadyEvent is the "session-ready" event that triggered the creation of this Client.
-	schedulingPolicy                  string                                 // schedulingPolicy is the name of the scheduling policy that the cluster is configured to use.
-	EventQueue                        *event_queue.SessionEventQueue         // EventQueue contains events to be processed by this Client.
-	maximumResourceSpec               *domain.ResourceRequest                // maximumResourceSpec is the maximum amount of resources this Client may use at any point in its lifetime.
-	targetTickDurationSeconds         int64                                  // targetTickDurationSeconds is how long each tick was in the trace data used to generate this workload
-	targetTickDuration                time.Duration                          // targetTickDuration is how long each tick is supposed to last. This is the tick interval/step rate of the simulation.
-	timescaleAdjustmentFactor         float64                                // timescaleAdjustmentFactor controls the amount/degree of time compression that is used/applied.
-	currentTick                       domain.SimulationClock                 // currentTick maintains the time for this Client.
-	currentTime                       domain.SimulationClock                 // currentTime contains the current clock time of the workload, which will be sometime between currentTick and currentTick + TickDuration.
-	ticker                            *clock.Ticker                          // ticker delivers ticks, which drives this Client's workload. Each time a tick is received, the Client will process events for that tick.
-	clockTrigger                      *clock.Trigger                         // clockTrigger is a trigger for the clock ticks
-	logger                            *zap.Logger                            // logger is how the Client prints log messages.
-	running                           atomic.Int32                           // running indicates whether this Client is actively processing events.
-	ticksHandled                      atomic.Int64                           // ticksHandled is the number of ticks handled by this Client.
-	failedToStart                     atomic.Bool                            // failedToStart indicates that this Client completely failed to start -- it never succeeded in creating its kernel/session.
-	numSessionStartAttempts           atomic.Int32                           // numSessionStartAttempts counts the number of attempts that were required when initially creating the session/kernel before the session/kernel was successfully created.
-	trainingEventsHandled             atomic.Int32                           // trainingEventsHandled is the number of training events successfully processed by this Client.
-	trainingEventsDelayed             atomic.Int32                           // trainingEventsDelayed returns the number of times that a training event was delayed after failing to start. The same training event can be delayed multiple times, and each of those delays is counted independently.
-	lastTrainingSubmittedAt           time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
-	TrainingStartedChannel            chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
-	TrainingStoppedChannel            chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
-	notifyCallback                    func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
-	waitGroup                         *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
-	AssignedModel                     string                                 // AssignedModel is the name of the model assigned to this client.
-	AssignedDataset                   string                                 // AssignedDataset is the name of the dataset assigned to this client.
-	ModelDatasetCategory              string                                 // ModelDatasetCategory is the category of the AssignedModel and AssignedDataset.
-	explicitlyStopped                 atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
-	closeLogFileFunc                  func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
-	dropSessionsWithNoTrainingEvents  bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
-	MaxCreationAttempts               int                                    // MaxCreationAttempts is the maximum number of times the Client will attempt to create its kernel before giving up.
-	handledStopEvent                  atomic.Bool                            // handledStopEvent is set to true when the client handles the 'session-stopped' event for its session.
-	terminatedEarly                   atomic.Bool                            // terminatedEarly indicates that the Client exited early because one of its requests timed out.
-	isKernelTrainingCallback          IsKernelTrainingCallback               // isKernelTrainingCallback is used to query whether our kernel is actively training as far as the cluster gateway knows.
-	getJupyterMessageCallback         GetJupyterMessageCallback              // getJupyterMessageCallback returns the configured scheduling policy along with a flag indicating whether the returned policy name is valid.
-	outstandingExecuteRequestId       string                                 // outstandingExecuteRequestId is the jupyter message ID of the last outstanding jupyter "execute_request" message -- that is, this field is set to the empty string once the response is received.
-	lastSubmittedExecuteRequestId     string                                 // lastSubmittedExecuteRequestId is the jupyter message ID of the last jupyter "execute_request" message.
-	outstandingExecuteRequestMap      map[string]*atomic.Int32               // outstandingExecuteRequestMap provides an atomic way to keep track of if we've received a particular "execute_reply" message or not.
-	outstandingExecuteRequestMapMutex sync.Mutex                             // outstandingExecuteRequestMapMutex provides atomic access when getting or setting values from/in the outstandingExecuteRequestMap field.
+	maxSleepDuringInitSec            int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
+	SessionId                        string                                 // SessionId is the Jupyter kernel/session ID of this Client
+	WorkloadId                       string                                 // WorkloadId is the ID of the workload that the Client is a part of.
+	errorChan                        chan<- error                           // errorChan is used to notify the WorkloadDriver that an error has occurred.
+	kernelConnection                 jupyter.KernelConnection               // kernelConnection is the Client's Jupyter kernel connection. The Client uses this to send messages to its kernel.
+	sessionConnection                *jupyter.SessionConnection             // sessionConnection is the Client's Jupyter session connection.
+	kernelSessionManager             jupyter.KernelSessionManager           // kernelSessionManager is used by the Client to create its sessionConnection and subsequently its kernelConnection.
+	sessionReadyEvent                *domain.Event                          // sessionReadyEvent is the "session-ready" event that triggered the creation of this Client.
+	schedulingPolicy                 string                                 // schedulingPolicy is the name of the scheduling policy that the cluster is configured to use.
+	EventQueue                       *event_queue.SessionEventQueue         // EventQueue contains events to be processed by this Client.
+	maximumResourceSpec              *domain.ResourceRequest                // maximumResourceSpec is the maximum amount of resources this Client may use at any point in its lifetime.
+	targetTickDurationSeconds        int64                                  // targetTickDurationSeconds is how long each tick was in the trace data used to generate this workload
+	targetTickDuration               time.Duration                          // targetTickDuration is how long each tick is supposed to last. This is the tick interval/step rate of the simulation.
+	timescaleAdjustmentFactor        float64                                // timescaleAdjustmentFactor controls the amount/degree of time compression that is used/applied.
+	currentTick                      domain.SimulationClock                 // currentTick maintains the time for this Client.
+	currentTime                      domain.SimulationClock                 // currentTime contains the current clock time of the workload, which will be sometime between currentTick and currentTick + TickDuration.
+	ticker                           *clock.Ticker                          // ticker delivers ticks, which drives this Client's workload. Each time a tick is received, the Client will process events for that tick.
+	clockTrigger                     *clock.Trigger                         // clockTrigger is a trigger for the clock ticks
+	logger                           *zap.Logger                            // logger is how the Client prints log messages.
+	running                          atomic.Int32                           // running indicates whether this Client is actively processing events.
+	ticksHandled                     atomic.Int64                           // ticksHandled is the number of ticks handled by this Client.
+	failedToStart                    atomic.Bool                            // failedToStart indicates that this Client completely failed to start -- it never succeeded in creating its kernel/session.
+	numSessionStartAttempts          atomic.Int32                           // numSessionStartAttempts counts the number of attempts that were required when initially creating the session/kernel before the session/kernel was successfully created.
+	trainingEventsHandled            atomic.Int32                           // trainingEventsHandled is the number of training events successfully processed by this Client.
+	trainingEventsDelayed            atomic.Int32                           // trainingEventsDelayed returns the number of times that a training event was delayed after failing to start. The same training event can be delayed multiple times, and each of those delays is counted independently.
+	lastTrainingSubmittedAt          time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
+	TrainingStartedChannel           chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
+	TrainingStoppedChannel           chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
+	notifyCallback                   func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
+	waitGroup                        *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
+	AssignedModel                    string                                 // AssignedModel is the name of the model assigned to this client.
+	AssignedDataset                  string                                 // AssignedDataset is the name of the dataset assigned to this client.
+	ModelDatasetCategory             string                                 // ModelDatasetCategory is the category of the AssignedModel and AssignedDataset.
+	explicitlyStopped                atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
+	closeLogFileFunc                 func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
+	dropSessionsWithNoTrainingEvents bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
+	MaxCreationAttempts              int                                    // MaxCreationAttempts is the maximum number of times the Client will attempt to create its kernel before giving up.
+	handledStopEvent                 atomic.Bool                            // handledStopEvent is set to true when the client handles the 'session-stopped' event for its session.
+	terminatedEarly                  atomic.Bool                            // terminatedEarly indicates that the Client exited early because one of its requests timed out.
+	isKernelTrainingCallback         IsKernelTrainingCallback               // isKernelTrainingCallback is used to query whether our kernel is actively training as far as the cluster gateway knows.
+	getJupyterMessageCallback        GetJupyterMessageCallback              // getJupyterMessageCallback returns the configured scheduling policy along with a flag indicating whether the returned policy name is valid.
+	outstandingExecuteRequestId      string                                 // outstandingExecuteRequestId is the jupyter message ID of the last outstanding jupyter "execute_request" message -- that is, this field is set to the empty string once the response is received.
+	lastSubmittedExecuteRequestId    string                                 // lastSubmittedExecuteRequestId is the jupyter message ID of the last jupyter "execute_request" message.
+	trainingEndedRequestMap          map[string]*atomic.Int32               // trainingEndedRequestMap provides an atomic way to keep track of if we've received a particular "execute_reply" message or not.
+	trainingEndedRequestMapMutex     sync.Mutex                             // trainingEndedRequestMapMutex provides atomic access when getting or setting values from/in the trainingEndedRequestMap field.
+	trainingStartedRequestMap        map[string]*atomic.Int32               // trainingStartedRequestMap provides an atomic way to keep track of if we've received a particular "smr_lead_task" message or not.
+	trainingStartedRequestMapMutex   sync.Mutex                             // trainingStartedRequestMapMutex provides atomic access when getting or setting values from/in the trainingStartedRequestMap field.
 }
 
 func (c *Client) closeLogFile() error {
@@ -1034,7 +1048,8 @@ func (c *Client) handleEvent(event *domain.Event, tick time.Time) error {
 func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error {
 	startedHandlingAt := time.Now()
 
-	startTrainingTimeoutInterval := c.getTimeoutInterval(event)
+	// TODO: Change this back.
+	startTrainingTimeoutInterval := time.Second * 10 // c.getTimeoutInterval(event)
 	startTrainingCtx, startTrainingCancel := context.WithTimeout(context.Background(), startTrainingTimeoutInterval)
 	defer startTrainingCancel()
 
@@ -1104,7 +1119,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)),
 		zap.String("execute_request_msg_id", executeRequestId))
 
-	stopTrainingTimeoutInterval := time.Second * 10 // c.getTimeoutInterval(event)
+	stopTrainingTimeoutInterval := c.getTimeoutInterval(event)
 	stopTrainingCtx, stopTrainingCancel := context.WithTimeout(context.Background(), stopTrainingTimeoutInterval)
 	defer stopTrainingCancel()
 
@@ -1201,15 +1216,19 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 
 	c.Workload.TrainingSubmitted(c.SessionId, evt)
 
-	c.outstandingExecuteRequestMapMutex.Lock()
-
-	var receivedFlag atomic.Int32
-	c.outstandingExecuteRequestMap[executeRequestId] = &receivedFlag
-
+	// Update the 'training ended' map.
+	c.trainingEndedRequestMapMutex.Lock()
+	var receivedExecuteReplyFlag atomic.Int32
+	c.trainingEndedRequestMap[executeRequestId] = &receivedExecuteReplyFlag
 	c.lastSubmittedExecuteRequestId = executeRequestId
 	c.outstandingExecuteRequestId = executeRequestId
+	c.trainingEndedRequestMapMutex.Unlock()
 
-	c.outstandingExecuteRequestMapMutex.Unlock()
+	// Update the 'training started' map.
+	c.trainingStartedRequestMapMutex.Lock()
+	defer c.trainingStartedRequestMapMutex.Unlock()
+	var receivedSmrLeadTaskFlag atomic.Int32
+	c.trainingStartedRequestMap[executeRequestId] = &receivedSmrLeadTaskFlag
 
 	return sentRequestAt, executeRequestId, nil
 }
@@ -1270,50 +1289,8 @@ func (c *Client) OnReceiveExecuteReply(response jupyter.KernelMessage) {
 		zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
 		zap.String("execute_reply_message", response.String()))
 
-	c.outstandingExecuteRequestMapMutex.Lock()
-	receivedFlag, loaded := c.outstandingExecuteRequestMap[response.GetParentHeader().MessageId]
-	c.outstandingExecuteRequestMapMutex.Unlock()
-
-	if !loaded {
-		c.logger.Error("No request flag associated with \"execute_request\" message upon receiving \"execute_reply\" via ZMQ",
-			zap.String("workload_id", c.Workload.GetId()),
-			zap.String("workload_name", c.Workload.WorkloadName()),
-			zap.String("session_id", c.SessionId),
-			zap.String("execute_request_id", response.GetHeader().MessageId),
-			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
-			zap.String("execute_reply_message", response.String()))
-
-		title := fmt.Sprintf("No Request Flag for \"execute_request\" Message \"%s\" Targeting Kernel \"%s\"",
-			response.GetParentHeader().MessageId, c.SessionId)
-		message := fmt.Sprintf("Cannot properly handle 'training-stopped' event after receiving \"execute_reply\" message \"%s\" via ZMQ.",
-			response.GetHeader().MessageId)
-
-		c.notifyCallback(&proto.Notification{
-			Id:               uuid.NewString(),
-			Title:            title,
-			Message:          message,
-			NotificationType: domain.ErrorNotification.Int32(),
-			Panicked:         false,
-		})
-
-		return
-	}
-
-	// In cases where a message is significantly delayed, we may resort to retrieving it via gRPC.
-	// In this case, we don't want things to get messed up if we eventually receive the delayed ZMQ message here.
-	// For example, we could misinterpret a delayed "execute_reply" as being for the current training and think that
-	// the current training has ended when it hasn't.
-	//
-	// So, we check if we're the ones to atomically flip the associated 'received' flag from 0 to 1. If so,
-	// then we can handle the message. If not, then we discard it.
-	if !receivedFlag.CompareAndSwap(0, 1) {
-		c.logger.Warn("Failed to flip 'received' flag from 0 to 1 for \"execute_reply\". Must have already received message via gRPC.",
-			zap.String("workload_id", c.Workload.GetId()),
-			zap.String("workload_name", c.Workload.WorkloadName()),
-			zap.String("session_id", c.SessionId),
-			zap.String("execute_request_id", response.GetHeader().MessageId),
-			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
-			zap.String("execute_reply_message", response.String()))
+	err := c.claimTrainingStoppedNotification(response, response.GetParentHeader().MessageId, zmq)
+	if err != nil {
 		return
 	}
 
@@ -1339,19 +1316,45 @@ func (c *Client) incurDelay(delayAmount time.Duration) {
 	}
 }
 
-// waitForTrainingToStart waits for a training to begin being processed by a kernel replica.
-//
-// waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
-func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time,
-	sentRequestAt time.Time, timeoutInterval time.Duration, executeRequestId string) (bool, int64, error) {
+func (c *Client) handleExecuteRequestErred(err error, evt *domain.Event, startedHandlingAt time.Time, sentRequestAt time.Time,
+	timeoutInterval time.Duration, executeRequestId string) {
+	numTimesEnqueued := evt.GetNumTimesEnqueued()
 
-	c.logger.Debug("Waiting for session to start training before continuing...",
+	// Backoff.
+	baseSleepInterval := time.Millisecond * 1250
+	maxSleepInterval := time.Second * 10
+	sleepInterval := (baseSleepInterval * time.Duration(numTimesEnqueued+1)) + (time.Millisecond * time.Duration(rand.Int63n(2500)))
+
+	// Clamp with jitter.
+	if sleepInterval > maxSleepInterval {
+		sleepInterval = maxSleepInterval + (time.Millisecond * time.Duration(rand.Int63n(1250)))
+	}
+
+	c.Workload.UpdateStatistics(func(stats *Statistics) {
+		stats.NumFailedExecutionAttempts += 1
+	})
+
+	c.logger.Warn(domain.ColorizeText("Session failed to start training.", domain.Orange),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
+		zap.Int32("num_failures", numTimesEnqueued),
 		zap.Duration("timeout_interval", timeoutInterval),
+		zap.Duration("time_elapsed", time.Since(sentRequestAt)),
 		zap.String("execute_request_id", executeRequestId),
-		zap.Duration("time_elapsed", time.Since(sentRequestAt)))
+		zap.Duration("sleep_interval", sleepInterval),
+		zap.Error(err))
+
+	// If we fail to start training for some reason, then we'll just try again later.
+	c.incurDelay(time.Since(startedHandlingAt) + c.targetTickDuration*2)
+
+	// Put the event back in the queue.
+	c.EventQueue.Push(evt)
+	time.Sleep(sleepInterval)
+}
+
+func (c *Client) doWaitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time,
+	sentRequestAt time.Time, timeoutInterval time.Duration, execReqId string) (bool, int64, error) {
 
 	select {
 	case v := <-c.TrainingStartedChannel:
@@ -1359,41 +1362,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 			switch v.(type) {
 			case error:
 				{
-					err := v.(error)
-
-					numTimesEnqueued := evt.GetNumTimesEnqueued()
-
-					// Backoff.
-					baseSleepInterval := time.Millisecond * 1250
-					maxSleepInterval := time.Second * 10
-					sleepInterval := (baseSleepInterval * time.Duration(numTimesEnqueued+1)) + (time.Millisecond * time.Duration(rand.Int63n(2500)))
-
-					// Clamp with jitter.
-					if sleepInterval > maxSleepInterval {
-						sleepInterval = maxSleepInterval + (time.Millisecond * time.Duration(rand.Int63n(1250)))
-					}
-
-					c.Workload.UpdateStatistics(func(stats *Statistics) {
-						stats.NumFailedExecutionAttempts += 1
-					})
-
-					c.logger.Warn(domain.ColorizeText("Session failed to start training.", domain.Orange),
-						zap.String("workload_id", c.Workload.GetId()),
-						zap.String("workload_name", c.Workload.WorkloadName()),
-						zap.String("session_id", c.SessionId),
-						zap.Int32("num_failures", numTimesEnqueued),
-						zap.Duration("timeout_interval", timeoutInterval),
-						zap.Duration("time_elapsed", time.Since(sentRequestAt)),
-						zap.String("execute_request_id", executeRequestId),
-						zap.Duration("sleep_interval", sleepInterval),
-						zap.Error(err))
-
-					// If we fail to start training for some reason, then we'll just try again later.
-					c.incurDelay(time.Since(startedHandlingAt) + c.targetTickDuration*2)
-
-					// Put the event back in the queue.
-					c.EventQueue.Push(evt)
-					time.Sleep(sleepInterval)
+					c.handleExecuteRequestErred(v.(error), evt, startedHandlingAt, sentRequestAt, timeoutInterval, execReqId)
 
 					return false, -1, nil
 				}
@@ -1406,7 +1375,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
 						zap.Duration("timeout_interval", timeoutInterval),
-						zap.String("execute_request_id", executeRequestId),
+						zap.String("execute_request_id", execReqId),
 						zap.Int64("start_latency_milliseconds", delayMilliseconds))
 
 					return true, trainingStartedAt, nil
@@ -1415,10 +1384,111 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 		}
 	case <-ctx.Done():
 		{
-			c.trainingStartTimedOut(sentRequestAt, timeoutInterval, executeRequestId)
 			return false, -1, nil
 		}
 	}
+}
+
+// waitForTrainingToStart waits for a training to begin being processed by a kernel replica.
+//
+// waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
+//
+// waitForTrainingToStart returns a 3-tuple where the first element is a bool flag indicating whether training started,
+// the second element is the unix milliseconds timestamp at which the training began, and the third is an error.
+func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *domain.Event, startedHandlingAt time.Time,
+	sentRequestAt time.Time, originalTimeoutInterval time.Duration, execReqId string) (bool, int64, error) {
+
+	c.logger.Debug("Waiting for session to start training before continuing...",
+		zap.String("workload_id", c.Workload.GetId()),
+		zap.String("workload_name", c.Workload.WorkloadName()),
+		zap.String("session_id", c.SessionId),
+		zap.Duration("timeout_interval", originalTimeoutInterval),
+		zap.String("execute_request_id", execReqId),
+		zap.Duration("time_elapsed", time.Since(sentRequestAt)))
+
+	startedWaitingAt := time.Now()
+	maximumAdditionalWaitTime := time.Minute * 5
+
+	// Wait for the training to end.
+	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, evt, startedHandlingAt, sentRequestAt,
+		originalTimeoutInterval, execReqId)
+
+	if err == nil {
+		// Training started. We can return.
+		return trainingStarted, startedAtUnixMillis, nil
+	}
+
+	isTraining := c.trainingStartTimedOut(sentRequestAt, originalTimeoutInterval, execReqId)
+
+	// If the kernel IS training, then we'll try to retrieve the associated "smr_lead_task" message via gRPC,
+	// in case it was dropped or otherwise delayed.
+	if isTraining {
+		startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(evt, execReqId, originalTimeoutInterval)
+		if err == nil {
+			return true, startedAtUnixMillis, nil
+		}
+	}
+
+	cumulativeTimeoutInterval := originalTimeoutInterval
+	timeoutInterval := time.Second * 60
+
+	for time.Since(startedWaitingAt) < maximumAdditionalWaitTime {
+		cumulativeTimeoutInterval = cumulativeTimeoutInterval + timeoutInterval
+		ctx, cancel := context.WithTimeout(context.Background(), timeoutInterval)
+
+		trainingStarted, startedAtUnixMillis, err = c.doWaitForTrainingToStart(ctx, evt, startedHandlingAt, sentRequestAt,
+			originalTimeoutInterval, execReqId)
+		if err == nil {
+			cancel()
+			return trainingStarted, startedAtUnixMillis, nil
+		}
+
+		// Error related to timing out? If so, log a message, send a notification, and keep on waiting.
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, jupyter.ErrRequestTimedOut) {
+			isTraining = c.trainingStartTimedOut(sentRequestAt, timeoutInterval, execReqId)
+			cancel()
+
+			// After the initial timeout, we'll have been waiting long enough that we'll check even if it says that
+			// the kernel is not yet training -- though this is unlikely to succeed in that case. The gateway learns that
+			// the kernel is no longer training by receiving the "smr_lead_task" message.
+			startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(evt, execReqId, cumulativeTimeoutInterval)
+			if err == nil {
+				return true, startedAtUnixMillis, nil
+			}
+
+			c.logger.Debug("Failed to retrieve \"smr_lead_task\" message via gRPC.",
+				zap.String("session_id", c.SessionId),
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.Bool("is_actively_training", isTraining),
+				zap.String("execute_request_msg_id", execReqId),
+				zap.Error(err))
+
+			continue
+		}
+
+		// We received some other error. We'll just return it. Something is wrong, apparently.
+		cancel()
+		return false, -1, err
+	}
+
+	c.logger.Error("Completely timed out waiting for training to begin.",
+		zap.String("session_id", c.SessionId),
+		zap.String("workload_id", c.Workload.GetId()),
+		zap.String("workload_name", c.Workload.WorkloadName()),
+		zap.String("execute_request_msg_id", execReqId),
+		zap.Bool("is_actively_training", isTraining),
+		zap.Duration("original_timeout_interval", originalTimeoutInterval),
+		zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
+
+	// If there's an existing error, then we'll join it with an errShutdownClient.
+	// errShutdownClient will instruct the client to terminate early.
+	if err != nil {
+		err = errors.Join(errShutdownClient, err)
+	}
+
+	// errShutdownClient will instruct the client to terminate early.
+	return false, -1, errShutdownClient
 }
 
 // trainingStartTimedOut is called by waitForTrainingToEnd when we don't receive a notification that the submitted
@@ -1482,7 +1552,26 @@ func (c *Client) trainingStoppedTimedOut(sentRequestAt time.Time, timeoutInterva
 
 // trainingStoppedTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
 // training event started being processed after the timeout interval elapses.
-func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration, executeRequestId string) {
+//
+// trainingStartTimedOut returns a flag indicating whether the kernel is presently training based on our result of
+// querying the cluster gateway directly for this information.
+func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration, executeRequestId string) bool {
+	var isTraining bool
+	if c.isKernelTrainingCallback != nil {
+		var err error
+		isTraining, err = c.isKernelTrainingCallback(c.SessionId)
+		if err != nil {
+			c.logger.Warn("Failed to query Cluster Gateway regarding training status of kernel on 'training started' time-out.",
+				zap.String("session_id", c.SessionId),
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("execute_request_msg_id", executeRequestId),
+				zap.Duration("timeout_interval", timeoutInterval),
+				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+				zap.Error(err))
+		}
+	}
+
 	timeElapsed := time.Since(sentRequestAt)
 	c.logger.Warn(fmt.Sprintf("Have not received 'training started' notification for over %v. Assuming message was lost.",
 		time.Since(sentRequestAt)),
@@ -1491,19 +1580,20 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 		zap.String("session_id", c.SessionId),
 		zap.Duration("timeout_interval", timeoutInterval),
 		zap.String("execute_request_msg_id", executeRequestId),
-		zap.Duration("time_elapsed", timeElapsed))
+		zap.Duration("time_elapsed", timeElapsed),
+		zap.Bool("is_training", isTraining))
 
 	c.notifyCallback(&proto.Notification{
 		Id:    uuid.NewString(),
 		Title: fmt.Sprintf("Have Spent Over %v Waiting for 'Training Started' Notification", timeElapsed),
 		Message: fmt.Sprintf("Submitted \"execute_request\" to kernel \"%s\" during workload \"%s\" (ID=\"%s\") "+
-			"over %v ago and have not yet received 'smr_lead_task' IOPub message. RequestID=\"%s\"",
-			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed, executeRequestId),
+			"over %v ago and have not yet received 'smr_lead_task' IOPub message. IsTraining=%v, RequestID=\"%s\".",
+			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed, isTraining, executeRequestId),
 		Panicked:         false,
 		NotificationType: domain.WarningNotification.Int32(),
 	})
 
-	// TODO: Resubmit the event?
+	return isTraining
 }
 
 // convertTimestampToTickNumber converts the given tick, which is specified in the form of a time.Time,
@@ -1537,15 +1627,30 @@ func (c *Client) HandleIOPubMessage(kernelMessage jupyter.KernelMessage) interfa
 		return c.handleIOPubStreamMessage(kernelMessage)
 	}
 
-	return c.handleIOPubSmrLeadTaskMessage(kernelMessage)
+	// Claim ownership over handling the notification. We're "competing" with the goroutine listening
+	// for "smr_lead_task" messages sent via ZMQ/WebSockets/whatever it is that we're using.
+	err := c.claimTrainingStartedNotification(kernelMessage, kernelMessage.GetParentHeader().MessageId, gRPC)
+	if err != nil {
+		c.logger.Debug("\"smr_lead_task\" message has already been claimed. Discarding ZMQ message.",
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId),
+			zap.String("jupyter_message_id", kernelMessage.GetHeader().MessageId),
+			zap.String("parent_jupyter_message_id", kernelMessage.GetParentHeader().MessageId))
+
+		return kernelMessage
+	}
+
+	return c.handleTrainingStartedNotification(kernelMessage, zmq)
 }
 
-func (c *Client) handleIOPubSmrLeadTaskMessage(kernelMessage jupyter.KernelMessage) string {
+func (c *Client) handleTrainingStartedNotification(kernelMessage jupyter.KernelMessage, source requestSource) int64 {
 	c.logger.Debug("Received 'smr_lead_task' message from kernel.",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
 		zap.String("jupyter_message_id", kernelMessage.GetHeader().MessageId),
+		zap.String("request_source", source.String()),
 		zap.String("parent_jupyter_message_id", kernelMessage.GetParentHeader().MessageId))
 
 	c.Workload.TrainingStarted(c.SessionId, c.convertCurrentTickTimestampToTickNumber())
@@ -1561,13 +1666,15 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(kernelMessage jupyter.KernelMessa
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
+			zap.String("request_source", source.String()),
 			zap.Any("message_content", content))
 
 		c.notifyCallback(&proto.Notification{
 			Id:    uuid.NewString(),
 			Title: fmt.Sprintf("Failed to Extract Message Creation Time from \"smr_lead_task\" IOPub Message"),
 			Message: fmt.Sprintf("Client %s failed to extract \"msg_created_at_unix_milliseconds\" entry from "+
-				"content of \"smr_lead_task\" IOPub message \"%s\".", c.SessionId, kernelMessage.GetHeader().MessageId),
+				"content of \"smr_lead_task\" IOPub message \"%s\" received via %s.",
+				c.SessionId, kernelMessage.GetHeader().MessageId, source.String()),
 			Panicked:         false,
 			NotificationType: domain.ErrorNotification.Int32(),
 		})
@@ -1601,6 +1708,7 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(kernelMessage jupyter.KernelMessa
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
+			zap.String("request_source", source.String()),
 			zap.String("message_id", kernelMessage.GetHeader().MessageId),
 			zap.String("type", reflect.TypeOf(val).Name()))
 
@@ -1615,6 +1723,7 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(kernelMessage jupyter.KernelMessa
 				zap.String("workload_name", c.Workload.WorkloadName()),
 				zap.String("session_id", c.SessionId),
 				zap.Time("sent_execute_request_at", c.lastTrainingSubmittedAt),
+				zap.String("request_source", source.String()),
 				zap.Int64("training_started_at", trainingStartedAt),
 				zap.Int64("computed_delay_millis", delayMilliseconds))
 
@@ -1632,6 +1741,7 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(kernelMessage jupyter.KernelMessa
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
+			zap.String("request_source", source.String()),
 			zap.Time("sent_execute_request_at", c.lastTrainingSubmittedAt),
 			zap.Int64("training_started_at", trainingStartedAt),
 			zap.Int64("computed_delay_milliseconds", delayMilliseconds))
@@ -1639,9 +1749,11 @@ func (c *Client) handleIOPubSmrLeadTaskMessage(kernelMessage jupyter.KernelMessa
 		c.incurDelay(time.Millisecond * time.Duration(delayMilliseconds))
 	}
 
-	c.TrainingStartedChannel <- trainingStartedAt
+	if source == zmq {
+		c.TrainingStartedChannel <- trainingStartedAt
+	}
 
-	return c.SessionId
+	return trainingStartedAt
 }
 
 func (c *Client) handleIOPubStreamMessage(kernelMessage jupyter.KernelMessage) interface{} {
@@ -1833,15 +1945,132 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 	return interval
 }
 
-// handleKernelNotTrainingWhenTrainingStopTimeoutOccurs is called when the Client times out waiting for a training to
-// stop and after querying the Cluster Gateway, the Client finds that the kernel is not presently training.
+// checkIfTrainingStartedViaGrpc is called when the Client times out waiting for a training to begin.
 //
-// Specifically, handleKernelNotTrainingWhenTrainingStopTimeoutOccurs attempts to retrieve the JupyterMessage that may
+// Specifically, checkIfTrainingStartedViaGrpc attempts to retrieve the JupyterMessage that may
 // have been dropped.
 //
-// handleKernelNotTrainingWhenTrainingStopTimeoutOccurs returns an error if it is unable to resolve the training. So,
-// if handleKernelNotTrainingWhenTrainingStopTimeoutOccurs returns an error, then the Client should keep waiting.
-func (c *Client) handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt *domain.Event, execReqMsgId string,
+// checkIfTrainingStartedViaGrpc returns an error if it is unable to resolve the status of the training. So,
+// if checkIfTrainingStartedViaGrpc returns an error, then the Client should keep waiting.
+func (c *Client) checkIfTrainingStartedViaGrpc(evt *domain.Event, execReqMsgId string,
+	cumulativeTimeoutInterval time.Duration) (int64, error) {
+
+	// If our callback for retrieving a Jupyter message is nil, then just return.
+	if c.getJupyterMessageCallback == nil {
+		return -1, fmt.Errorf("no 'get jupyter message' callback configured for client")
+	}
+
+	c.logger.Debug("Attempting to retrieve \"execute_reply\" message via gRPC, in case the ZMQ version was dropped.",
+		zap.String("session_id", c.SessionId),
+		zap.String("workload_id", c.Workload.GetId()),
+		zap.String("workload_name", c.Workload.WorkloadName()),
+		zap.String("execute_request_msg_id", execReqMsgId),
+		zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
+
+	resp, err := c.getJupyterMessageCallback(c.SessionId, execReqMsgId, "execute_reply")
+
+	if err != nil {
+		c.logger.Warn("Failed to retrieve \"execute_reply\" message via gRPC.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqMsgId),
+			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+			zap.Error(err))
+		return -1, err
+	}
+
+	return c.handleTrainingStartedViaGrpc(execReqMsgId, resp)
+}
+
+func (c *Client) claimTrainingStartedNotification(jupyterMsg jupyter.KernelMessage, execReqMsgId string, source requestSource) error {
+	c.trainingStartedRequestMapMutex.Lock()
+	receivedFlag, loaded := c.trainingStartedRequestMap[jupyterMsg.GetParentHeader().MessageId]
+	c.trainingStartedRequestMapMutex.Unlock()
+
+	if !loaded {
+		c.logger.Error("No request flag associated with \"execute_request\" message upon receiving \"smr_lead_task\"",
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId),
+			zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
+			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+			zap.String("request_source", source.String()),
+			zap.String("smr_lead_task_message", jupyterMsg.String()))
+
+		title := fmt.Sprintf("No Request Flag for \"smr_lead_task\" Message \"%s\" For Execution \"%s\" Targeting Kernel \"%s\"",
+			jupyterMsg.GetHeader().MessageId, jupyterMsg.GetParentHeader().MessageId, c.SessionId)
+		message := fmt.Sprintf("Cannot properly handle 'training-started' event after receiving \"smr_lead_task\" message \"%s\" via %s.",
+			jupyterMsg.GetHeader().MessageId, source.String())
+
+		c.notifyCallback(&proto.Notification{
+			Id:               uuid.NewString(),
+			Title:            title,
+			Message:          message,
+			NotificationType: domain.ErrorNotification.Int32(),
+			Panicked:         false,
+		})
+
+		return fmt.Errorf("missing request flag for \"smr_lead_task\" \"%s\"", execReqMsgId)
+	}
+
+	// In cases where a message is significantly delayed, we may resort to retrieving it via gRPC.
+	// In this case, we don't want things to get messed up if we eventually receive the delayed ZMQ message here.
+	// For example, we could misinterpret a delayed "execute_reply" as being for the current training and think that
+	// the current training has ended when it hasn't.
+	//
+	// So, we check if we're the ones to atomically flip the associated 'received' flag from 0 to 1. If so,
+	// then we can handle the message. If not, then we discard it.
+	if !receivedFlag.CompareAndSwap(0, 1) {
+		c.logger.Warn("Failed to flip 'received' flag from 0 to 1 for \"smr_lead_task\".",
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId),
+			zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
+			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+			zap.String("request_source", source.String()),
+			zap.String("smr_lead_task_message", jupyterMsg.String()))
+
+		return fmt.Errorf("failed to flip 'received' flag for \"smr_lead_task\"")
+	}
+
+	return nil
+}
+
+func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.GetJupyterMessageResponse) (int64, error) {
+
+	jupyterMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
+	if conversionErr != nil {
+		c.logger.Error("Failed to convert \"smr_lead_task\" proto JupyterMessage to standard JupyterMessage",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqMsgId),
+			zap.String("execute_reply_message_proto", resp.String()),
+			zap.Error(conversionErr))
+
+		return -1, conversionErr
+	}
+
+	// Claim ownership over handling the notification. We're "competing" with the goroutine listening
+	// for "smr_lead_task" messages sent via ZMQ/WebSockets/whatever it is that we're using.
+	err := c.claimTrainingStartedNotification(jupyterMsg, execReqMsgId, gRPC)
+	if err != nil {
+		return -1, err
+	}
+
+	trainingStartedAt := c.handleTrainingStartedNotification(jupyterMsg, gRPC)
+	return trainingStartedAt, nil
+}
+
+// checkIfTrainingStoppedViaGrpc is called when the Client times out waiting for a training to end.
+//
+// Specifically, checkIfTrainingStoppedViaGrpc attempts to retrieve the JupyterMessage that may
+// have been dropped.
+//
+// checkIfTrainingStoppedViaGrpc returns an error if it is unable to resolve the status of the training. So,
+// if checkIfTrainingStoppedViaGrpc returns an error, then the Client should keep waiting.
+func (c *Client) checkIfTrainingStoppedViaGrpc(evt *domain.Event, execReqMsgId string,
 	cumulativeTimeoutInterval time.Duration) error {
 
 	// If our callback for retrieving a Jupyter message is nil, then just return.
@@ -1872,41 +2101,25 @@ func (c *Client) handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt *domai
 	return c.handleTrainingStopViaGrpc(evt, execReqMsgId, resp, cumulativeTimeoutInterval)
 }
 
-// handleTrainingStopViaGrpc is called by handleKernelNotTrainingWhenTrainingStopTimeoutOccurs if the "execute_reply"
-// message that the target Client has been waiting on was retrieved successfully via gRPC.
-func (c *Client) handleTrainingStopViaGrpc(evt *domain.Event, execReqMsgId string, resp *proto.GetJupyterMessageResponse,
-	cumulativeTimeoutInterval time.Duration) error {
-
-	jupyterMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
-	if conversionErr != nil {
-		c.logger.Error("Failed to convert proto JupyterMessage to standard JupyterMessage",
-			zap.String("session_id", c.SessionId),
-			zap.String("workload_id", c.Workload.GetId()),
-			zap.String("workload_name", c.Workload.WorkloadName()),
-			zap.String("execute_request_msg_id", execReqMsgId),
-			zap.String("execute_reply_message_proto", resp.String()),
-			zap.Error(conversionErr))
-
-		return conversionErr
-	}
-
-	c.outstandingExecuteRequestMapMutex.Lock()
-	receivedFlag, loaded := c.outstandingExecuteRequestMap[jupyterMsg.GetParentHeader().MessageId]
-	c.outstandingExecuteRequestMapMutex.Unlock()
+func (c *Client) claimTrainingStoppedNotification(jupyterMsg jupyter.KernelMessage, execReqMsgId string, source requestSource) error {
+	c.trainingEndedRequestMapMutex.Lock()
+	receivedFlag, loaded := c.trainingEndedRequestMap[jupyterMsg.GetParentHeader().MessageId]
+	c.trainingEndedRequestMapMutex.Unlock()
 
 	if !loaded {
-		c.logger.Error("No request flag associated with \"execute_request\" message upon receiving \"execute_reply\" via gRPC",
+		c.logger.Error("No request flag associated with \"execute_request\" message upon receiving \"execute_reply\"",
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
 			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+			zap.String("request_source", source.String()),
 			zap.String("execute_reply_message", jupyterMsg.String()))
 
 		title := fmt.Sprintf("No Request Flag for \"execute_request\" Message \"%s\" Targeting Kernel \"%s\"",
 			jupyterMsg.GetParentHeader().MessageId, c.SessionId)
-		message := fmt.Sprintf("Cannot properly handle 'training-stopped' event after receiving \"execute_reply\" message \"%s\" via gRPC.",
-			jupyterMsg.GetHeader().MessageId)
+		message := fmt.Sprintf("Cannot properly handle 'training-stopped' event after receiving \"execute_reply\" message \"%s\" via %s.",
+			jupyterMsg.GetHeader().MessageId, source.String())
 
 		c.notifyCallback(&proto.Notification{
 			Id:               uuid.NewString(),
@@ -1927,15 +2140,44 @@ func (c *Client) handleTrainingStopViaGrpc(evt *domain.Event, execReqMsgId strin
 	// So, we check if we're the ones to atomically flip the associated 'received' flag from 0 to 1. If so,
 	// then we can handle the message. If not, then we discard it.
 	if !receivedFlag.CompareAndSwap(0, 1) {
-		c.logger.Warn("Failed to flip 'received' flag from 0 to 1 for \"execute_reply\". Must have already received message via ZMQ.",
+		c.logger.Warn("Failed to flip 'received' flag from 0 to 1 for \"execute_reply\". Must have already received message.",
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
 			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+			zap.String("request_source", source.String()),
 			zap.String("execute_reply_message", jupyterMsg.String()))
 
 		return fmt.Errorf("failed to flip 'received' flag for \"execute_reply\"")
+	}
+
+	return nil
+}
+
+// handleTrainingStopViaGrpc is called by checkIfTrainingStoppedViaGrpc if the "execute_reply"
+// message that the target Client has been waiting on was retrieved successfully via gRPC.
+func (c *Client) handleTrainingStopViaGrpc(evt *domain.Event, execReqMsgId string, resp *proto.GetJupyterMessageResponse,
+	cumulativeTimeoutInterval time.Duration) error {
+
+	jupyterMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
+	if conversionErr != nil {
+		c.logger.Error("Failed to convert proto JupyterMessage to standard JupyterMessage",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqMsgId),
+			zap.String("execute_reply_message_proto", resp.String()),
+			zap.Error(conversionErr))
+
+		return conversionErr
+	}
+
+	// Claim ownership over handling the notification. We're "competing" with the goroutine listening
+	// for "execute_reply" messages sent via ZMQ/WebSockets/whatever it is that we're using.
+	err := c.claimTrainingStoppedNotification(jupyterMsg, execReqMsgId, gRPC)
+	if err != nil {
+		return err
 	}
 
 	// We'll estimate the e2e latency, because the messages being dropped is more likely a bug of some sort...
@@ -1989,7 +2231,7 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 	}()
 
 	startedWaitingAt := time.Now()
-	maximumWaitTime := time.Minute * 10
+	maximumAdditionalWaitTime := time.Minute * 10
 
 	// Wait for the training to end.
 	err := c.doWaitForTrainingToEnd(initialContext, evt, execReqMsgId, originalTimeoutInterval)
@@ -2001,7 +2243,7 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 	// Log a message and send a warning notification.
 	isTraining := c.trainingStoppedTimedOut(c.lastTrainingSubmittedAt, originalTimeoutInterval, execReqMsgId, err)
 	if !isTraining {
-		err = c.handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt, execReqMsgId, originalTimeoutInterval)
+		err = c.checkIfTrainingStoppedViaGrpc(evt, execReqMsgId, originalTimeoutInterval)
 		if err == nil {
 			return nil
 		}
@@ -2015,11 +2257,11 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 	}
 
 	cumulativeTimeoutInterval := originalTimeoutInterval
-	timeoutInterval := time.Second * 5 // TODO: Switch this back to 2min after done testing
+	timeoutInterval := time.Second * 75
 
 	// Keep waiting for a while.
 	// We'll start printing more frequent warnings.
-	for time.Since(startedWaitingAt) < maximumWaitTime {
+	for time.Since(startedWaitingAt) < maximumAdditionalWaitTime {
 		cumulativeTimeoutInterval = cumulativeTimeoutInterval + timeoutInterval
 		ctx, cancel := context.WithTimeout(context.Background(), timeoutInterval)
 
@@ -2039,7 +2281,7 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 			// After the initial timeout, we'll have been waiting long enough that we'll check even if it says that
 			// the kernel is still training -- though this is unlikely to succeed in that case. The gateway learns that
 			// the kernel is no longer training by receiving the "execute_reply" message.
-			err = c.handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt, execReqMsgId, cumulativeTimeoutInterval)
+			err = c.checkIfTrainingStoppedViaGrpc(evt, execReqMsgId, cumulativeTimeoutInterval)
 			if err == nil {
 				return nil
 			}
@@ -2060,7 +2302,7 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 		return err
 	}
 
-	c.logger.Error("Completely timeout waiting for training to end.",
+	c.logger.Error("Completely timed out waiting for training to end.",
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -2072,10 +2314,9 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 	// If there's an existing error, then we'll join it with an errShutdownClient.
 	// errShutdownClient will instruct the client to terminate early.
 	if err != nil {
-		return errors.Join(errShutdownClient, err)
+		err = errors.Join(errShutdownClient, err)
 	}
 
-	// TODO: Have the client shut down.
 	// errShutdownClient will instruct the client to terminate early.
 	return errShutdownClient
 }
