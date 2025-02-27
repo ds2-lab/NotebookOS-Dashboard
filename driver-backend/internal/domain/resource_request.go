@@ -34,6 +34,6 @@ func NewResourceRequest(vcpus float64, memMB float64, gpus int, vram float64, re
 }
 
 func (s ResourceRequest) String() string {
-	return fmt.Sprintf("ResourceRequest[vCPUs=%.0f, Memory=%fMB, GPUs=%d, VRAM=%fGB, GpuName=%s]",
+	return fmt.Sprintf("ResourceRequest[vCPUs=%.0f, Memory=%.3fMB, GPUs=%d, VRAM=%.3fGB, GpuName=%s]",
 		s.Cpus, s.MemoryMB, s.Gpus, s.VRAM, s.RequestedGpuName)
 }

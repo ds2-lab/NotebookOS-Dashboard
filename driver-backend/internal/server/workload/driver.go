@@ -1108,6 +1108,10 @@ func (d *Driver) publishStatisticsReports() {
 	// Publish one last statistics report, which will also fetch the Cluster Statistics one last time.
 	d.publishStatisticsReport()
 
+	d.logger.Debug("Statistics Publisher goroutine is exiting.",
+		zap.String("workload_id", d.workload.GetId()),
+		zap.Int64("counter", counter))
+
 	d.statsPublisherWg.Done()
 }
 
@@ -1698,9 +1702,9 @@ func (d *Driver) ProcessWorkloadEvents() {
 //
 // workloadComplete accepts a *sync.WaitGroup that is used to notify the caller when the workload has completed.
 func (d *Driver) workloadComplete() {
-	d.statsPublisherWg.Wait()
-
 	d.workload.SetWorkloadCompleted()
+
+	d.statsPublisherWg.Wait()
 
 	var ok bool
 	d.workloadEndTime, ok = d.workload.GetEndTime() // time.Now()

@@ -1026,7 +1026,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithError(err)) // Will be nil on success
 
 	trainingStarted, trainingStartedAtUnixMillis, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt,
-		sentRequestAt, startTrainingTimeoutInterval)
+		sentRequestAt, startTrainingTimeoutInterval, executeRequestId)
 	trainingStartedAt := time.UnixMilli(trainingStartedAtUnixMillis)
 
 	if !trainingStarted {
@@ -1087,7 +1087,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 
 		trainingEventsHandled := c.trainingEventsHandled.Add(1)
 
-		sleepInterval := (time.Second * 2) + (time.Millisecond * time.Duration(rand.Intn(32)))
+		sleepInterval := (time.Second * 3) + (time.Millisecond * time.Duration(rand.Intn(2000)))
 
 		c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-stopped", domain.LightGreen)),
 			zap.String("session_id", c.SessionId),
@@ -1240,13 +1240,14 @@ func (c *Client) incurDelay(delayAmount time.Duration) {
 //
 // waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
 func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time,
-	sentRequestAt time.Time, timeoutInterval time.Duration) (bool, int64, error) {
+	sentRequestAt time.Time, timeoutInterval time.Duration, executeRequestId string) (bool, int64, error) {
 
 	c.logger.Debug("Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
 		zap.Duration("timeout_interval", timeoutInterval),
+		zap.String("execute_request_id", executeRequestId),
 		zap.Duration("time_elapsed", time.Since(sentRequestAt)))
 
 	select {
@@ -1280,6 +1281,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 						zap.Int32("num_failures", numTimesEnqueued),
 						zap.Duration("timeout_interval", timeoutInterval),
 						zap.Duration("time_elapsed", time.Since(sentRequestAt)),
+						zap.String("execute_request_id", executeRequestId),
 						zap.Duration("sleep_interval", sleepInterval),
 						zap.Error(err))
 
@@ -1301,6 +1303,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
 						zap.Duration("timeout_interval", timeoutInterval),
+						zap.String("execute_request_id", executeRequestId),
 						zap.Int64("start_latency_milliseconds", delayMilliseconds))
 
 					return true, trainingStartedAt, nil
@@ -1309,7 +1312,7 @@ func (c *Client) waitForTrainingToStart(ctx context.Context, evt *domain.Event, 
 		}
 	case <-ctx.Done():
 		{
-			c.trainingStartTimedOut(sentRequestAt, timeoutInterval)
+			c.trainingStartTimedOut(sentRequestAt, timeoutInterval, executeRequestId)
 			return false, -1, nil
 		}
 	}
@@ -1357,8 +1360,8 @@ func (c *Client) trainingStoppedTimedOut(sentRequestAt time.Time, timeoutInterva
 		Id:    uuid.NewString(),
 		Title: fmt.Sprintf("Have Spent Over %v Waiting for 'Training Stopped' Notification", timeElapsed),
 		Message: fmt.Sprintf("Submitted \"execute_request\" to kernel \"%s\" during workload \"%s\" (ID=\"%s\") "+
-			"over %v ago and have not yet received \"execute_reply\" message. Actively training: %s.",
-			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed, activelyTrainingStatus),
+			"over %v ago and have not yet received \"execute_reply\" message. RequestID=\"%s\". Actively training: %s.",
+			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed, execReqMsgId, activelyTrainingStatus),
 		Panicked:         false,
 		NotificationType: domain.WarningNotification.Int32(),
 	})
@@ -1366,7 +1369,7 @@ func (c *Client) trainingStoppedTimedOut(sentRequestAt time.Time, timeoutInterva
 
 // trainingStoppedTimedOut is called by waitForTrainingToStart when we don't receive a notification that the submitted
 // training event started being processed after the timeout interval elapses.
-func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration) {
+func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration, executeRequestId string) {
 	timeElapsed := time.Since(sentRequestAt)
 	c.logger.Warn(fmt.Sprintf("Have not received 'training started' notification for over %v. Assuming message was lost.",
 		time.Since(sentRequestAt)),
@@ -1374,14 +1377,15 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
 		zap.Duration("timeout_interval", timeoutInterval),
+		zap.String("execute_request_msg_id", executeRequestId),
 		zap.Duration("time_elapsed", timeElapsed))
 
 	c.notifyCallback(&proto.Notification{
 		Id:    uuid.NewString(),
 		Title: fmt.Sprintf("Have Spent Over %v Waiting for 'Training Started' Notification", timeElapsed),
 		Message: fmt.Sprintf("Submitted \"execute_request\" to kernel \"%s\" during workload \"%s\" (ID=\"%s\") "+
-			"over %v ago and have not yet received 'smr_lead_task' IOPub message.",
-			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed),
+			"over %v ago and have not yet received 'smr_lead_task' IOPub message. RequestID=\"%s\"",
+			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed, executeRequestId),
 		Panicked:         false,
 		NotificationType: domain.WarningNotification.Int32(),
 	})
