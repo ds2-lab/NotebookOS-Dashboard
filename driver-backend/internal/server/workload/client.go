@@ -2036,19 +2036,21 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 			isTraining = c.trainingStoppedTimedOut(c.lastTrainingSubmittedAt, cumulativeTimeoutInterval, execReqMsgId, err)
 			cancel()
 
-			if !isTraining {
-				err = c.handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt, execReqMsgId, cumulativeTimeoutInterval)
-				if err == nil {
-					return nil
-				}
-
-				c.logger.Debug("Failed to retrieve \"execute_reply\" message via gRPC.",
-					zap.String("session_id", c.SessionId),
-					zap.String("workload_id", c.Workload.GetId()),
-					zap.String("workload_name", c.Workload.WorkloadName()),
-					zap.String("execute_request_msg_id", execReqMsgId),
-					zap.Error(err))
+			// After the initial timeout, we'll have been waiting long enough that we'll check even if it says that
+			// the kernel is still training -- though this is unlikely to succeed in that case. The gateway learns that
+			// the kernel is no longer training by receiving the "execute_reply" message.
+			err = c.handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt, execReqMsgId, cumulativeTimeoutInterval)
+			if err == nil {
+				return nil
 			}
+
+			c.logger.Debug("Failed to retrieve \"execute_reply\" message via gRPC.",
+				zap.String("session_id", c.SessionId),
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.Bool("is_actively_training", isTraining),
+				zap.String("execute_request_msg_id", execReqMsgId),
+				zap.Error(err))
 
 			continue
 		}
@@ -2063,6 +2065,7 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("execute_request_msg_id", execReqMsgId),
+		zap.Bool("is_actively_training", isTraining),
 		zap.Duration("original_timeout_interval", originalTimeoutInterval),
 		zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
 
