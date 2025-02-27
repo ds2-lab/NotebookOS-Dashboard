@@ -296,6 +296,7 @@ type KernelMessageHeader struct {
 	Session     string      `json:"session"`
 	Username    string      `json:"username"`
 	Version     string      `json:"version"`
+	SubshellId  *string     `json:"subshell_id,omitempty"`
 }
 
 func (h *KernelMessageHeader) String() string {
