@@ -1104,7 +1104,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		zap.Int64("tick_number", c.convertTimestampToTickNumber(tick)),
 		zap.String("execute_request_msg_id", executeRequestId))
 
-	stopTrainingTimeoutInterval := c.getTimeoutInterval(event)
+	stopTrainingTimeoutInterval := time.Second * 10 // c.getTimeoutInterval(event)
 	stopTrainingCtx, stopTrainingCancel := context.WithTimeout(context.Background(), stopTrainingTimeoutInterval)
 	defer stopTrainingCancel()
 
@@ -1838,12 +1838,15 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 //
 // Specifically, handleKernelNotTrainingWhenTrainingStopTimeoutOccurs attempts to retrieve the JupyterMessage that may
 // have been dropped.
+//
+// handleKernelNotTrainingWhenTrainingStopTimeoutOccurs returns an error if it is unable to resolve the training. So,
+// if handleKernelNotTrainingWhenTrainingStopTimeoutOccurs returns an error, then the Client should keep waiting.
 func (c *Client) handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt *domain.Event, execReqMsgId string,
 	cumulativeTimeoutInterval time.Duration) error {
 
 	// If our callback for retrieving a Jupyter message is nil, then just return.
 	if c.getJupyterMessageCallback == nil {
-		return nil
+		return fmt.Errorf("no 'get jupyter message' callback configured for client")
 	}
 
 	c.logger.Debug("Attempting to retrieve \"execute_reply\" message via gRPC, in case the ZMQ version was dropped.",
@@ -1913,7 +1916,7 @@ func (c *Client) handleTrainingStopViaGrpc(evt *domain.Event, execReqMsgId strin
 			Panicked:         false,
 		})
 
-		return nil
+		return fmt.Errorf("missing request flag for \"execute_request\" \"%s\"", execReqMsgId)
 	}
 
 	// In cases where a message is significantly delayed, we may resort to retrieving it via gRPC.
@@ -1932,7 +1935,7 @@ func (c *Client) handleTrainingStopViaGrpc(evt *domain.Event, execReqMsgId strin
 			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
 			zap.String("execute_reply_message", jupyterMsg.String()))
 
-		return nil
+		return fmt.Errorf("failed to flip 'received' flag for \"execute_reply\"")
 	}
 
 	// We'll estimate the e2e latency, because the messages being dropped is more likely a bug of some sort...
@@ -1997,12 +2000,22 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 
 	// Log a message and send a warning notification.
 	isTraining := c.trainingStoppedTimedOut(c.lastTrainingSubmittedAt, originalTimeoutInterval, execReqMsgId, err)
-	if isTraining {
-		c.handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt, execReqMsgId, originalTimeoutInterval)
+	if !isTraining {
+		err = c.handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt, execReqMsgId, originalTimeoutInterval)
+		if err == nil {
+			return nil
+		}
+
+		c.logger.Debug("Failed to retrieve \"execute_reply\" message via gRPC.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqMsgId),
+			zap.Error(err))
 	}
 
 	cumulativeTimeoutInterval := originalTimeoutInterval
-	timeoutInterval := time.Minute * 2
+	timeoutInterval := time.Second * 5 // TODO: Switch this back to 2min after done testing
 
 	// Keep waiting for a while.
 	// We'll start printing more frequent warnings.
@@ -2023,8 +2036,18 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 			isTraining = c.trainingStoppedTimedOut(c.lastTrainingSubmittedAt, cumulativeTimeoutInterval, execReqMsgId, err)
 			cancel()
 
-			if isTraining {
-				c.handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt, execReqMsgId, cumulativeTimeoutInterval)
+			if !isTraining {
+				err = c.handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt, execReqMsgId, cumulativeTimeoutInterval)
+				if err == nil {
+					return nil
+				}
+
+				c.logger.Debug("Failed to retrieve \"execute_reply\" message via gRPC.",
+					zap.String("session_id", c.SessionId),
+					zap.String("workload_id", c.Workload.GetId()),
+					zap.String("workload_name", c.Workload.WorkloadName()),
+					zap.String("execute_request_msg_id", execReqMsgId),
+					zap.Error(err))
 			}
 
 			continue

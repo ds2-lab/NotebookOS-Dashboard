@@ -208,6 +208,7 @@ type Driver struct {
 	DropSessionsWithNoTrainingEvents   bool                                       // DropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
 	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
 	isKernelTrainingCallback           IsKernelTrainingCallback                   // isKernelTrainingCallback is used to query whether a kernel is actively training as far as the cluster gateway knows.
+	getJupyterMessageCallback          GetJupyterMessageCallback                  // getJupyterMessageCallback returns the configured scheduling policy along with a flag indicating whether the returned policy name is valid.
 	rng                                *rand.Rand
 	Clients                            map[string]*Client
 	clientsWaitGroup                   sync.WaitGroup
@@ -282,6 +283,8 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		notifyCallback:                     callbackProvider.SendNotification,
 		refreshClusterStatistics:           callbackProvider.RefreshAndClearClusterStatistics,
 		getSchedulingPolicyCallback:        callbackProvider.GetSchedulingPolicy,
+		getJupyterMessageCallback:          callbackProvider.GetJupyterMessage,
+		isKernelTrainingCallback:           callbackProvider.IsKernelActivelyTraining,
 		paused:                             false,
 		Clients:                            make(map[string]*Client),
 		workloadOutputInterval:             time.Second * time.Duration(opts.WorkloadOutputIntervalSec),
@@ -293,7 +296,6 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 		maxClientSleepDuringInitSeconds:    opts.MaxClientSleepDuringInitSeconds,
 		workloadJsonOutputFrequency:        opts.WorkloadJsonOutputFrequency,
 		DropSessionsWithNoTrainingEvents:   opts.DropSessionsWithNoTrainings,
-		isKernelTrainingCallback:           callbackProvider.IsKernelActivelyTraining,
 	}
 
 	driver.pauseCond = sync.NewCond(&driver.pauseMutex)
@@ -1961,6 +1963,7 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 				WithDeepLearningModel(model).
 				WithDataset(dataset).
 				WithIsKernelTrainingCallback(d.isKernelTrainingCallback).
+				WithGetJupyterMessageCallback(d.getJupyterMessageCallback).
 				WithModelDatasetCategory(category).
 				WithSchedulingPolicy(d.getSchedulingPolicy()).
 				WithKernelManager(d.KernelManager).
