@@ -1412,10 +1412,9 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	// Wait for the training to end.
 	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, evt, startedHandlingAt, sentRequestAt,
 		originalTimeoutInterval, execReqId)
-
-	if err == nil {
+	if trainingStarted && err == nil {
 		// Training started. We can return.
-		return trainingStarted, startedAtUnixMillis, nil
+		return true, startedAtUnixMillis, nil
 	}
 
 	isTraining := c.trainingStartTimedOut(sentRequestAt, originalTimeoutInterval, execReqId)
@@ -1423,14 +1422,14 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	// If the kernel IS training, then we'll try to retrieve the associated "smr_lead_task" message via gRPC,
 	// in case it was dropped or otherwise delayed.
 	if isTraining {
-		startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(evt, execReqId, originalTimeoutInterval)
+		startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
 		if err == nil {
 			return true, startedAtUnixMillis, nil
 		}
 	}
 
 	cumulativeTimeoutInterval := originalTimeoutInterval
-	timeoutInterval := time.Second * 60
+	timeoutInterval := time.Second * 5 // TODO: Change this back to 60 sec or whatever
 
 	for time.Since(startedWaitingAt) < maximumAdditionalWaitTime {
 		cumulativeTimeoutInterval = cumulativeTimeoutInterval + timeoutInterval
@@ -1438,9 +1437,9 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 
 		trainingStarted, startedAtUnixMillis, err = c.doWaitForTrainingToStart(ctx, evt, startedHandlingAt, sentRequestAt,
 			originalTimeoutInterval, execReqId)
-		if err == nil {
+		if trainingStarted && err == nil {
 			cancel()
-			return trainingStarted, startedAtUnixMillis, nil
+			return true, startedAtUnixMillis, nil
 		}
 
 		// Error related to timing out? If so, log a message, send a notification, and keep on waiting.
@@ -1451,8 +1450,8 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			// After the initial timeout, we'll have been waiting long enough that we'll check even if it says that
 			// the kernel is not yet training -- though this is unlikely to succeed in that case. The gateway learns that
 			// the kernel is no longer training by receiving the "smr_lead_task" message.
-			startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(evt, execReqId, cumulativeTimeoutInterval)
-			if err == nil {
+			startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
+			if trainingStarted && err == nil {
 				return true, startedAtUnixMillis, nil
 			}
 
@@ -1472,7 +1471,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		return false, -1, err
 	}
 
-	c.logger.Error("Completely timed out waiting for training to begin.",
+	c.logger.Error("Completely timed out waiting for training to begin. Assuming message was lost...",
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1573,7 +1572,7 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 	}
 
 	timeElapsed := time.Since(sentRequestAt)
-	c.logger.Warn(fmt.Sprintf("Have not received 'training started' notification for over %v. Assuming message was lost.",
+	c.logger.Warn(fmt.Sprintf("Have not received 'training started' notification for over %v.",
 		time.Since(sentRequestAt)),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1952,25 +1951,23 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 //
 // checkIfTrainingStartedViaGrpc returns an error if it is unable to resolve the status of the training. So,
 // if checkIfTrainingStartedViaGrpc returns an error, then the Client should keep waiting.
-func (c *Client) checkIfTrainingStartedViaGrpc(evt *domain.Event, execReqMsgId string,
-	cumulativeTimeoutInterval time.Duration) (int64, error) {
-
+func (c *Client) checkIfTrainingStartedViaGrpc(execReqMsgId string) (int64, error) {
 	// If our callback for retrieving a Jupyter message is nil, then just return.
 	if c.getJupyterMessageCallback == nil {
 		return -1, fmt.Errorf("no 'get jupyter message' callback configured for client")
 	}
 
-	c.logger.Debug("Attempting to retrieve \"execute_reply\" message via gRPC, in case the ZMQ version was dropped.",
+	c.logger.Debug("Attempting to retrieve \"smr_lead_task\" message via gRPC, in case the ZMQ version was dropped.",
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("execute_request_msg_id", execReqMsgId),
 		zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
 
-	resp, err := c.getJupyterMessageCallback(c.SessionId, execReqMsgId, "execute_reply")
+	resp, err := c.getJupyterMessageCallback(c.SessionId, execReqMsgId, "smr_lead_task")
 
 	if err != nil {
-		c.logger.Warn("Failed to retrieve \"execute_reply\" message via gRPC.",
+		c.logger.Warn("Failed to retrieve \"smr_lead_task\" message via gRPC.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
@@ -2038,7 +2035,6 @@ func (c *Client) claimTrainingStartedNotification(jupyterMsg jupyter.KernelMessa
 }
 
 func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.GetJupyterMessageResponse) (int64, error) {
-
 	jupyterMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
 	if conversionErr != nil {
 		c.logger.Error("Failed to convert \"smr_lead_task\" proto JupyterMessage to standard JupyterMessage",
@@ -2219,9 +2215,9 @@ func (c *Client) handleTrainingStopViaGrpc(evt *domain.Event, execReqMsgId strin
 	return nil
 }
 
-// waitForTrainingToStart waits for a training to begin being processed by a kernel replica.
+// waitForTrainingToEnd waits for a training to begin being processed by a kernel replica.
 //
-// waitForTrainingToStart is called by handleTrainingEvent after submitTrainingToKernel is called.
+// waitForTrainingToEnd is called by handleTrainingEvent after submitTrainingToKernel is called.
 func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domain.Event, execReqMsgId string,
 	originalTimeoutInterval time.Duration) error {
 
