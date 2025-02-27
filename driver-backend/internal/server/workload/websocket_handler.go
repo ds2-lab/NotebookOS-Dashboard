@@ -547,8 +547,10 @@ func (h *WebsocketHandler) broadcastToWorkloadWebsockets(payload []byte) []error
 
 	toRemove := make([]domain.ConcurrentWebSocket, 0)
 
-	h.logger.Debug("Broadcasting payload to workload websocket(s).",
-		zap.Int("payload_length_bytes", len(payload)))
+	if len(payload) > 1e6 {
+		h.logger.Debug("Broadcasting payload to workload websocket(s).",
+			zap.Int("payload_length_bytes", len(payload)))
+	}
 
 	for _, ws := range h.subscribers {
 		err := ws.WriteMessage(websocket.BinaryMessage, payload)
