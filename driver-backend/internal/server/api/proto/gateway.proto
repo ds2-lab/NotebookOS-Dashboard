@@ -58,17 +58,19 @@ service DistributedCluster {
   // Used to test connectivity with kernels.
   rpc PingKernel(PingInstruction) returns (Pong) {}
 
-  // Return a list of all of the current kernel IDs.
-  rpc ListKernels(Void) returns (ListKernelsResponse) {}
-
   // IsKernelTraining is used to query whether or not a particular kernel is actively training.
   rpc IsKernelActivelyTraining(KernelId) returns (IsKernelTrainingReply) {}
+
+  // Return a list of all of the current kernel IDs.
+  rpc ListKernels(Void) returns (ListKernelsResponse) {}
 
   // Set the maximum number of vGPU resources available on a particular node (identified by the local daemon).
   rpc SetTotalVirtualGPUs(SetVirtualGPUsRequest) returns (VirtualGpuInfo) {}
 
   // Return the current GPU resource metrics on the node.
   rpc GetClusterActualGpuInfo(Void) returns (ClusterActualGpuInfo) {}
+
+  rpc GetJupyterMessage(GetMessageRequest) returns (GetMessageResponse) {}
 
   // Return the current vGPU (or "deflated GPU") resource metrics on the node.
   rpc GetClusterVirtualGpuInfo(Void) returns (ClusterVirtualGpuInfo) {}
@@ -155,6 +157,21 @@ service DistributedCluster {
   //
   // ClearClusterStatistics returns the serialized ClusterStatistics struct before it was cleared.
   rpc ClearClusterStatistics(Void) returns (ClusterStatisticsResponse) {}
+}
+
+message GetMessageRequest {
+  string kernelId = 1;
+  string jupyterMessageId = 2;
+  string messageType = 3;
+}
+
+message GetMessageResponse {
+  string kernelId = 1;
+  string jupyterMessageId = 2;
+  string messageType = 3;
+  string messageId = 4;
+  bytes messageFrames = 5;
+  repeated int32 frameOffsets = 6;
 }
 
 message IsKernelTrainingReply {
@@ -641,10 +658,10 @@ service LocalGateway {
   // SetClose request the gateway to close all kernels and stop.
   rpc SetClose(Void) returns (Void) {}
 
-  // Used to instruct a set of kernel replicas to add a new node to their SMR cluster.
+  // AddReplica instructs a set of kernel replicas to add a new node to their SMR cluster.
   rpc AddReplica(ReplicaInfoWithAddr) returns (Void) {}
 
-  // Used to instruct a set of kernel replicas to update the peer address of a particular node.
+  // UpdateReplicaAddr instructs a set of kernel replicas to update the peer address of a particular node.
   // This is primarily used during migrations.
   rpc UpdateReplicaAddr(ReplicaInfoWithAddr) returns (Void) {}
 
