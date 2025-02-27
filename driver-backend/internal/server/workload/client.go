@@ -1418,6 +1418,8 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	if trainingStarted && err == nil {
 		// Training started. We can return.
 		return true, startedAtUnixMillis, nil
+	} else if err != nil && strings.Contains(err.Error(), "insufficient hosts available") {
+		return false, -1, nil
 	}
 
 	isTraining := c.trainingStartTimedOut(sentRequestAt, originalTimeoutInterval, execReqId)
@@ -1428,6 +1430,8 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
 		if startedAtUnixMillis > 0 && err == nil {
 			return true, startedAtUnixMillis, nil
+		} else if err != nil && strings.Contains(err.Error(), "insufficient hosts available") {
+			return false, -1, nil
 		}
 	}
 
@@ -1443,6 +1447,9 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		if trainingStarted && startedAtUnixMillis > 0 && err == nil {
 			cancel()
 			return true, startedAtUnixMillis, nil
+		} else if err != nil && strings.Contains(err.Error(), "insufficient hosts available") {
+			cancel()
+			return false, -1, nil
 		}
 
 		// Error related to timing out? Or we simply haven't started training?
@@ -1457,6 +1464,8 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
 			if startedAtUnixMillis > 0 && err == nil {
 				return true, startedAtUnixMillis, nil
+			} else if err != nil && strings.Contains(err.Error(), "insufficient hosts available") {
+				return false, -1, nil
 			}
 
 			c.logger.Debug("Failed to retrieve \"smr_lead_task\" message via gRPC.",
@@ -1887,7 +1896,7 @@ func (c *Client) getAdjustedDuration(evt *domain.Event) time.Duration {
 // getTimeoutInterval computes a "meaningful" timeout interval based on the scheduling policy, taking into account
 // approximately how long the network I/O before/after training is expected to take and whatnot.
 func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
-	baseInterval := time.Second * 300
+	baseInterval := time.Second * 330
 
 	// Load the scheduling policy.
 	schedulingPolicy := c.schedulingPolicy
