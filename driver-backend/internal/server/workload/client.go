@@ -240,6 +240,7 @@ func (b *ClientBuilder) Build() *Client {
 		errorChan:                        b.errorChan,
 		TrainingStartedChannel:           make(chan interface{}, 1),
 		TrainingStoppedChannel:           make(chan interface{}, 1),
+		outstandingExecuteRequestMap:     make(map[string]*atomic.Int32),
 		Session:                          b.session,
 		kernelSessionManager:             b.kernelSessionManager,
 		sessionReadyEvent:                b.sessionReadyEvent,
@@ -327,47 +328,51 @@ type Client struct {
 	Workload *Workload
 	Session  *domain.WorkloadTemplateSession
 
-	maxSleepDuringInitSec            int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
-	SessionId                        string                                 // SessionId is the Jupyter kernel/session ID of this Client
-	WorkloadId                       string                                 // WorkloadId is the ID of the workload that the Client is a part of.
-	errorChan                        chan<- error                           // errorChan is used to notify the WorkloadDriver that an error has occurred.
-	kernelConnection                 jupyter.KernelConnection               // kernelConnection is the Client's Jupyter kernel connection. The Client uses this to send messages to its kernel.
-	sessionConnection                *jupyter.SessionConnection             // sessionConnection is the Client's Jupyter session connection.
-	kernelSessionManager             jupyter.KernelSessionManager           // kernelSessionManager is used by the Client to create its sessionConnection and subsequently its kernelConnection.
-	sessionReadyEvent                *domain.Event                          // sessionReadyEvent is the "session-ready" event that triggered the creation of this Client.
-	schedulingPolicy                 string                                 // schedulingPolicy is the name of the scheduling policy that the cluster is configured to use.
-	EventQueue                       *event_queue.SessionEventQueue         // EventQueue contains events to be processed by this Client.
-	maximumResourceSpec              *domain.ResourceRequest                // maximumResourceSpec is the maximum amount of resources this Client may use at any point in its lifetime.
-	targetTickDurationSeconds        int64                                  // targetTickDurationSeconds is how long each tick was in the trace data used to generate this workload
-	targetTickDuration               time.Duration                          // targetTickDuration is how long each tick is supposed to last. This is the tick interval/step rate of the simulation.
-	timescaleAdjustmentFactor        float64                                // timescaleAdjustmentFactor controls the amount/degree of time compression that is used/applied.
-	currentTick                      domain.SimulationClock                 // currentTick maintains the time for this Client.
-	currentTime                      domain.SimulationClock                 // currentTime contains the current clock time of the workload, which will be sometime between currentTick and currentTick + TickDuration.
-	ticker                           *clock.Ticker                          // ticker delivers ticks, which drives this Client's workload. Each time a tick is received, the Client will process events for that tick.
-	clockTrigger                     *clock.Trigger                         // clockTrigger is a trigger for the clock ticks
-	logger                           *zap.Logger                            // logger is how the Client prints log messages.
-	running                          atomic.Int32                           // running indicates whether this Client is actively processing events.
-	ticksHandled                     atomic.Int64                           // ticksHandled is the number of ticks handled by this Client.
-	failedToStart                    atomic.Bool                            // failedToStart indicates that this Client completely failed to start -- it never succeeded in creating its kernel/session.
-	numSessionStartAttempts          atomic.Int32                           // numSessionStartAttempts counts the number of attempts that were required when initially creating the session/kernel before the session/kernel was successfully created.
-	trainingEventsHandled            atomic.Int32                           // trainingEventsHandled is the number of training events successfully processed by this Client.
-	trainingEventsDelayed            atomic.Int32                           // trainingEventsDelayed returns the number of times that a training event was delayed after failing to start. The same training event can be delayed multiple times, and each of those delays is counted independently.
-	lastTrainingSubmittedAt          time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
-	TrainingStartedChannel           chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
-	TrainingStoppedChannel           chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
-	notifyCallback                   func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
-	waitGroup                        *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
-	AssignedModel                    string                                 // AssignedModel is the name of the model assigned to this client.
-	AssignedDataset                  string                                 // AssignedDataset is the name of the dataset assigned to this client.
-	ModelDatasetCategory             string                                 // ModelDatasetCategory is the category of the AssignedModel and AssignedDataset.
-	explicitlyStopped                atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
-	closeLogFileFunc                 func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
-	dropSessionsWithNoTrainingEvents bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
-	MaxCreationAttempts              int                                    // MaxCreationAttempts is the maximum number of times the Client will attempt to create its kernel before giving up.
-	handledStopEvent                 atomic.Bool                            // handledStopEvent is set to true when the client handles the 'session-stopped' event for its session.
-	terminatedEarly                  atomic.Bool                            // terminatedEarly indicates that the Client exited early because one of its requests timed out.
-	isKernelTrainingCallback         IsKernelTrainingCallback               // isKernelTrainingCallback is used to query whether our kernel is actively training as far as the cluster gateway knows.
-	getJupyterMessageCallback        GetJupyterMessageCallback              // getJupyterMessageCallback returns the configured scheduling policy along with a flag indicating whether the returned policy name is valid.
+	maxSleepDuringInitSec             int                                    // maxSleepDuringInitSec is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
+	SessionId                         string                                 // SessionId is the Jupyter kernel/session ID of this Client
+	WorkloadId                        string                                 // WorkloadId is the ID of the workload that the Client is a part of.
+	errorChan                         chan<- error                           // errorChan is used to notify the WorkloadDriver that an error has occurred.
+	kernelConnection                  jupyter.KernelConnection               // kernelConnection is the Client's Jupyter kernel connection. The Client uses this to send messages to its kernel.
+	sessionConnection                 *jupyter.SessionConnection             // sessionConnection is the Client's Jupyter session connection.
+	kernelSessionManager              jupyter.KernelSessionManager           // kernelSessionManager is used by the Client to create its sessionConnection and subsequently its kernelConnection.
+	sessionReadyEvent                 *domain.Event                          // sessionReadyEvent is the "session-ready" event that triggered the creation of this Client.
+	schedulingPolicy                  string                                 // schedulingPolicy is the name of the scheduling policy that the cluster is configured to use.
+	EventQueue                        *event_queue.SessionEventQueue         // EventQueue contains events to be processed by this Client.
+	maximumResourceSpec               *domain.ResourceRequest                // maximumResourceSpec is the maximum amount of resources this Client may use at any point in its lifetime.
+	targetTickDurationSeconds         int64                                  // targetTickDurationSeconds is how long each tick was in the trace data used to generate this workload
+	targetTickDuration                time.Duration                          // targetTickDuration is how long each tick is supposed to last. This is the tick interval/step rate of the simulation.
+	timescaleAdjustmentFactor         float64                                // timescaleAdjustmentFactor controls the amount/degree of time compression that is used/applied.
+	currentTick                       domain.SimulationClock                 // currentTick maintains the time for this Client.
+	currentTime                       domain.SimulationClock                 // currentTime contains the current clock time of the workload, which will be sometime between currentTick and currentTick + TickDuration.
+	ticker                            *clock.Ticker                          // ticker delivers ticks, which drives this Client's workload. Each time a tick is received, the Client will process events for that tick.
+	clockTrigger                      *clock.Trigger                         // clockTrigger is a trigger for the clock ticks
+	logger                            *zap.Logger                            // logger is how the Client prints log messages.
+	running                           atomic.Int32                           // running indicates whether this Client is actively processing events.
+	ticksHandled                      atomic.Int64                           // ticksHandled is the number of ticks handled by this Client.
+	failedToStart                     atomic.Bool                            // failedToStart indicates that this Client completely failed to start -- it never succeeded in creating its kernel/session.
+	numSessionStartAttempts           atomic.Int32                           // numSessionStartAttempts counts the number of attempts that were required when initially creating the session/kernel before the session/kernel was successfully created.
+	trainingEventsHandled             atomic.Int32                           // trainingEventsHandled is the number of training events successfully processed by this Client.
+	trainingEventsDelayed             atomic.Int32                           // trainingEventsDelayed returns the number of times that a training event was delayed after failing to start. The same training event can be delayed multiple times, and each of those delays is counted independently.
+	lastTrainingSubmittedAt           time.Time                              // lastTrainingSubmittedAt is the real-world clock time at which the last training was submitted to the kernel.
+	TrainingStartedChannel            chan interface{}                       // TrainingStartedChannel is used to notify that the last/current training has started.
+	TrainingStoppedChannel            chan interface{}                       // TrainingStoppedChannel is used to notify that the last/current training has ended.
+	notifyCallback                    func(notification *proto.Notification) // notifyCallback is used to send notifications directly to the frontend.
+	waitGroup                         *sync.WaitGroup                        // waitGroup is used to alert the WorkloadDriver that the Client has finished.
+	AssignedModel                     string                                 // AssignedModel is the name of the model assigned to this client.
+	AssignedDataset                   string                                 // AssignedDataset is the name of the dataset assigned to this client.
+	ModelDatasetCategory              string                                 // ModelDatasetCategory is the category of the AssignedModel and AssignedDataset.
+	explicitlyStopped                 atomic.Int32                           // ExplicitlyStopped is used to signal to the client that it should stop. Setting this to a value > 0 will instruct the client to stop.
+	closeLogFileFunc                  func()                                 // closeLogFileFunc is returned by zap.Open when we create a Client that is supposed to also output its logs to a file. The closeFile function can be used to close the log file.
+	dropSessionsWithNoTrainingEvents  bool                                   // dropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
+	MaxCreationAttempts               int                                    // MaxCreationAttempts is the maximum number of times the Client will attempt to create its kernel before giving up.
+	handledStopEvent                  atomic.Bool                            // handledStopEvent is set to true when the client handles the 'session-stopped' event for its session.
+	terminatedEarly                   atomic.Bool                            // terminatedEarly indicates that the Client exited early because one of its requests timed out.
+	isKernelTrainingCallback          IsKernelTrainingCallback               // isKernelTrainingCallback is used to query whether our kernel is actively training as far as the cluster gateway knows.
+	getJupyterMessageCallback         GetJupyterMessageCallback              // getJupyterMessageCallback returns the configured scheduling policy along with a flag indicating whether the returned policy name is valid.
+	outstandingExecuteRequestId       string                                 // outstandingExecuteRequestId is the jupyter message ID of the last outstanding jupyter "execute_request" message -- that is, this field is set to the empty string once the response is received.
+	lastSubmittedExecuteRequestId     string                                 // lastSubmittedExecuteRequestId is the jupyter message ID of the last jupyter "execute_request" message.
+	outstandingExecuteRequestMap      map[string]*atomic.Int32               // outstandingExecuteRequestMap provides an atomic way to keep track of if we've received a particular "execute_reply" message or not.
+	outstandingExecuteRequestMapMutex sync.Mutex                             // outstandingExecuteRequestMapMutex provides atomic access when getting or setting values from/in the outstandingExecuteRequestMap field.
 }
 
 func (c *Client) closeLogFile() error {
@@ -1196,6 +1201,16 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 
 	c.Workload.TrainingSubmitted(c.SessionId, evt)
 
+	c.outstandingExecuteRequestMapMutex.Lock()
+
+	var receivedFlag atomic.Int32
+	c.outstandingExecuteRequestMap[executeRequestId] = &receivedFlag
+
+	c.lastSubmittedExecuteRequestId = executeRequestId
+	c.outstandingExecuteRequestId = executeRequestId
+
+	c.outstandingExecuteRequestMapMutex.Unlock()
+
 	return sentRequestAt, executeRequestId, nil
 }
 
@@ -1207,20 +1222,22 @@ func (c *Client) OnReceiveExecuteReply(response jupyter.KernelMessage) {
 
 	responseContent := response.GetContent().(map[string]interface{})
 	if responseContent == nil {
-		c.logger.Error("\"execute_reply\" message does not have any content...",
+		c.logger.Error("\"execute_reply\" message received via ZMQ does not have any content...",
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
+			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
 			zap.String("execute_reply_message", response.String()))
 		return
 	}
 
 	val, ok := responseContent["status"]
 	if !ok {
-		c.logger.Error("\"execute_reply\" message does not contain a \"status\" field in its content.",
+		c.logger.Error("\"execute_reply\" message received via ZMQ does not contain a \"status\" field in its content.",
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
+			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
 			zap.String("execute_reply_message", response.String()))
 		return
 	}
@@ -1231,12 +1248,13 @@ func (c *Client) OnReceiveExecuteReply(response jupyter.KernelMessage) {
 		errorName := responseContent["ename"].(string)
 		errorValue := responseContent["evalue"].(string)
 
-		c.logger.Warn("Received \"execute_reply\" message with error status.",
+		c.logger.Warn("Received \"execute_reply\" message with error status via ZMQ.",
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("ename", errorName),
 			zap.String("evalue", errorValue),
+			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
 			zap.String("execute_reply_message", response.String()))
 
 		// Notify the training started channel. There will not be a smr_lead_task sent at this point, since
@@ -1245,12 +1263,61 @@ func (c *Client) OnReceiveExecuteReply(response jupyter.KernelMessage) {
 		return
 	}
 
-	c.logger.Debug("Received \"execute_reply\" message with non-error status.",
+	c.logger.Debug("Received \"execute_reply\" message with non-error status via ZMQ.",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
+		zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
 		zap.String("execute_reply_message", response.String()))
 
+	c.outstandingExecuteRequestMapMutex.Lock()
+	receivedFlag, loaded := c.outstandingExecuteRequestMap[response.GetParentHeader().MessageId]
+	c.outstandingExecuteRequestMapMutex.Unlock()
+
+	if !loaded {
+		c.logger.Error("No request flag associated with \"execute_request\" message upon receiving \"execute_reply\" via ZMQ",
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId),
+			zap.String("execute_request_id", response.GetHeader().MessageId),
+			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+			zap.String("execute_reply_message", response.String()))
+
+		title := fmt.Sprintf("No Request Flag for \"execute_request\" Message \"%s\" Targeting Kernel \"%s\"",
+			response.GetParentHeader().MessageId, c.SessionId)
+		message := fmt.Sprintf("Cannot properly handle 'training-stopped' event after receiving \"execute_reply\" message \"%s\" via ZMQ.",
+			response.GetHeader().MessageId)
+
+		c.notifyCallback(&proto.Notification{
+			Id:               uuid.NewString(),
+			Title:            title,
+			Message:          message,
+			NotificationType: domain.ErrorNotification.Int32(),
+			Panicked:         false,
+		})
+
+		return
+	}
+
+	// In cases where a message is significantly delayed, we may resort to retrieving it via gRPC.
+	// In this case, we don't want things to get messed up if we eventually receive the delayed ZMQ message here.
+	// For example, we could misinterpret a delayed "execute_reply" as being for the current training and think that
+	// the current training has ended when it hasn't.
+	//
+	// So, we check if we're the ones to atomically flip the associated 'received' flag from 0 to 1. If so,
+	// then we can handle the message. If not, then we discard it.
+	if !receivedFlag.CompareAndSwap(0, 1) {
+		c.logger.Warn("Failed to flip 'received' flag from 0 to 1 for \"execute_reply\". Must have already received message via gRPC.",
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("session_id", c.SessionId),
+			zap.String("execute_request_id", response.GetHeader().MessageId),
+			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+			zap.String("execute_reply_message", response.String()))
+		return
+	}
+
+	// Handle the message by sending it over the channel.
 	c.TrainingStoppedChannel <- &trainingStoppedNotification{
 		ReceivedAt: receivedAt,
 		Response:   response,
@@ -1799,6 +1866,54 @@ func (c *Client) handleKernelNotTrainingWhenTrainingStopTimeoutOccurs(evt *domai
 				zap.Error(err))
 
 			return conversionErr
+		}
+
+		c.outstandingExecuteRequestMapMutex.Lock()
+		receivedFlag, loaded := c.outstandingExecuteRequestMap[jupyterMsg.GetParentHeader().MessageId]
+		c.outstandingExecuteRequestMapMutex.Unlock()
+
+		if !loaded {
+			c.logger.Error("No request flag associated with \"execute_request\" message upon receiving \"execute_reply\" via gRPC",
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("session_id", c.SessionId),
+				zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
+				zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+				zap.String("execute_reply_message", jupyterMsg.String()))
+
+			title := fmt.Sprintf("No Request Flag for \"execute_request\" Message \"%s\" Targeting Kernel \"%s\"",
+				jupyterMsg.GetParentHeader().MessageId, c.SessionId)
+			message := fmt.Sprintf("Cannot properly handle 'training-stopped' event after receiving \"execute_reply\" message \"%s\" via gRPC.",
+				jupyterMsg.GetHeader().MessageId)
+
+			c.notifyCallback(&proto.Notification{
+				Id:               uuid.NewString(),
+				Title:            title,
+				Message:          message,
+				NotificationType: domain.ErrorNotification.Int32(),
+				Panicked:         false,
+			})
+
+			return nil
+		}
+
+		// In cases where a message is significantly delayed, we may resort to retrieving it via gRPC.
+		// In this case, we don't want things to get messed up if we eventually receive the delayed ZMQ message here.
+		// For example, we could misinterpret a delayed "execute_reply" as being for the current training and think that
+		// the current training has ended when it hasn't.
+		//
+		// So, we check if we're the ones to atomically flip the associated 'received' flag from 0 to 1. If so,
+		// then we can handle the message. If not, then we discard it.
+		if !receivedFlag.CompareAndSwap(0, 1) {
+			c.logger.Warn("Failed to flip 'received' flag from 0 to 1 for \"execute_reply\". Must have already received message via ZMQ.",
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("session_id", c.SessionId),
+				zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
+				zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
+				zap.String("execute_reply_message", jupyterMsg.String()))
+
+			return nil
 		}
 
 		// We'll estimate the e2e latency, because the messages being dropped is more likely a bug of some sort...

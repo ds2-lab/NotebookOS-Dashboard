@@ -19,11 +19,17 @@ func (s KernelSocketChannel) String() string {
 }
 
 type KernelMessage interface {
+	// GetHeader returns the KernelMessageHeader of the target KernelMessage.
+	//
+	// The returned KernelMessageHeader is guaranteed to be non-nil (but the values may all be empty).
 	GetHeader() *KernelMessageHeader
 	GetChannel() KernelSocketChannel
 	GetContent() interface{}
 	GetBuffers() [][]byte
 	GetMetadata() map[string]interface{}
+	// GetParentHeader returns the parent KernelMessageHeader of the target KernelMessage.
+	//
+	// The returned KernelMessageHeader is guaranteed to be non-nil (but the values may all be empty).
 	GetParentHeader() *KernelMessageHeader
 	DecodeContent() (map[string]interface{}, error)
 
@@ -164,6 +170,10 @@ type Message struct {
 }
 
 func (m *Message) GetHeader() *KernelMessageHeader {
+	if m.Header == nil {
+		m.Header = &KernelMessageHeader{}
+	}
+
 	return m.Header
 }
 
@@ -201,6 +211,10 @@ func (m *Message) GetMetadata() map[string]interface{} {
 }
 
 func (m *Message) GetParentHeader() *KernelMessageHeader {
+	if m.ParentHeader == nil {
+		m.ParentHeader = &KernelMessageHeader{}
+	}
+
 	return m.ParentHeader
 }
 
