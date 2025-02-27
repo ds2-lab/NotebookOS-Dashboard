@@ -1048,8 +1048,7 @@ func (c *Client) handleEvent(event *domain.Event, tick time.Time) error {
 func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error {
 	startedHandlingAt := time.Now()
 
-	// TODO: Change this back.
-	startTrainingTimeoutInterval := time.Second * 10 // c.getTimeoutInterval(event)
+	startTrainingTimeoutInterval := c.getTimeoutInterval(event)
 	startTrainingCtx, startTrainingCancel := context.WithTimeout(context.Background(), startTrainingTimeoutInterval)
 	defer startTrainingCancel()
 
@@ -1383,7 +1382,12 @@ func (c *Client) doWaitForTrainingToStart(ctx context.Context, evt *domain.Event
 		}
 	case <-ctx.Done():
 		{
-			return false, -1, nil
+			err := ctx.Err()
+			if err != nil && errors.Is(err, context.DeadlineExceeded) {
+				return false, -1, err // We'll check for context.DeadlineExceeded.
+			}
+
+			return false, -1, err
 		}
 	}
 }
@@ -1428,7 +1432,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	}
 
 	cumulativeTimeoutInterval := originalTimeoutInterval
-	timeoutInterval := time.Second * 5 // TODO: Change this back to 60 sec or whatever
+	timeoutInterval := time.Second * 60
 
 	for time.Since(startedWaitingAt) < maximumAdditionalWaitTime {
 		cumulativeTimeoutInterval = cumulativeTimeoutInterval + timeoutInterval
@@ -1441,8 +1445,9 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			return true, startedAtUnixMillis, nil
 		}
 
-		// Error related to timing out? If so, log a message, send a notification, and keep on waiting.
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, jupyter.ErrRequestTimedOut) {
+		// Error related to timing out? Or we simply haven't started training?
+		// If so, log a message, send a notification, and keep on waiting.
+		if (!trainingStarted && err == nil) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, jupyter.ErrRequestTimedOut) {
 			isTraining = c.trainingStartTimedOut(sentRequestAt, timeoutInterval, execReqId)
 			cancel()
 
@@ -2251,7 +2256,7 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 	}
 
 	cumulativeTimeoutInterval := originalTimeoutInterval
-	timeoutInterval := time.Second * 75
+	timeoutInterval := time.Second * 60
 
 	// Keep waiting for a while.
 	// We'll start printing more frequent warnings.
