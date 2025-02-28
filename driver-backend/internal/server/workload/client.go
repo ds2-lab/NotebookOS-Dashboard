@@ -1409,9 +1409,6 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		zap.String("execute_request_id", execReqId),
 		zap.Duration("time_elapsed", time.Since(sentRequestAt)))
 
-	startedWaitingAt := time.Now()
-	maximumAdditionalWaitTime := time.Minute * 5
-
 	// Wait for the training to end.
 	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, evt, startedHandlingAt, sentRequestAt,
 		originalTimeoutInterval, execReqId)
@@ -1434,6 +1431,9 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			return false, -1, nil
 		}
 	}
+
+	startedWaitingAt := time.Now()
+	maximumAdditionalWaitTime := time.Minute * 5
 
 	cumulativeTimeoutInterval := originalTimeoutInterval
 	timeoutInterval := time.Second * 60
