@@ -1431,7 +1431,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		return false, -1, nil
 	}
 
-	isTraining := c.trainingStartTimedOut(sentRequestAt, originalTimeoutInterval, execReqId)
+	isTraining := c.trainingStartTimedOut(sentRequestAt, originalTimeoutInterval, execReqId, err)
 
 	// If the kernel IS training, then we'll try to retrieve the associated "smr_lead_task" message via gRPC,
 	// in case it was dropped or otherwise delayed.
@@ -1467,7 +1467,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		// Error related to timing out? Or we simply haven't started training?
 		// If so, log a message, send a notification, and keep on waiting.
 		if (!trainingStarted && err == nil) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, jupyter.ErrRequestTimedOut) {
-			isTraining = c.trainingStartTimedOut(sentRequestAt, timeoutInterval, execReqId)
+			isTraining = c.trainingStartTimedOut(sentRequestAt, timeoutInterval, execReqId, err)
 			cancel()
 
 			// After the initial timeout, we'll have been waiting long enough that we'll check even if it says that
@@ -1579,12 +1579,12 @@ func (c *Client) trainingStoppedTimedOut(sentRequestAt time.Time, timeoutInterva
 //
 // trainingStartTimedOut returns a flag indicating whether the kernel is presently training based on our result of
 // querying the cluster gateway directly for this information.
-func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration, executeRequestId string) bool {
+func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration, executeRequestId string, err error) bool {
 	var isTraining bool
 	if c.isKernelTrainingCallback != nil {
-		var err error
-		isTraining, err = c.isKernelTrainingCallback(c.SessionId)
-		if err != nil {
+		var getTrainingStatusError error
+		isTraining, getTrainingStatusError = c.isKernelTrainingCallback(c.SessionId)
+		if getTrainingStatusError != nil {
 			c.logger.Warn("Failed to query Cluster Gateway regarding training status of kernel on 'training started' time-out.",
 				zap.String("session_id", c.SessionId),
 				zap.String("workload_id", c.Workload.GetId()),
@@ -1592,7 +1592,7 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 				zap.String("execute_request_msg_id", executeRequestId),
 				zap.Duration("timeout_interval", timeoutInterval),
 				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
-				zap.Error(err))
+				zap.Error(getTrainingStatusError))
 		}
 	}
 
@@ -1611,8 +1611,8 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 		Id:    uuid.NewString(),
 		Title: fmt.Sprintf("Have Spent Over %v Waiting for 'Training Started' Notification", timeElapsed),
 		Message: fmt.Sprintf("Submitted \"execute_request\" to kernel \"%s\" during workload \"%s\" (ID=\"%s\") "+
-			"over %v ago and have not yet received 'smr_lead_task' IOPub message. IsTraining=%v, RequestID=\"%s\".",
-			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed, isTraining, executeRequestId),
+			"over %v ago and have not yet received 'smr_lead_task' IOPub message. IsTraining=%v, Error=%v, RequestID=\"%s\".",
+			c.SessionId, c.Workload.WorkloadName(), c.Workload.GetId(), timeElapsed, isTraining, err, executeRequestId),
 		Panicked:         false,
 		NotificationType: domain.WarningNotification.Int32(),
 	})
