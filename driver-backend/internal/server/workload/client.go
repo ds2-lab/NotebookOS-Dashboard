@@ -1360,9 +1360,10 @@ func (c *Client) doWaitForTrainingToStart(ctx context.Context, evt *domain.Event
 			switch v.(type) {
 			case error:
 				{
-					c.handleExecuteRequestErred(v.(error), evt, startedHandlingAt, sentRequestAt, timeoutInterval, execReqId)
+					err := v.(error)
+					c.handleExecuteRequestErred(err, evt, startedHandlingAt, sentRequestAt, timeoutInterval, execReqId)
 
-					return false, -1, nil
+					return false, -1, err
 				}
 			default:
 				{
@@ -1382,12 +1383,7 @@ func (c *Client) doWaitForTrainingToStart(ctx context.Context, evt *domain.Event
 		}
 	case <-ctx.Done():
 		{
-			err := ctx.Err()
-			if err != nil && errors.Is(err, context.DeadlineExceeded) {
-				return false, -1, err // We'll check for context.DeadlineExceeded.
-			}
-
-			return false, -1, err
+			return false, -1, ctx.Err()
 		}
 	}
 }
