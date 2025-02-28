@@ -66,7 +66,6 @@ type Statistics struct {
 	CumulativeTrainingTimeTicks int64 `json:"cumulative_training_time_ticks" csv:"cumulative_training_time_ticks"`
 
 	AggregateSessionDelayMillis int64                   `json:"aggregate_session_delay_ms" csv:"aggregate_session_delay_ms"`
-	CurrentTick                 int64                   `json:"current_tick" csv:"current_tick"`
 	NextEventExpectedTick       int64                   `json:"next_event_expected_tick"  csv:"next_event_expected_tick"`
 	NextExpectedEventName       domain.EventName        `json:"next_expected_event_name"  csv:"next_expected_event_name"`
 	NextExpectedEventTarget     string                  `json:"next_expected_event_target"  csv:"next_expected_event_target"`
@@ -112,7 +111,6 @@ func NewStatistics(sessionsSamplePercentage float64) *Statistics {
 		EventCounts:                                make(map[string]int),
 		SessionsSamplePercentage:                   sessionsSamplePercentage,
 		TimeElapsed:                                time.Duration(0),
-		CurrentTick:                                0,
 		WorkloadState:                              Ready,
 	}
 }
@@ -420,7 +418,7 @@ type ClusterStatistics struct {
 	CumulativeRequestProcessingTimeLocalDaemon int64 `json:"cumulative_request_processing_time_local_daemon" csv:"cumulative_request_processing_time_local_daemon"`
 
 	// CumulativeRequestProcessingTimeKernel is calculated using the RequestTrace proto message.
-	CumulativeRequestProcessingTimeKernel int64
+	CumulativeRequestProcessingTimeKernel int64 `json:"cumulative_request_processing_time_kernel" csv:"cumulative_request_processing_time_kernel"`
 
 	// CumulativeRequestProcessingTimeClusterGateway is calculated using the RequestTrace proto message.
 	CumulativeResponseProcessingTimeClusterGateway int64 `json:"cumulative_response_processing_time_cluster_gateway" csv:"cumulative_response_processing_time_cluster_gateway"`

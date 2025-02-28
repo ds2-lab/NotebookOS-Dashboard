@@ -302,13 +302,6 @@ func (w *Workload) Unpause() error {
 //	w.SumTickDurationsMillis += timeElapsedMs
 //}
 
-// GetCurrentTick returns the current tick.
-func (w *Workload) GetCurrentTick() int64 {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	return w.Statistics.CurrentTick
-}
-
 // GetSimulationClockTimeStr returns the simulation clock time.
 func (w *Workload) GetSimulationClockTimeStr() string {
 	w.mu.RLock()

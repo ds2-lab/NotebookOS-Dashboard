@@ -145,8 +145,6 @@ type Workload interface {
 	GetTimescaleAdjustmentFactor() float64
 	// GetProcessedEvents Returns the events processed during this workload (so far).
 	GetProcessedEvents() []*WorkloadEvent
-	// GetCurrentTick Returns the current tick.
-	GetCurrentTick() int64
 	// GetSimulationClockTimeStr Returns the simulation clock time.
 	GetSimulationClockTimeStr() string
 	// RegisterOnNonCriticalErrorHandler registers a non-critical error handler for the target workload.

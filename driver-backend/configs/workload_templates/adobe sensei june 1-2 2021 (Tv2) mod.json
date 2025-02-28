@@ -236,7 +236,7 @@
     {
       "id": "ebeba495-67d7-451f-b167-8a244a266e30",
       "start_tick": 12,
-      "stop_tick": 786,
+      "stop_tick": 515,
       "num_training_events": 32,
       "trainings": [
         {
@@ -774,7 +774,7 @@
     {
       "id": "01bca2b4-fab2-474c-b646-fa41bd47fb2d",
       "start_tick": 16,
-      "stop_tick": 460,
+      "stop_tick": 532,
       "num_training_events": 3,
       "trainings": [
         {
@@ -1467,84 +1467,9 @@
       }
     },
     {
-      "id": "41dde569-d67b-43f3-92b8-c1f68fc07c8f",
-      "start_tick": 28,
-      "stop_tick": 1852,
-      "num_training_events": 4,
-      "trainings": [
-        {
-          "start_tick": 1679,
-          "duration_in_ticks": 3,
-          "end_tick": 1682,
-          "cpus": 2.0,
-          "memory": 5.125,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1686,
-          "duration_in_ticks": 7,
-          "end_tick": 1693,
-          "cpus": 2.0,
-          "memory": 5.0,
-          "vram": 5.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.75
-            }
-          ]
-        },
-        {
-          "start_tick": 1694,
-          "duration_in_ticks": 6,
-          "end_tick": 1700,
-          "cpus": 2.0,
-          "memory": 5.125,
-          "vram": 4.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 1.875
-            }
-          ]
-        },
-        {
-          "start_tick": 1767,
-          "duration_in_ticks": 37,
-          "end_tick": 1804,
-          "cpus": 2.0,
-          "memory": 5.0,
-          "vram": 4.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 12.5
-            }
-          ]
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 2.0,
-        "memory": 5.125,
-        "gpus": 1,
-        "vram": 5.0,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
       "id": "cadae761-15fa-4bec-a01b-5bfb59460072",
       "start_tick": 33,
-      "stop_tick": 630,
+      "stop_tick": 439,
       "num_training_events": 8,
       "trainings": [
         {
@@ -1671,56 +1596,32 @@
       }
     },
     {
-      "id": "cc076d34-5a9c-4dd8-9afc-bc5a6e97fed5",
-      "start_tick": 36,
-      "stop_tick": 2869,
-      "num_training_events": 49,
+      "id": "750d0a32-814d-4002-9409-4e524cfc5698",
+      "start_tick": 41,
+      "stop_tick": 2864,
+      "num_training_events": 60,
       "trainings": [
         {
-          "start_tick": 1667,
-          "duration_in_ticks": 3,
-          "end_tick": 1670,
-          "cpus": 0.0,
-          "memory": 20.375,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1683,
-          "duration_in_ticks": 13,
-          "end_tick": 1696,
+          "start_tick": 1684,
+          "duration_in_ticks": 11,
+          "end_tick": 1695,
           "cpus": 1.0,
-          "memory": 32.5,
-          "vram": 2.625,
+          "memory": 32.375,
+          "vram": 2.75,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 8.5
+              "utilization": 7.375
             }
           ]
         },
         {
-          "start_tick": 1700,
-          "duration_in_ticks": 10,
-          "end_tick": 1710,
+          "start_tick": 1697,
+          "duration_in_ticks": 27,
+          "end_tick": 1724,
           "cpus": 1.0,
-          "memory": 39.375,
-          "vram": 3.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.125
-            }
-          ]
-        },
-        {
-          "start_tick": 1712,
-          "duration_in_ticks": 43,
-          "end_tick": 1755,
-          "cpus": 1.0,
-          "memory": 48.875,
-          "vram": 2.5,
+          "memory": 45.875,
+          "vram": 1.0,
           "gpus": 1,
           "gpu_utilizations": [
             {
@@ -1729,25 +1630,53 @@
           ]
         },
         {
-          "start_tick": 1760,
-          "duration_in_ticks": 5,
-          "end_tick": 1765,
+          "start_tick": 1726,
+          "duration_in_ticks": 33,
+          "end_tick": 1759,
           "cpus": 1.0,
-          "memory": 49.625,
-          "vram": 3.875,
+          "memory": 49.5,
+          "vram": 2.5,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 2.375
+              "utilization": 8.375
             }
           ]
         },
         {
-          "start_tick": 1767,
-          "duration_in_ticks": 24,
-          "end_tick": 1791,
+          "start_tick": 1760,
+          "duration_in_ticks": 23,
+          "end_tick": 1783,
           "cpus": 1.0,
-          "memory": 51.625,
+          "memory": 51.375,
+          "vram": 1.75,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 1785,
+          "duration_in_ticks": 13,
+          "end_tick": 1798,
+          "cpus": 1.0,
+          "memory": 52.5,
+          "vram": 4.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.875
+            }
+          ]
+        },
+        {
+          "start_tick": 1800,
+          "duration_in_ticks": 34,
+          "end_tick": 1834,
+          "cpus": 1.0,
+          "memory": 54.375,
           "vram": 4.375,
           "gpus": 1,
           "gpu_utilizations": [
@@ -1757,39 +1686,11 @@
           ]
         },
         {
-          "start_tick": 2150,
-          "duration_in_ticks": 4,
-          "end_tick": 2154,
+          "start_tick": 1837,
+          "duration_in_ticks": 10,
+          "end_tick": 1847,
           "cpus": 1.0,
-          "memory": 51.75,
-          "vram": 4.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 5.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2155,
-          "duration_in_ticks": 31,
-          "end_tick": 2186,
-          "cpus": 1.0,
-          "memory": 53.625,
-          "vram": 5.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2187,
-          "duration_in_ticks": 9,
-          "end_tick": 2196,
-          "cpus": 1.0,
-          "memory": 54.25,
+          "memory": 54.75,
           "vram": 4.75,
           "gpus": 1,
           "gpu_utilizations": [
@@ -1799,247 +1700,23 @@
           ]
         },
         {
-          "start_tick": 2197,
-          "duration_in_ticks": 14,
-          "end_tick": 2211,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 2.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2212,
-          "duration_in_ticks": 13,
-          "end_tick": 2225,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2228,
-          "duration_in_ticks": 8,
-          "end_tick": 2236,
-          "cpus": 1.0,
-          "memory": 54.375,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2238,
-          "duration_in_ticks": 5,
-          "end_tick": 2243,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2244,
-          "duration_in_ticks": 9,
-          "end_tick": 2253,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 2.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2254,
-          "duration_in_ticks": 26,
-          "end_tick": 2280,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2281,
-          "duration_in_ticks": 4,
-          "end_tick": 2285,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 1.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2286,
-          "duration_in_ticks": 13,
-          "end_tick": 2299,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2301,
-          "duration_in_ticks": 11,
-          "end_tick": 2312,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2313,
-          "duration_in_ticks": 5,
-          "end_tick": 2318,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 2.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2324,
-          "duration_in_ticks": 9,
-          "end_tick": 2333,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 2.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2334,
-          "duration_in_ticks": 8,
-          "end_tick": 2342,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2343,
-          "duration_in_ticks": 36,
-          "end_tick": 2379,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2380,
-          "duration_in_ticks": 51,
-          "end_tick": 2431,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2432,
-          "duration_in_ticks": 41,
-          "end_tick": 2473,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2478,
-          "duration_in_ticks": 4,
-          "end_tick": 2482,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 2.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 1.625
-            }
-          ]
-        },
-        {
-          "start_tick": 2485,
-          "duration_in_ticks": 29,
-          "end_tick": 2514,
+          "start_tick": 1850,
+          "duration_in_ticks": 17,
+          "end_tick": 1867,
           "cpus": 1.0,
           "memory": 54.75,
           "vram": 4.5,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 8.75
+              "utilization": 8.5
             }
           ]
         },
         {
-          "start_tick": 2515,
-          "duration_in_ticks": 15,
-          "end_tick": 2530,
+          "start_tick": 1868,
+          "duration_in_ticks": 20,
+          "end_tick": 1888,
           "cpus": 1.0,
           "memory": 54.75,
           "vram": 0.0,
@@ -2051,9 +1728,23 @@
           ]
         },
         {
-          "start_tick": 2533,
+          "start_tick": 1891,
+          "duration_in_ticks": 17,
+          "end_tick": 1908,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.625
+            }
+          ]
+        },
+        {
+          "start_tick": 1909,
           "duration_in_ticks": 3,
-          "end_tick": 2536,
+          "end_tick": 1912,
           "cpus": 1.0,
           "memory": 54.625,
           "vram": 0.0,
@@ -2061,54 +1752,12 @@
           "gpu_utilizations": []
         },
         {
-          "start_tick": 2538,
-          "duration_in_ticks": 5,
-          "end_tick": 2543,
+          "start_tick": 1916,
+          "duration_in_ticks": 21,
+          "end_tick": 1937,
           "cpus": 1.0,
           "memory": 54.75,
-          "vram": 3.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2544,
-          "duration_in_ticks": 25,
-          "end_tick": 2569,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2570,
-          "duration_in_ticks": 6,
-          "end_tick": 2576,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 5.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2577,
-          "duration_in_ticks": 36,
-          "end_tick": 2613,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.625,
+          "vram": 4.125,
           "gpus": 1,
           "gpu_utilizations": [
             {
@@ -2117,26 +1766,12 @@
           ]
         },
         {
-          "start_tick": 2614,
-          "duration_in_ticks": 6,
-          "end_tick": 2620,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 4.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2623,
-          "duration_in_ticks": 27,
-          "end_tick": 2650,
+          "start_tick": 1941,
+          "duration_in_ticks": 30,
+          "end_tick": 1971,
           "cpus": 1.0,
           "memory": 54.75,
-          "vram": 0.0,
+          "vram": 0.125,
           "gpus": 1,
           "gpu_utilizations": [
             {
@@ -2145,12 +1780,26 @@
           ]
         },
         {
-          "start_tick": 2652,
-          "duration_in_ticks": 33,
-          "end_tick": 2685,
+          "start_tick": 1973,
+          "duration_in_ticks": 15,
+          "end_tick": 1988,
           "cpus": 1.0,
           "memory": 54.75,
-          "vram": 3.375,
+          "vram": 0.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 1990,
+          "duration_in_ticks": 10,
+          "end_tick": 2000,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.75,
           "gpus": 1,
           "gpu_utilizations": [
             {
@@ -2159,12 +1808,40 @@
           ]
         },
         {
-          "start_tick": 2688,
-          "duration_in_ticks": 20,
-          "end_tick": 2708,
+          "start_tick": 2001,
+          "duration_in_ticks": 23,
+          "end_tick": 2024,
           "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 2.5,
+          "memory": 54.75,
+          "vram": 4.75,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2026,
+          "duration_in_ticks": 21,
+          "end_tick": 2047,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2049,
+          "duration_in_ticks": 23,
+          "end_tick": 2072,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.75,
           "gpus": 1,
           "gpu_utilizations": [
             {
@@ -2173,96 +1850,92 @@
           ]
         },
         {
-          "start_tick": 2709,
+          "start_tick": 2073,
           "duration_in_ticks": 6,
-          "end_tick": 2715,
+          "end_tick": 2079,
           "cpus": 1.0,
           "memory": 54.625,
-          "vram": 4.875,
+          "vram": 0.0,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 8.25
+              "utilization": 3.0
             }
           ]
         },
         {
-          "start_tick": 2717,
-          "duration_in_ticks": 4,
-          "end_tick": 2721,
+          "start_tick": 2086,
+          "duration_in_ticks": 12,
+          "end_tick": 2098,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2100,
+          "duration_in_ticks": 3,
+          "end_tick": 2103,
           "cpus": 1.0,
           "memory": 54.5,
-          "vram": 4.375,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2105,
+          "duration_in_ticks": 6,
+          "end_tick": 2111,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.5,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 7.875
+              "utilization": 7.125
             }
           ]
         },
         {
-          "start_tick": 2722,
-          "duration_in_ticks": 6,
-          "end_tick": 2728,
+          "start_tick": 2112,
+          "duration_in_ticks": 27,
+          "end_tick": 2139,
           "cpus": 1.0,
           "memory": 54.625,
           "vram": 0.0,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 4.75
+              "utilization": 8.125
             }
           ]
         },
         {
-          "start_tick": 2729,
-          "duration_in_ticks": 6,
-          "end_tick": 2735,
+          "start_tick": 2161,
+          "duration_in_ticks": 10,
+          "end_tick": 2171,
           "cpus": 1.0,
           "memory": 54.75,
-          "vram": 4.375,
+          "vram": 1.75,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 8.375
+              "utilization": 8.0
             }
           ]
         },
         {
-          "start_tick": 2736,
-          "duration_in_ticks": 7,
-          "end_tick": 2743,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2746,
-          "duration_in_ticks": 30,
-          "end_tick": 2776,
+          "start_tick": 2175,
+          "duration_in_ticks": 14,
+          "end_tick": 2189,
           "cpus": 1.0,
           "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2777,
-          "duration_in_ticks": 15,
-          "end_tick": 2792,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.625,
+          "vram": 3.5,
           "gpus": 1,
           "gpu_utilizations": [
             {
@@ -2271,37 +1944,37 @@
           ]
         },
         {
-          "start_tick": 2793,
-          "duration_in_ticks": 6,
-          "end_tick": 2799,
+          "start_tick": 2191,
+          "duration_in_ticks": 10,
+          "end_tick": 2201,
           "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 5.0,
+          "memory": 54.75,
+          "vram": 4.5,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 8.875
+              "utilization": 8.25
             }
           ]
         },
         {
-          "start_tick": 2804,
-          "duration_in_ticks": 6,
-          "end_tick": 2810,
+          "start_tick": 2205,
+          "duration_in_ticks": 7,
+          "end_tick": 2212,
           "cpus": 1.0,
-          "memory": 54.5,
+          "memory": 54.625,
           "vram": 0.0,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 7.5
+              "utilization": 6.75
             }
           ]
         },
         {
-          "start_tick": 2812,
-          "duration_in_ticks": 21,
-          "end_tick": 2833,
+          "start_tick": 2215,
+          "duration_in_ticks": 51,
+          "end_tick": 2266,
           "cpus": 1.0,
           "memory": 54.75,
           "vram": 0.0,
@@ -2313,9 +1986,61 @@
           ]
         },
         {
-          "start_tick": 2834,
-          "duration_in_ticks": 10,
-          "end_tick": 2844,
+          "start_tick": 2267,
+          "duration_in_ticks": 32,
+          "end_tick": 2299,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 2.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 9.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2303,
+          "duration_in_ticks": 3,
+          "end_tick": 2306,
+          "cpus": 1.0,
+          "memory": 54.375,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2307,
+          "duration_in_ticks": 5,
+          "end_tick": 2312,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 6.625
+            }
+          ]
+        },
+        {
+          "start_tick": 2313,
+          "duration_in_ticks": 19,
+          "end_tick": 2332,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2333,
+          "duration_in_ticks": 15,
+          "end_tick": 2348,
           "cpus": 1.0,
           "memory": 54.75,
           "vram": 0.0,
@@ -2327,9 +2052,135 @@
           ]
         },
         {
-          "start_tick": 2845,
+          "start_tick": 2349,
           "duration_in_ticks": 17,
-          "end_tick": 2862,
+          "end_tick": 2366,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2368,
+          "duration_in_ticks": 45,
+          "end_tick": 2413,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2421,
+          "duration_in_ticks": 7,
+          "end_tick": 2428,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 2.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2429,
+          "duration_in_ticks": 28,
+          "end_tick": 2457,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2465,
+          "duration_in_ticks": 37,
+          "end_tick": 2502,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2504,
+          "duration_in_ticks": 19,
+          "end_tick": 2523,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2527,
+          "duration_in_ticks": 5,
+          "end_tick": 2532,
+          "cpus": 1.0,
+          "memory": 54.375,
+          "vram": 0.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 0.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2536,
+          "duration_in_ticks": 22,
+          "end_tick": 2558,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2560,
+          "duration_in_ticks": 9,
+          "end_tick": 2569,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 3.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.125
+            }
+          ]
+        },
+        {
+          "start_tick": 2572,
+          "duration_in_ticks": 10,
+          "end_tick": 2582,
           "cpus": 1.0,
           "memory": 54.625,
           "vram": 0.0,
@@ -2341,18 +2192,238 @@
           ]
         },
         {
-          "start_tick": 2864,
-          "duration_in_ticks": 4,
-          "end_tick": 2868,
+          "start_tick": 2583,
+          "duration_in_ticks": 6,
+          "end_tick": 2589,
           "cpus": 1.0,
-          "memory": 54.5,
+          "memory": 54.75,
+          "vram": 0.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.0
+            }
+          ]
+        },
+        {
+          "start_tick": 2590,
+          "duration_in_ticks": 6,
+          "end_tick": 2596,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 1.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 4.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2598,
+          "duration_in_ticks": 16,
+          "end_tick": 2614,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2615,
+          "duration_in_ticks": 16,
+          "end_tick": 2631,
+          "cpus": 1.0,
+          "memory": 54.75,
           "vram": 0.0,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 7.875
+              "utilization": 8.0
             }
           ]
+        },
+        {
+          "start_tick": 2633,
+          "duration_in_ticks": 4,
+          "end_tick": 2637,
+          "cpus": 1.0,
+          "memory": 54.5,
+          "vram": 4.75,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 0.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2640,
+          "duration_in_ticks": 12,
+          "end_tick": 2652,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2653,
+          "duration_in_ticks": 7,
+          "end_tick": 2660,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 6.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2661,
+          "duration_in_ticks": 15,
+          "end_tick": 2676,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2677,
+          "duration_in_ticks": 21,
+          "end_tick": 2698,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 1.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.0
+            }
+          ]
+        },
+        {
+          "start_tick": 2700,
+          "duration_in_ticks": 11,
+          "end_tick": 2711,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2713,
+          "duration_in_ticks": 14,
+          "end_tick": 2727,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.0
+            }
+          ]
+        },
+        {
+          "start_tick": 2730,
+          "duration_in_ticks": 5,
+          "end_tick": 2735,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 3.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 6.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2736,
+          "duration_in_ticks": 4,
+          "end_tick": 2740,
+          "cpus": 1.0,
+          "memory": 54.375,
+          "vram": 4.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2742,
+          "duration_in_ticks": 45,
+          "end_tick": 2787,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 9.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2788,
+          "duration_in_ticks": 47,
+          "end_tick": 2835,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 9.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2836,
+          "duration_in_ticks": 17,
+          "end_tick": 2853,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.625
+            }
+          ]
+        },
+        {
+          "start_tick": 2856,
+          "duration_in_ticks": 3,
+          "end_tick": 2859,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
         }
       ],
       "trainings_completed": 0,
@@ -2367,7 +2438,7 @@
         "cpus": 1.0,
         "memory": 54.75,
         "gpus": 1,
-        "vram": 5.0,
+        "vram": 4.875,
         "gpu_type": "ANY_GPU"
       }
     },
@@ -2453,7 +2524,7 @@
     {
       "id": "b5b8514a-dda5-456e-83e7-0e03c19c553e",
       "start_tick": 95,
-      "stop_tick": 1153,
+      "stop_tick": 967,
       "num_training_events": 6,
       "trainings": [
         {
@@ -2817,339 +2888,6 @@
       }
     },
     {
-      "id": "ee9779e1-b569-495a-ac4c-49651fbcaee0",
-      "start_tick": 112,
-      "stop_tick": 2868,
-      "num_training_events": 7,
-      "trainings": [
-        {
-          "start_tick": 2251,
-          "duration_in_ticks": 14,
-          "end_tick": 2265,
-          "cpus": 14.0,
-          "memory": 208.75,
-          "vram": 17.875,
-          "gpus": 8,
-          "gpu_utilizations": [
-            {
-              "utilization": 87.0
-            },
-            {
-              "utilization": 87.0
-            },
-            {
-              "utilization": 87.0
-            },
-            {
-              "utilization": 87.0
-            },
-            {
-              "utilization": 87.0
-            },
-            {
-              "utilization": 87.0
-            },
-            {
-              "utilization": 87.0
-            },
-            {
-              "utilization": 87.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2285,
-          "duration_in_ticks": 7,
-          "end_tick": 2292,
-          "cpus": 13.0,
-          "memory": 204.375,
-          "vram": 12.0,
-          "gpus": 8,
-          "gpu_utilizations": [
-            {
-              "utilization": 47.75
-            },
-            {
-              "utilization": 47.75
-            },
-            {
-              "utilization": 47.75
-            },
-            {
-              "utilization": 47.75
-            },
-            {
-              "utilization": 47.75
-            },
-            {
-              "utilization": 47.75
-            },
-            {
-              "utilization": 47.75
-            },
-            {
-              "utilization": 47.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2295,
-          "duration_in_ticks": 8,
-          "end_tick": 2303,
-          "cpus": 13.0,
-          "memory": 204.625,
-          "vram": 32.125,
-          "gpus": 8,
-          "gpu_utilizations": [
-            {
-              "utilization": 97.0
-            },
-            {
-              "utilization": 97.0
-            },
-            {
-              "utilization": 97.0
-            },
-            {
-              "utilization": 97.0
-            },
-            {
-              "utilization": 97.0
-            },
-            {
-              "utilization": 97.0
-            },
-            {
-              "utilization": 97.0
-            },
-            {
-              "utilization": 97.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2306,
-          "duration_in_ticks": 4,
-          "end_tick": 2310,
-          "cpus": 11.0,
-          "memory": 204.875,
-          "vram": 0.0,
-          "gpus": 8,
-          "gpu_utilizations": [
-            {
-              "utilization": 83.625
-            },
-            {
-              "utilization": 83.625
-            },
-            {
-              "utilization": 83.625
-            },
-            {
-              "utilization": 83.625
-            },
-            {
-              "utilization": 83.625
-            },
-            {
-              "utilization": 83.625
-            },
-            {
-              "utilization": 83.625
-            },
-            {
-              "utilization": 83.625
-            }
-          ]
-        },
-        {
-          "start_tick": 2313,
-          "duration_in_ticks": 5,
-          "end_tick": 2318,
-          "cpus": 13.0,
-          "memory": 204.25,
-          "vram": 1.875,
-          "gpus": 8,
-          "gpu_utilizations": [
-            {
-              "utilization": 85.0
-            },
-            {
-              "utilization": 85.0
-            },
-            {
-              "utilization": 85.0
-            },
-            {
-              "utilization": 85.0
-            },
-            {
-              "utilization": 85.0
-            },
-            {
-              "utilization": 85.0
-            },
-            {
-              "utilization": 85.0
-            },
-            {
-              "utilization": 85.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2319,
-          "duration_in_ticks": 6,
-          "end_tick": 2325,
-          "cpus": 14.0,
-          "memory": 204.125,
-          "vram": 0.0,
-          "gpus": 8,
-          "gpu_utilizations": [
-            {
-              "utilization": 85.25
-            },
-            {
-              "utilization": 85.25
-            },
-            {
-              "utilization": 85.25
-            },
-            {
-              "utilization": 85.25
-            },
-            {
-              "utilization": 85.25
-            },
-            {
-              "utilization": 85.25
-            },
-            {
-              "utilization": 85.25
-            },
-            {
-              "utilization": 85.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2327,
-          "duration_in_ticks": 6,
-          "end_tick": 2333,
-          "cpus": 12.0,
-          "memory": 204.5,
-          "vram": 9.625,
-          "gpus": 8,
-          "gpu_utilizations": [
-            {
-              "utilization": 84.25
-            },
-            {
-              "utilization": 84.25
-            },
-            {
-              "utilization": 84.25
-            },
-            {
-              "utilization": 84.25
-            },
-            {
-              "utilization": 84.25
-            },
-            {
-              "utilization": 84.25
-            },
-            {
-              "utilization": 84.25
-            },
-            {
-              "utilization": 84.25
-            }
-          ]
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 14.0,
-        "memory": 208.75,
-        "gpus": 8,
-        "vram": 32.125,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
-      "id": "c2bcd380-1c0b-42af-89e5-51c1d0342ae5",
-      "start_tick": 114,
-      "stop_tick": 1711,
-      "num_training_events": 3,
-      "trainings": [
-        {
-          "start_tick": 1623,
-          "duration_in_ticks": 11,
-          "end_tick": 1634,
-          "cpus": 2.0,
-          "memory": 5.25,
-          "vram": 1.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 12.5
-            }
-          ]
-        },
-        {
-          "start_tick": 1663,
-          "duration_in_ticks": 10,
-          "end_tick": 1673,
-          "cpus": 2.0,
-          "memory": 5.0,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.625
-            }
-          ]
-        },
-        {
-          "start_tick": 1674,
-          "duration_in_ticks": 9,
-          "end_tick": 1683,
-          "cpus": 2.0,
-          "memory": 5.0,
-          "vram": 4.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 5.625
-            }
-          ]
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 2.0,
-        "memory": 5.25,
-        "gpus": 1,
-        "vram": 4.0,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
       "id": "26661a91-fbbf-4c64-a4a7-cea25c872d5a",
       "start_tick": 116,
       "stop_tick": 2530,
@@ -3416,6 +3154,98 @@
         "memory": 52.375,
         "gpus": 1,
         "vram": 4.0,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "3b9bd965-24b5-4b15-ae60-77515b863fbe",
+      "start_tick": 162,
+      "stop_tick": 1167,
+      "num_training_events": 3,
+      "trainings": [
+        {
+          "start_tick": 909,
+          "duration_in_ticks": 6,
+          "end_tick": 915,
+          "cpus": 5.0,
+          "memory": 9.5,
+          "vram": 2.625,
+          "gpus": 4,
+          "gpu_utilizations": [
+            {
+              "utilization": 22.875
+            },
+            {
+              "utilization": 22.875
+            },
+            {
+              "utilization": 22.875
+            },
+            {
+              "utilization": 22.875
+            }
+          ]
+        },
+        {
+          "start_tick": 926,
+          "duration_in_ticks": 39,
+          "end_tick": 965,
+          "cpus": 12.0,
+          "memory": 15.75,
+          "vram": 8.75,
+          "gpus": 4,
+          "gpu_utilizations": [
+            {
+              "utilization": 44.875
+            },
+            {
+              "utilization": 44.875
+            },
+            {
+              "utilization": 44.875
+            },
+            {
+              "utilization": 44.875
+            }
+          ]
+        },
+        {
+          "start_tick": 967,
+          "duration_in_ticks": 29,
+          "end_tick": 996,
+          "cpus": 13.0,
+          "memory": 15.75,
+          "vram": 14.875,
+          "gpus": 4,
+          "gpu_utilizations": [
+            {
+              "utilization": 42.25
+            },
+            {
+              "utilization": 42.25
+            },
+            {
+              "utilization": 42.25
+            },
+            {
+              "utilization": 42.25
+            }
+          ]
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 13.0,
+        "memory": 15.75,
+        "gpus": 4,
+        "vram": 14.875,
         "gpu_type": "ANY_GPU"
       }
     },
@@ -3978,6 +3808,599 @@
       }
     },
     {
+      "id": "f332f642-ac95-465c-acc8-052d7f0ab6e5",
+      "start_tick": 207,
+      "stop_tick": 2868,
+      "num_training_events": 43,
+      "trainings": [
+        {
+          "start_tick": 1702,
+          "duration_in_ticks": 3,
+          "end_tick": 1705,
+          "cpus": 0.0,
+          "memory": 47.25,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2143,
+          "duration_in_ticks": 32,
+          "end_tick": 2175,
+          "cpus": 1.0,
+          "memory": 49.625,
+          "vram": 5.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2179,
+          "duration_in_ticks": 5,
+          "end_tick": 2184,
+          "cpus": 1.0,
+          "memory": 50.375,
+          "vram": 3.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 5.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2185,
+          "duration_in_ticks": 15,
+          "end_tick": 2200,
+          "cpus": 1.0,
+          "memory": 51.625,
+          "vram": 3.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2201,
+          "duration_in_ticks": 10,
+          "end_tick": 2211,
+          "cpus": 1.0,
+          "memory": 52.5,
+          "vram": 5.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2212,
+          "duration_in_ticks": 25,
+          "end_tick": 2237,
+          "cpus": 1.0,
+          "memory": 53.875,
+          "vram": 4.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2239,
+          "duration_in_ticks": 5,
+          "end_tick": 2244,
+          "cpus": 1.0,
+          "memory": 54.5,
+          "vram": 2.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 6.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2246,
+          "duration_in_ticks": 3,
+          "end_tick": 2249,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2252,
+          "duration_in_ticks": 12,
+          "end_tick": 2264,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2266,
+          "duration_in_ticks": 3,
+          "end_tick": 2269,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2270,
+          "duration_in_ticks": 12,
+          "end_tick": 2282,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2285,
+          "duration_in_ticks": 33,
+          "end_tick": 2318,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 5.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2319,
+          "duration_in_ticks": 9,
+          "end_tick": 2328,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2329,
+          "duration_in_ticks": 11,
+          "end_tick": 2340,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 4.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2342,
+          "duration_in_ticks": 7,
+          "end_tick": 2349,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 3.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2350,
+          "duration_in_ticks": 41,
+          "end_tick": 2391,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2392,
+          "duration_in_ticks": 4,
+          "end_tick": 2396,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 0.625
+            }
+          ]
+        },
+        {
+          "start_tick": 2401,
+          "duration_in_ticks": 14,
+          "end_tick": 2415,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 9.0
+            }
+          ]
+        },
+        {
+          "start_tick": 2417,
+          "duration_in_ticks": 11,
+          "end_tick": 2428,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2432,
+          "duration_in_ticks": 32,
+          "end_tick": 2464,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2465,
+          "duration_in_ticks": 3,
+          "end_tick": 2468,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2469,
+          "duration_in_ticks": 5,
+          "end_tick": 2474,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 2.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2475,
+          "duration_in_ticks": 79,
+          "end_tick": 2554,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.625
+            }
+          ]
+        },
+        {
+          "start_tick": 2555,
+          "duration_in_ticks": 3,
+          "end_tick": 2558,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2560,
+          "duration_in_ticks": 8,
+          "end_tick": 2568,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2570,
+          "duration_in_ticks": 37,
+          "end_tick": 2607,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 9.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2608,
+          "duration_in_ticks": 3,
+          "end_tick": 2611,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2612,
+          "duration_in_ticks": 18,
+          "end_tick": 2630,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2631,
+          "duration_in_ticks": 6,
+          "end_tick": 2637,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 4.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.625
+            }
+          ]
+        },
+        {
+          "start_tick": 2640,
+          "duration_in_ticks": 38,
+          "end_tick": 2678,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2679,
+          "duration_in_ticks": 6,
+          "end_tick": 2685,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 4.625
+            }
+          ]
+        },
+        {
+          "start_tick": 2686,
+          "duration_in_ticks": 15,
+          "end_tick": 2701,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 4.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2704,
+          "duration_in_ticks": 4,
+          "end_tick": 2708,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2709,
+          "duration_in_ticks": 33,
+          "end_tick": 2742,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2744,
+          "duration_in_ticks": 18,
+          "end_tick": 2762,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2763,
+          "duration_in_ticks": 17,
+          "end_tick": 2780,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.75,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2781,
+          "duration_in_ticks": 4,
+          "end_tick": 2785,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 1.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 0.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2789,
+          "duration_in_ticks": 3,
+          "end_tick": 2792,
+          "cpus": 1.0,
+          "memory": 54.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2796,
+          "duration_in_ticks": 18,
+          "end_tick": 2814,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 2.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2815,
+          "duration_in_ticks": 14,
+          "end_tick": 2829,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2830,
+          "duration_in_ticks": 7,
+          "end_tick": 2837,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 2.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2838,
+          "duration_in_ticks": 20,
+          "end_tick": 2858,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2859,
+          "duration_in_ticks": 3,
+          "end_tick": 2862,
+          "cpus": 1.0,
+          "memory": 54.25,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 1.0,
+        "memory": 54.75,
+        "gpus": 1,
+        "vram": 5.0,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
       "id": "5a846cc6-3d6a-477c-8ceb-0a37acffef1d",
       "start_tick": 211,
       "stop_tick": 2562,
@@ -4251,56 +4674,60 @@
       }
     },
     {
-      "id": "b2bded90-e359-4419-ae75-ce01b18f4b57",
-      "start_tick": 229,
-      "stop_tick": 1691,
+      "id": "41dde569-d67b-43f3-92b8-c1f68fc07c8f",
+      "start_tick": 212,
+      "stop_tick": 1852,
       "num_training_events": 4,
       "trainings": [
         {
-          "start_tick": 1615,
+          "start_tick": 1679,
           "duration_in_ticks": 3,
-          "end_tick": 1618,
+          "end_tick": 1682,
           "cpus": 2.0,
-          "memory": 4.625,
+          "memory": 5.125,
           "vram": 0.0,
           "gpus": 0,
           "gpu_utilizations": []
         },
         {
-          "start_tick": 1619,
-          "duration_in_ticks": 3,
-          "end_tick": 1622,
+          "start_tick": 1686,
+          "duration_in_ticks": 7,
+          "end_tick": 1693,
           "cpus": 2.0,
-          "memory": 4.5,
-          "vram": 0.0,
+          "memory": 5.0,
+          "vram": 5.0,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 6.625
+              "utilization": 9.75
             }
           ]
         },
         {
-          "start_tick": 1623,
-          "duration_in_ticks": 3,
-          "end_tick": 1626,
+          "start_tick": 1694,
+          "duration_in_ticks": 6,
+          "end_tick": 1700,
           "cpus": 2.0,
-          "memory": 4.375,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1650,
-          "duration_in_ticks": 14,
-          "end_tick": 1664,
-          "cpus": 2.0,
-          "memory": 4.5,
-          "vram": 1.5,
+          "memory": 5.125,
+          "vram": 4.5,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 12.25
+              "utilization": 1.875
+            }
+          ]
+        },
+        {
+          "start_tick": 1767,
+          "duration_in_ticks": 37,
+          "end_tick": 1804,
+          "cpus": 2.0,
+          "memory": 5.0,
+          "vram": 4.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 12.5
             }
           ]
         }
@@ -4315,62 +4742,9 @@
       },
       "max_resource_request": {
         "cpus": 2.0,
-        "memory": 4.625,
+        "memory": 5.125,
         "gpus": 1,
-        "vram": 1.5,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
-      "id": "c10d70aa-3cdd-40c8-b375-0009148d6fa4",
-      "start_tick": 237,
-      "stop_tick": 1854,
-      "num_training_events": 3,
-      "trainings": [
-        {
-          "start_tick": 1743,
-          "duration_in_ticks": 3,
-          "end_tick": 1746,
-          "cpus": 4.0,
-          "memory": 11.875,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1757,
-          "duration_in_ticks": 3,
-          "end_tick": 1760,
-          "cpus": 4.0,
-          "memory": 11.875,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1768,
-          "duration_in_ticks": 3,
-          "end_tick": 1771,
-          "cpus": 4.0,
-          "memory": 12.0,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 4.0,
-        "memory": 12.0,
-        "gpus": 0,
-        "vram": 0.0,
+        "vram": 5.0,
         "gpu_type": "ANY_GPU"
       }
     },
@@ -5036,882 +5410,18 @@
       }
     },
     {
-      "id": "1071dff6-c0f6-4092-99ed-e6a2b7f3310b",
-      "start_tick": 266,
-      "stop_tick": 2869,
-      "num_training_events": 38,
-      "trainings": [
-        {
-          "start_tick": 2152,
-          "duration_in_ticks": 3,
-          "end_tick": 2155,
-          "cpus": 4.0,
-          "memory": 33.0,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2158,
-          "duration_in_ticks": 3,
-          "end_tick": 2161,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2167,
-          "duration_in_ticks": 6,
-          "end_tick": 2173,
-          "cpus": 4.0,
-          "memory": 33.375,
-          "vram": 5.125,
-          "gpus": 4,
-          "gpu_utilizations": [
-            {
-              "utilization": 21.5
-            },
-            {
-              "utilization": 21.5
-            },
-            {
-              "utilization": 21.5
-            },
-            {
-              "utilization": 21.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2177,
-          "duration_in_ticks": 3,
-          "end_tick": 2180,
-          "cpus": 4.0,
-          "memory": 33.25,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2182,
-          "duration_in_ticks": 3,
-          "end_tick": 2185,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2194,
-          "duration_in_ticks": 3,
-          "end_tick": 2197,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2198,
-          "duration_in_ticks": 6,
-          "end_tick": 2204,
-          "cpus": 4.0,
-          "memory": 33.375,
-          "vram": 16.125,
-          "gpus": 4,
-          "gpu_utilizations": [
-            {
-              "utilization": 14.125
-            },
-            {
-              "utilization": 14.125
-            },
-            {
-              "utilization": 14.125
-            },
-            {
-              "utilization": 14.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2207,
-          "duration_in_ticks": 3,
-          "end_tick": 2210,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2243,
-          "duration_in_ticks": 3,
-          "end_tick": 2246,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2382,
-          "duration_in_ticks": 3,
-          "end_tick": 2385,
-          "cpus": 30.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2404,
-          "duration_in_ticks": 3,
-          "end_tick": 2407,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2442,
-          "duration_in_ticks": 3,
-          "end_tick": 2445,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2464,
-          "duration_in_ticks": 4,
-          "end_tick": 2468,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 4,
-          "gpu_utilizations": [
-            {
-              "utilization": 6.0
-            },
-            {
-              "utilization": 6.0
-            },
-            {
-              "utilization": 6.0
-            },
-            {
-              "utilization": 6.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2485,
-          "duration_in_ticks": 3,
-          "end_tick": 2488,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2499,
-          "duration_in_ticks": 3,
-          "end_tick": 2502,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2515,
-          "duration_in_ticks": 3,
-          "end_tick": 2518,
-          "cpus": 4.0,
-          "memory": 33.375,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2528,
-          "duration_in_ticks": 3,
-          "end_tick": 2531,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2535,
-          "duration_in_ticks": 3,
-          "end_tick": 2538,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2555,
-          "duration_in_ticks": 3,
-          "end_tick": 2558,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2561,
-          "duration_in_ticks": 3,
-          "end_tick": 2564,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2581,
-          "duration_in_ticks": 3,
-          "end_tick": 2584,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2613,
-          "duration_in_ticks": 3,
-          "end_tick": 2616,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2619,
-          "duration_in_ticks": 3,
-          "end_tick": 2622,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2626,
-          "duration_in_ticks": 3,
-          "end_tick": 2629,
-          "cpus": 4.0,
-          "memory": 33.375,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2649,
-          "duration_in_ticks": 3,
-          "end_tick": 2652,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2659,
-          "duration_in_ticks": 3,
-          "end_tick": 2662,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2671,
-          "duration_in_ticks": 3,
-          "end_tick": 2674,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2688,
-          "duration_in_ticks": 3,
-          "end_tick": 2691,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2694,
-          "duration_in_ticks": 3,
-          "end_tick": 2697,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2711,
-          "duration_in_ticks": 3,
-          "end_tick": 2714,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2722,
-          "duration_in_ticks": 3,
-          "end_tick": 2725,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2732,
-          "duration_in_ticks": 3,
-          "end_tick": 2735,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2738,
-          "duration_in_ticks": 3,
-          "end_tick": 2741,
-          "cpus": 4.0,
-          "memory": 33.375,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2744,
-          "duration_in_ticks": 3,
-          "end_tick": 2747,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2773,
-          "duration_in_ticks": 3,
-          "end_tick": 2776,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2809,
-          "duration_in_ticks": 3,
-          "end_tick": 2812,
-          "cpus": 4.0,
-          "memory": 33.375,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2824,
-          "duration_in_ticks": 3,
-          "end_tick": 2827,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2850,
-          "duration_in_ticks": 3,
-          "end_tick": 2853,
-          "cpus": 4.0,
-          "memory": 33.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 30.0,
-        "memory": 33.5,
-        "gpus": 4,
-        "vram": 16.125,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
-      "id": "3b9bd965-24b5-4b15-ae60-77515b863fbe",
-      "start_tick": 301,
-      "stop_tick": 1184,
+      "id": "c162a91e-b6ad-44b3-9dd1-2be89477936d",
+      "start_tick": 308,
+      "stop_tick": 1822,
       "num_training_events": 3,
       "trainings": [
         {
-          "start_tick": 909,
-          "duration_in_ticks": 6,
-          "end_tick": 915,
-          "cpus": 5.0,
-          "memory": 9.5,
-          "vram": 2.625,
-          "gpus": 4,
-          "gpu_utilizations": [
-            {
-              "utilization": 22.875
-            },
-            {
-              "utilization": 22.875
-            },
-            {
-              "utilization": 22.875
-            },
-            {
-              "utilization": 22.875
-            }
-          ]
-        },
-        {
-          "start_tick": 926,
-          "duration_in_ticks": 39,
-          "end_tick": 965,
-          "cpus": 12.0,
-          "memory": 15.75,
-          "vram": 8.75,
-          "gpus": 4,
-          "gpu_utilizations": [
-            {
-              "utilization": 44.875
-            },
-            {
-              "utilization": 44.875
-            },
-            {
-              "utilization": 44.875
-            },
-            {
-              "utilization": 44.875
-            }
-          ]
-        },
-        {
-          "start_tick": 967,
-          "duration_in_ticks": 29,
-          "end_tick": 996,
-          "cpus": 13.0,
-          "memory": 15.75,
-          "vram": 14.875,
-          "gpus": 4,
-          "gpu_utilizations": [
-            {
-              "utilization": 42.25
-            },
-            {
-              "utilization": 42.25
-            },
-            {
-              "utilization": 42.25
-            },
-            {
-              "utilization": 42.25
-            }
-          ]
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 13.0,
-        "memory": 15.75,
-        "gpus": 4,
-        "vram": 14.875,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
-      "id": "f332f642-ac95-465c-acc8-052d7f0ab6e5",
-      "start_tick": 314,
-      "stop_tick": 2868,
-      "num_training_events": 43,
-      "trainings": [
-        {
-          "start_tick": 1702,
-          "duration_in_ticks": 3,
-          "end_tick": 1705,
-          "cpus": 0.0,
-          "memory": 47.25,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2143,
-          "duration_in_ticks": 32,
-          "end_tick": 2175,
-          "cpus": 1.0,
-          "memory": 49.625,
-          "vram": 5.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2179,
-          "duration_in_ticks": 5,
-          "end_tick": 2184,
-          "cpus": 1.0,
-          "memory": 50.375,
-          "vram": 3.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 5.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2185,
-          "duration_in_ticks": 15,
-          "end_tick": 2200,
-          "cpus": 1.0,
-          "memory": 51.625,
-          "vram": 3.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2201,
-          "duration_in_ticks": 10,
-          "end_tick": 2211,
-          "cpus": 1.0,
-          "memory": 52.5,
-          "vram": 5.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2212,
-          "duration_in_ticks": 25,
-          "end_tick": 2237,
-          "cpus": 1.0,
-          "memory": 53.875,
-          "vram": 4.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2239,
-          "duration_in_ticks": 5,
-          "end_tick": 2244,
-          "cpus": 1.0,
-          "memory": 54.5,
-          "vram": 2.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 6.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2246,
-          "duration_in_ticks": 3,
-          "end_tick": 2249,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2252,
-          "duration_in_ticks": 12,
-          "end_tick": 2264,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2266,
-          "duration_in_ticks": 3,
-          "end_tick": 2269,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2270,
-          "duration_in_ticks": 12,
-          "end_tick": 2282,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2285,
-          "duration_in_ticks": 33,
-          "end_tick": 2318,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 5.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2319,
-          "duration_in_ticks": 9,
-          "end_tick": 2328,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2329,
-          "duration_in_ticks": 11,
-          "end_tick": 2340,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 4.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2342,
+          "start_tick": 1682,
           "duration_in_ticks": 7,
-          "end_tick": 2349,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 3.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2350,
-          "duration_in_ticks": 41,
-          "end_tick": 2391,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2392,
-          "duration_in_ticks": 4,
-          "end_tick": 2396,
-          "cpus": 1.0,
-          "memory": 54.625,
+          "end_tick": 1689,
+          "cpus": 2.0,
+          "memory": 5.25,
           "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 0.625
-            }
-          ]
-        },
-        {
-          "start_tick": 2401,
-          "duration_in_ticks": 14,
-          "end_tick": 2415,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2417,
-          "duration_in_ticks": 11,
-          "end_tick": 2428,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2432,
-          "duration_in_ticks": 32,
-          "end_tick": 2464,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2465,
-          "duration_in_ticks": 3,
-          "end_tick": 2468,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2469,
-          "duration_in_ticks": 5,
-          "end_tick": 2474,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 2.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2475,
-          "duration_in_ticks": 79,
-          "end_tick": 2554,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.625
-            }
-          ]
-        },
-        {
-          "start_tick": 2555,
-          "duration_in_ticks": 3,
-          "end_tick": 2558,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2560,
-          "duration_in_ticks": 8,
-          "end_tick": 2568,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2570,
-          "duration_in_ticks": 37,
-          "end_tick": 2607,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.5,
           "gpus": 1,
           "gpu_utilizations": [
             {
@@ -5920,230 +5430,32 @@
           ]
         },
         {
-          "start_tick": 2608,
-          "duration_in_ticks": 3,
-          "end_tick": 2611,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2612,
-          "duration_in_ticks": 18,
-          "end_tick": 2630,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2631,
+          "start_tick": 1691,
           "duration_in_ticks": 6,
-          "end_tick": 2637,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 4.875,
+          "end_tick": 1697,
+          "cpus": 2.0,
+          "memory": 5.125,
+          "vram": 0.25,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 7.625
+              "utilization": 4.375
             }
           ]
         },
         {
-          "start_tick": 2640,
-          "duration_in_ticks": 38,
-          "end_tick": 2678,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2679,
-          "duration_in_ticks": 6,
-          "end_tick": 2685,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 4.625
-            }
-          ]
-        },
-        {
-          "start_tick": 2686,
-          "duration_in_ticks": 15,
-          "end_tick": 2701,
-          "cpus": 1.0,
-          "memory": 54.625,
+          "start_tick": 1750,
+          "duration_in_ticks": 28,
+          "end_tick": 1778,
+          "cpus": 2.0,
+          "memory": 5.0,
           "vram": 4.5,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 8.5
+              "utilization": 12.0
             }
           ]
-        },
-        {
-          "start_tick": 2704,
-          "duration_in_ticks": 4,
-          "end_tick": 2708,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2709,
-          "duration_in_ticks": 33,
-          "end_tick": 2742,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2744,
-          "duration_in_ticks": 18,
-          "end_tick": 2762,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2763,
-          "duration_in_ticks": 17,
-          "end_tick": 2780,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2781,
-          "duration_in_ticks": 4,
-          "end_tick": 2785,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 1.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 0.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2789,
-          "duration_in_ticks": 3,
-          "end_tick": 2792,
-          "cpus": 1.0,
-          "memory": 54.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2796,
-          "duration_in_ticks": 18,
-          "end_tick": 2814,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 2.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2815,
-          "duration_in_ticks": 14,
-          "end_tick": 2829,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2830,
-          "duration_in_ticks": 7,
-          "end_tick": 2837,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 2.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2838,
-          "duration_in_ticks": 20,
-          "end_tick": 2858,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2859,
-          "duration_in_ticks": 3,
-          "end_tick": 2862,
-          "cpus": 1.0,
-          "memory": 54.25,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
         }
       ],
       "trainings_completed": 0,
@@ -6155,10 +5467,10 @@
         "gpu_type": "ANY_GPU"
       },
       "max_resource_request": {
-        "cpus": 1.0,
-        "memory": 54.75,
+        "cpus": 2.0,
+        "memory": 5.25,
         "gpus": 1,
-        "vram": 5.0,
+        "vram": 4.5,
         "gpu_type": "ANY_GPU"
       }
     },
@@ -7066,570 +6378,48 @@
       }
     },
     {
-      "id": "cafa1ff5-c5d5-4502-bad4-9109b817f211",
-      "start_tick": 351,
-      "stop_tick": 2867,
-      "num_training_events": 42,
+      "id": "1efce2b5-1911-4f1b-bb81-cdf29def4a15",
+      "start_tick": 326,
+      "stop_tick": 1768,
+      "num_training_events": 3,
       "trainings": [
         {
-          "start_tick": 1682,
-          "duration_in_ticks": 30,
-          "end_tick": 1712,
-          "cpus": 1.0,
-          "memory": 40.5,
-          "vram": 4.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 1715,
-          "duration_in_ticks": 3,
-          "end_tick": 1718,
-          "cpus": 1.0,
-          "memory": 43.125,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1719,
-          "duration_in_ticks": 18,
-          "end_tick": 1737,
-          "cpus": 1.0,
-          "memory": 47.375,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2131,
-          "duration_in_ticks": 3,
-          "end_tick": 2134,
-          "cpus": 0.0,
-          "memory": 47.125,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2140,
-          "duration_in_ticks": 16,
-          "end_tick": 2156,
-          "cpus": 1.0,
-          "memory": 48.625,
-          "vram": 4.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2158,
-          "duration_in_ticks": 13,
-          "end_tick": 2171,
-          "cpus": 1.0,
-          "memory": 50.0,
-          "vram": 4.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2173,
-          "duration_in_ticks": 4,
-          "end_tick": 2177,
-          "cpus": 1.0,
-          "memory": 50.5,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2179,
-          "duration_in_ticks": 24,
-          "end_tick": 2203,
-          "cpus": 1.0,
-          "memory": 52.375,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2204,
-          "duration_in_ticks": 38,
-          "end_tick": 2242,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 2.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2243,
-          "duration_in_ticks": 3,
-          "end_tick": 2246,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2247,
-          "duration_in_ticks": 13,
-          "end_tick": 2260,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.625
-            }
-          ]
-        },
-        {
-          "start_tick": 2262,
-          "duration_in_ticks": 29,
-          "end_tick": 2291,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2292,
-          "duration_in_ticks": 24,
-          "end_tick": 2316,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2317,
-          "duration_in_ticks": 29,
-          "end_tick": 2346,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2347,
-          "duration_in_ticks": 16,
-          "end_tick": 2363,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2366,
-          "duration_in_ticks": 15,
-          "end_tick": 2381,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2386,
-          "duration_in_ticks": 7,
-          "end_tick": 2393,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2395,
-          "duration_in_ticks": 20,
-          "end_tick": 2415,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2416,
-          "duration_in_ticks": 12,
-          "end_tick": 2428,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 2.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2430,
-          "duration_in_ticks": 3,
-          "end_tick": 2433,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2437,
-          "duration_in_ticks": 17,
-          "end_tick": 2454,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2459,
-          "duration_in_ticks": 11,
-          "end_tick": 2470,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2472,
-          "duration_in_ticks": 4,
-          "end_tick": 2476,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 2.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2478,
-          "duration_in_ticks": 11,
-          "end_tick": 2489,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 6.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2493,
-          "duration_in_ticks": 26,
-          "end_tick": 2519,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2522,
-          "duration_in_ticks": 11,
-          "end_tick": 2533,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 3.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2534,
-          "duration_in_ticks": 9,
-          "end_tick": 2543,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2544,
-          "duration_in_ticks": 15,
-          "end_tick": 2559,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 2.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2565,
-          "duration_in_ticks": 5,
-          "end_tick": 2570,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 2.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 4.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2574,
-          "duration_in_ticks": 49,
-          "end_tick": 2623,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2628,
-          "duration_in_ticks": 3,
-          "end_tick": 2631,
-          "cpus": 1.0,
-          "memory": 54.25,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2632,
-          "duration_in_ticks": 24,
-          "end_tick": 2656,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2658,
-          "duration_in_ticks": 3,
-          "end_tick": 2661,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2662,
-          "duration_in_ticks": 15,
-          "end_tick": 2677,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 3.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2680,
-          "duration_in_ticks": 3,
-          "end_tick": 2683,
-          "cpus": 1.0,
-          "memory": 54.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2684,
-          "duration_in_ticks": 25,
-          "end_tick": 2709,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2714,
-          "duration_in_ticks": 12,
-          "end_tick": 2726,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2727,
-          "duration_in_ticks": 12,
-          "end_tick": 2739,
-          "cpus": 1.0,
-          "memory": 54.75,
+          "start_tick": 1705,
+          "duration_in_ticks": 6,
+          "end_tick": 1711,
+          "cpus": 2.0,
+          "memory": 4.5,
           "vram": 1.0,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 9.25
+              "utilization": 8.0
             }
           ]
         },
         {
-          "start_tick": 2740,
-          "duration_in_ticks": 18,
-          "end_tick": 2758,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.5,
+          "start_tick": 1732,
+          "duration_in_ticks": 8,
+          "end_tick": 1740,
+          "cpus": 2.0,
+          "memory": 4.75,
+          "vram": 0.0,
           "gpus": 1,
           "gpu_utilizations": [
             {
-              "utilization": 8.625
+              "utilization": 9.625
             }
           ]
         },
         {
-          "start_tick": 2761,
-          "duration_in_ticks": 48,
-          "end_tick": 2809,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 5.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2812,
-          "duration_in_ticks": 9,
-          "end_tick": 2821,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2822,
-          "duration_in_ticks": 19,
-          "end_tick": 2841,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
+          "start_tick": 1741,
+          "duration_in_ticks": 4,
+          "end_tick": 1745,
+          "cpus": 2.0,
+          "memory": 4.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
         }
       ],
       "trainings_completed": 0,
@@ -7641,10 +6431,10 @@
         "gpu_type": "ANY_GPU"
       },
       "max_resource_request": {
-        "cpus": 1.0,
-        "memory": 54.75,
+        "cpus": 2.0,
+        "memory": 4.75,
         "gpus": 1,
-        "vram": 5.0,
+        "vram": 1.0,
         "gpu_type": "ANY_GPU"
       }
     },
@@ -7971,6 +6761,77 @@
         "memory": 114.5,
         "gpus": 8,
         "vram": 37.0,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "eb6da9cc-2512-4082-807e-67079035dbb5",
+      "start_tick": 398,
+      "stop_tick": 1795,
+      "num_training_events": 4,
+      "trainings": [
+        {
+          "start_tick": 1644,
+          "duration_in_ticks": 3,
+          "end_tick": 1647,
+          "cpus": 2.0,
+          "memory": 5.125,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1651,
+          "duration_in_ticks": 8,
+          "end_tick": 1659,
+          "cpus": 2.0,
+          "memory": 5.25,
+          "vram": 2.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 12.5
+            }
+          ]
+        },
+        {
+          "start_tick": 1661,
+          "duration_in_ticks": 3,
+          "end_tick": 1664,
+          "cpus": 2.0,
+          "memory": 5.0,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1720,
+          "duration_in_ticks": 32,
+          "end_tick": 1752,
+          "cpus": 2.0,
+          "memory": 5.125,
+          "vram": 4.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 11.0
+            }
+          ]
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 2.0,
+        "memory": 5.25,
+        "gpus": 1,
+        "vram": 4.25,
         "gpu_type": "ANY_GPU"
       }
     },
@@ -8543,967 +7404,694 @@
       }
     },
     {
-      "id": "eb6da9cc-2512-4082-807e-67079035dbb5",
-      "start_tick": 484,
-      "stop_tick": 1795,
-      "num_training_events": 4,
+      "id": "ee9779e1-b569-495a-ac4c-49651fbcaee0",
+      "start_tick": 572,
+      "stop_tick": 2868,
+      "num_training_events": 7,
       "trainings": [
         {
-          "start_tick": 1644,
-          "duration_in_ticks": 3,
-          "end_tick": 1647,
-          "cpus": 2.0,
-          "memory": 5.125,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1651,
-          "duration_in_ticks": 8,
-          "end_tick": 1659,
-          "cpus": 2.0,
-          "memory": 5.25,
-          "vram": 2.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 12.5
-            }
-          ]
-        },
-        {
-          "start_tick": 1661,
-          "duration_in_ticks": 3,
-          "end_tick": 1664,
-          "cpus": 2.0,
-          "memory": 5.0,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1720,
-          "duration_in_ticks": 32,
-          "end_tick": 1752,
-          "cpus": 2.0,
-          "memory": 5.125,
-          "vram": 4.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 11.0
-            }
-          ]
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 2.0,
-        "memory": 5.25,
-        "gpus": 1,
-        "vram": 4.25,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
-      "id": "c162a91e-b6ad-44b3-9dd1-2be89477936d",
-      "start_tick": 538,
-      "stop_tick": 1822,
-      "num_training_events": 3,
-      "trainings": [
-        {
-          "start_tick": 1682,
-          "duration_in_ticks": 7,
-          "end_tick": 1689,
-          "cpus": 2.0,
-          "memory": 5.25,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.25
-            }
-          ]
-        },
-        {
-          "start_tick": 1691,
-          "duration_in_ticks": 6,
-          "end_tick": 1697,
-          "cpus": 2.0,
-          "memory": 5.125,
-          "vram": 0.25,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 4.375
-            }
-          ]
-        },
-        {
-          "start_tick": 1750,
-          "duration_in_ticks": 28,
-          "end_tick": 1778,
-          "cpus": 2.0,
-          "memory": 5.0,
-          "vram": 4.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 12.0
-            }
-          ]
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 2.0,
-        "memory": 5.25,
-        "gpus": 1,
-        "vram": 4.5,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
-      "id": "750d0a32-814d-4002-9409-4e524cfc5698",
-      "start_tick": 573,
-      "stop_tick": 2864,
-      "num_training_events": 60,
-      "trainings": [
-        {
-          "start_tick": 1684,
-          "duration_in_ticks": 11,
-          "end_tick": 1695,
-          "cpus": 1.0,
-          "memory": 32.375,
-          "vram": 2.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.375
-            }
-          ]
-        },
-        {
-          "start_tick": 1697,
-          "duration_in_ticks": 27,
-          "end_tick": 1724,
-          "cpus": 1.0,
-          "memory": 45.875,
-          "vram": 1.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 1726,
-          "duration_in_ticks": 33,
-          "end_tick": 1759,
-          "cpus": 1.0,
-          "memory": 49.5,
-          "vram": 2.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 1760,
-          "duration_in_ticks": 23,
-          "end_tick": 1783,
-          "cpus": 1.0,
-          "memory": 51.375,
-          "vram": 1.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 1785,
-          "duration_in_ticks": 13,
-          "end_tick": 1798,
-          "cpus": 1.0,
-          "memory": 52.5,
-          "vram": 4.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.875
-            }
-          ]
-        },
-        {
-          "start_tick": 1800,
-          "duration_in_ticks": 34,
-          "end_tick": 1834,
-          "cpus": 1.0,
-          "memory": 54.375,
-          "vram": 4.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 1837,
-          "duration_in_ticks": 10,
-          "end_tick": 1847,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.75
-            }
-          ]
-        },
-        {
-          "start_tick": 1850,
-          "duration_in_ticks": 17,
-          "end_tick": 1867,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 1868,
-          "duration_in_ticks": 20,
-          "end_tick": 1888,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 1891,
-          "duration_in_ticks": 17,
-          "end_tick": 1908,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.625
-            }
-          ]
-        },
-        {
-          "start_tick": 1909,
-          "duration_in_ticks": 3,
-          "end_tick": 1912,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1916,
-          "duration_in_ticks": 21,
-          "end_tick": 1937,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 1941,
-          "duration_in_ticks": 30,
-          "end_tick": 1971,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 1973,
-          "duration_in_ticks": 15,
-          "end_tick": 1988,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 1990,
-          "duration_in_ticks": 10,
-          "end_tick": 2000,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2001,
-          "duration_in_ticks": 23,
-          "end_tick": 2024,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2026,
-          "duration_in_ticks": 21,
-          "end_tick": 2047,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2049,
-          "duration_in_ticks": 23,
-          "end_tick": 2072,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2073,
-          "duration_in_ticks": 6,
-          "end_tick": 2079,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 3.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2086,
-          "duration_in_ticks": 12,
-          "end_tick": 2098,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2100,
-          "duration_in_ticks": 3,
-          "end_tick": 2103,
-          "cpus": 1.0,
-          "memory": 54.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2105,
-          "duration_in_ticks": 6,
-          "end_tick": 2111,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2112,
-          "duration_in_ticks": 27,
-          "end_tick": 2139,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2161,
-          "duration_in_ticks": 10,
-          "end_tick": 2171,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.75,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2175,
+          "start_tick": 2251,
           "duration_in_ticks": 14,
-          "end_tick": 2189,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 3.5,
-          "gpus": 1,
+          "end_tick": 2265,
+          "cpus": 14.0,
+          "memory": 208.75,
+          "vram": 17.875,
+          "gpus": 8,
           "gpu_utilizations": [
             {
-              "utilization": 7.75
+              "utilization": 87.0
+            },
+            {
+              "utilization": 87.0
+            },
+            {
+              "utilization": 87.0
+            },
+            {
+              "utilization": 87.0
+            },
+            {
+              "utilization": 87.0
+            },
+            {
+              "utilization": 87.0
+            },
+            {
+              "utilization": 87.0
+            },
+            {
+              "utilization": 87.0
             }
           ]
         },
         {
-          "start_tick": 2191,
-          "duration_in_ticks": 10,
-          "end_tick": 2201,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2205,
+          "start_tick": 2285,
           "duration_in_ticks": 7,
-          "end_tick": 2212,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 1,
+          "end_tick": 2292,
+          "cpus": 13.0,
+          "memory": 204.375,
+          "vram": 12.0,
+          "gpus": 8,
           "gpu_utilizations": [
             {
-              "utilization": 6.75
+              "utilization": 47.75
+            },
+            {
+              "utilization": 47.75
+            },
+            {
+              "utilization": 47.75
+            },
+            {
+              "utilization": 47.75
+            },
+            {
+              "utilization": 47.75
+            },
+            {
+              "utilization": 47.75
+            },
+            {
+              "utilization": 47.75
+            },
+            {
+              "utilization": 47.75
             }
           ]
         },
         {
-          "start_tick": 2215,
-          "duration_in_ticks": 51,
-          "end_tick": 2266,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
+          "start_tick": 2295,
+          "duration_in_ticks": 8,
+          "end_tick": 2303,
+          "cpus": 13.0,
+          "memory": 204.625,
+          "vram": 32.125,
+          "gpus": 8,
           "gpu_utilizations": [
             {
-              "utilization": 8.75
+              "utilization": 97.0
+            },
+            {
+              "utilization": 97.0
+            },
+            {
+              "utilization": 97.0
+            },
+            {
+              "utilization": 97.0
+            },
+            {
+              "utilization": 97.0
+            },
+            {
+              "utilization": 97.0
+            },
+            {
+              "utilization": 97.0
+            },
+            {
+              "utilization": 97.0
             }
           ]
         },
         {
-          "start_tick": 2267,
-          "duration_in_ticks": 32,
-          "end_tick": 2299,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 2.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2303,
-          "duration_in_ticks": 3,
-          "end_tick": 2306,
-          "cpus": 1.0,
-          "memory": 54.375,
+          "start_tick": 2306,
+          "duration_in_ticks": 4,
+          "end_tick": 2310,
+          "cpus": 11.0,
+          "memory": 204.875,
           "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 2307,
-          "duration_in_ticks": 5,
-          "end_tick": 2312,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.375,
-          "gpus": 1,
+          "gpus": 8,
           "gpu_utilizations": [
             {
-              "utilization": 6.625
+              "utilization": 83.625
+            },
+            {
+              "utilization": 83.625
+            },
+            {
+              "utilization": 83.625
+            },
+            {
+              "utilization": 83.625
+            },
+            {
+              "utilization": 83.625
+            },
+            {
+              "utilization": 83.625
+            },
+            {
+              "utilization": 83.625
+            },
+            {
+              "utilization": 83.625
             }
           ]
         },
         {
           "start_tick": 2313,
-          "duration_in_ticks": 19,
-          "end_tick": 2332,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2333,
-          "duration_in_ticks": 15,
-          "end_tick": 2348,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2349,
-          "duration_in_ticks": 17,
-          "end_tick": 2366,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.25
-            }
-          ]
-        },
-        {
-          "start_tick": 2368,
-          "duration_in_ticks": 45,
-          "end_tick": 2413,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2421,
-          "duration_in_ticks": 7,
-          "end_tick": 2428,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 2.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2429,
-          "duration_in_ticks": 28,
-          "end_tick": 2457,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2465,
-          "duration_in_ticks": 37,
-          "end_tick": 2502,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2504,
-          "duration_in_ticks": 19,
-          "end_tick": 2523,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2527,
           "duration_in_ticks": 5,
-          "end_tick": 2532,
-          "cpus": 1.0,
-          "memory": 54.375,
-          "vram": 0.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 0.875
-            }
-          ]
-        },
-        {
-          "start_tick": 2536,
-          "duration_in_ticks": 22,
-          "end_tick": 2558,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.375,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2560,
-          "duration_in_ticks": 9,
-          "end_tick": 2569,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 3.5,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.125
-            }
-          ]
-        },
-        {
-          "start_tick": 2572,
-          "duration_in_ticks": 10,
-          "end_tick": 2582,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2583,
-          "duration_in_ticks": 6,
-          "end_tick": 2589,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2590,
-          "duration_in_ticks": 6,
-          "end_tick": 2596,
-          "cpus": 1.0,
-          "memory": 54.625,
+          "end_tick": 2318,
+          "cpus": 13.0,
+          "memory": 204.25,
           "vram": 1.875,
-          "gpus": 1,
+          "gpus": 8,
           "gpu_utilizations": [
             {
-              "utilization": 4.75
+              "utilization": 85.0
+            },
+            {
+              "utilization": 85.0
+            },
+            {
+              "utilization": 85.0
+            },
+            {
+              "utilization": 85.0
+            },
+            {
+              "utilization": 85.0
+            },
+            {
+              "utilization": 85.0
+            },
+            {
+              "utilization": 85.0
+            },
+            {
+              "utilization": 85.0
             }
           ]
         },
         {
-          "start_tick": 2598,
-          "duration_in_ticks": 16,
-          "end_tick": 2614,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 1.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2615,
-          "duration_in_ticks": 16,
-          "end_tick": 2631,
-          "cpus": 1.0,
-          "memory": 54.75,
+          "start_tick": 2319,
+          "duration_in_ticks": 6,
+          "end_tick": 2325,
+          "cpus": 14.0,
+          "memory": 204.125,
           "vram": 0.0,
-          "gpus": 1,
+          "gpus": 8,
           "gpu_utilizations": [
             {
-              "utilization": 8.0
+              "utilization": 85.25
+            },
+            {
+              "utilization": 85.25
+            },
+            {
+              "utilization": 85.25
+            },
+            {
+              "utilization": 85.25
+            },
+            {
+              "utilization": 85.25
+            },
+            {
+              "utilization": 85.25
+            },
+            {
+              "utilization": 85.25
+            },
+            {
+              "utilization": 85.25
             }
           ]
         },
         {
-          "start_tick": 2633,
-          "duration_in_ticks": 4,
-          "end_tick": 2637,
-          "cpus": 1.0,
-          "memory": 54.5,
-          "vram": 4.75,
-          "gpus": 1,
+          "start_tick": 2327,
+          "duration_in_ticks": 6,
+          "end_tick": 2333,
+          "cpus": 12.0,
+          "memory": 204.5,
+          "vram": 9.625,
+          "gpus": 8,
           "gpu_utilizations": [
             {
-              "utilization": 0.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2640,
-          "duration_in_ticks": 12,
-          "end_tick": 2652,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
+              "utilization": 84.25
+            },
             {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2653,
-          "duration_in_ticks": 7,
-          "end_tick": 2660,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
+              "utilization": 84.25
+            },
             {
-              "utilization": 6.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2661,
-          "duration_in_ticks": 15,
-          "end_tick": 2676,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.625,
-          "gpus": 1,
-          "gpu_utilizations": [
+              "utilization": 84.25
+            },
             {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2677,
-          "duration_in_ticks": 21,
-          "end_tick": 2698,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 1.875,
-          "gpus": 1,
-          "gpu_utilizations": [
+              "utilization": 84.25
+            },
             {
-              "utilization": 8.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2700,
-          "duration_in_ticks": 11,
-          "end_tick": 2711,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
+              "utilization": 84.25
+            },
             {
-              "utilization": 7.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2713,
-          "duration_in_ticks": 14,
-          "end_tick": 2727,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
+              "utilization": 84.25
+            },
             {
-              "utilization": 7.0
-            }
-          ]
-        },
-        {
-          "start_tick": 2730,
-          "duration_in_ticks": 5,
-          "end_tick": 2735,
-          "cpus": 1.0,
-          "memory": 54.625,
-          "vram": 3.0,
-          "gpus": 1,
-          "gpu_utilizations": [
+              "utilization": 84.25
+            },
             {
-              "utilization": 6.375
+              "utilization": 84.25
             }
           ]
-        },
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 14.0,
+        "memory": 208.75,
+        "gpus": 8,
+        "vram": 32.125,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "1071dff6-c0f6-4092-99ed-e6a2b7f3310b",
+      "start_tick": 575,
+      "stop_tick": 2869,
+      "num_training_events": 38,
+      "trainings": [
         {
-          "start_tick": 2736,
-          "duration_in_ticks": 4,
-          "end_tick": 2740,
-          "cpus": 1.0,
-          "memory": 54.375,
-          "vram": 4.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.5
-            }
-          ]
-        },
-        {
-          "start_tick": 2742,
-          "duration_in_ticks": 45,
-          "end_tick": 2787,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.75
-            }
-          ]
-        },
-        {
-          "start_tick": 2788,
-          "duration_in_ticks": 47,
-          "end_tick": 2835,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.375
-            }
-          ]
-        },
-        {
-          "start_tick": 2836,
-          "duration_in_ticks": 17,
-          "end_tick": 2853,
-          "cpus": 1.0,
-          "memory": 54.75,
-          "vram": 4.125,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.625
-            }
-          ]
-        },
-        {
-          "start_tick": 2856,
+          "start_tick": 2152,
           "duration_in_ticks": 3,
-          "end_tick": 2859,
-          "cpus": 1.0,
-          "memory": 54.625,
+          "end_tick": 2155,
+          "cpus": 4.0,
+          "memory": 33.0,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2158,
+          "duration_in_ticks": 3,
+          "end_tick": 2161,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2167,
+          "duration_in_ticks": 6,
+          "end_tick": 2173,
+          "cpus": 4.0,
+          "memory": 33.375,
+          "vram": 5.125,
+          "gpus": 4,
+          "gpu_utilizations": [
+            {
+              "utilization": 21.5
+            },
+            {
+              "utilization": 21.5
+            },
+            {
+              "utilization": 21.5
+            },
+            {
+              "utilization": 21.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2177,
+          "duration_in_ticks": 3,
+          "end_tick": 2180,
+          "cpus": 4.0,
+          "memory": 33.25,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2182,
+          "duration_in_ticks": 3,
+          "end_tick": 2185,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2194,
+          "duration_in_ticks": 3,
+          "end_tick": 2197,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2198,
+          "duration_in_ticks": 6,
+          "end_tick": 2204,
+          "cpus": 4.0,
+          "memory": 33.375,
+          "vram": 16.125,
+          "gpus": 4,
+          "gpu_utilizations": [
+            {
+              "utilization": 14.125
+            },
+            {
+              "utilization": 14.125
+            },
+            {
+              "utilization": 14.125
+            },
+            {
+              "utilization": 14.125
+            }
+          ]
+        },
+        {
+          "start_tick": 2207,
+          "duration_in_ticks": 3,
+          "end_tick": 2210,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2243,
+          "duration_in_ticks": 3,
+          "end_tick": 2246,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2382,
+          "duration_in_ticks": 3,
+          "end_tick": 2385,
+          "cpus": 30.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2404,
+          "duration_in_ticks": 3,
+          "end_tick": 2407,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2442,
+          "duration_in_ticks": 3,
+          "end_tick": 2445,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2464,
+          "duration_in_ticks": 4,
+          "end_tick": 2468,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 4,
+          "gpu_utilizations": [
+            {
+              "utilization": 6.0
+            },
+            {
+              "utilization": 6.0
+            },
+            {
+              "utilization": 6.0
+            },
+            {
+              "utilization": 6.0
+            }
+          ]
+        },
+        {
+          "start_tick": 2485,
+          "duration_in_ticks": 3,
+          "end_tick": 2488,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2499,
+          "duration_in_ticks": 3,
+          "end_tick": 2502,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2515,
+          "duration_in_ticks": 3,
+          "end_tick": 2518,
+          "cpus": 4.0,
+          "memory": 33.375,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2528,
+          "duration_in_ticks": 3,
+          "end_tick": 2531,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2535,
+          "duration_in_ticks": 3,
+          "end_tick": 2538,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2555,
+          "duration_in_ticks": 3,
+          "end_tick": 2558,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2561,
+          "duration_in_ticks": 3,
+          "end_tick": 2564,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2581,
+          "duration_in_ticks": 3,
+          "end_tick": 2584,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2613,
+          "duration_in_ticks": 3,
+          "end_tick": 2616,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2619,
+          "duration_in_ticks": 3,
+          "end_tick": 2622,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2626,
+          "duration_in_ticks": 3,
+          "end_tick": 2629,
+          "cpus": 4.0,
+          "memory": 33.375,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2649,
+          "duration_in_ticks": 3,
+          "end_tick": 2652,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2659,
+          "duration_in_ticks": 3,
+          "end_tick": 2662,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2671,
+          "duration_in_ticks": 3,
+          "end_tick": 2674,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2688,
+          "duration_in_ticks": 3,
+          "end_tick": 2691,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2694,
+          "duration_in_ticks": 3,
+          "end_tick": 2697,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2711,
+          "duration_in_ticks": 3,
+          "end_tick": 2714,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2722,
+          "duration_in_ticks": 3,
+          "end_tick": 2725,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2732,
+          "duration_in_ticks": 3,
+          "end_tick": 2735,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2738,
+          "duration_in_ticks": 3,
+          "end_tick": 2741,
+          "cpus": 4.0,
+          "memory": 33.375,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2744,
+          "duration_in_ticks": 3,
+          "end_tick": 2747,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2773,
+          "duration_in_ticks": 3,
+          "end_tick": 2776,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2809,
+          "duration_in_ticks": 3,
+          "end_tick": 2812,
+          "cpus": 4.0,
+          "memory": 33.375,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2824,
+          "duration_in_ticks": 3,
+          "end_tick": 2827,
+          "cpus": 4.0,
+          "memory": 33.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2850,
+          "duration_in_ticks": 3,
+          "end_tick": 2853,
+          "cpus": 4.0,
+          "memory": 33.5,
           "vram": 0.0,
           "gpus": 0,
           "gpu_utilizations": []
@@ -9518,10 +8106,10 @@
         "gpu_type": "ANY_GPU"
       },
       "max_resource_request": {
-        "cpus": 1.0,
-        "memory": 54.75,
-        "gpus": 1,
-        "vram": 4.875,
+        "cpus": 30.0,
+        "memory": 33.5,
+        "gpus": 4,
+        "vram": 16.125,
         "gpu_type": "ANY_GPU"
       }
     },
@@ -10560,63 +9148,6 @@
       }
     },
     {
-      "id": "66c39b96-0d56-421e-a786-1c2499f6ddf2",
-      "start_tick": 642,
-      "stop_tick": 1700,
-      "num_training_events": 3,
-      "trainings": [
-        {
-          "start_tick": 1647,
-          "duration_in_ticks": 3,
-          "end_tick": 1650,
-          "cpus": 2.0,
-          "memory": 4.875,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1651,
-          "duration_in_ticks": 3,
-          "end_tick": 1654,
-          "cpus": 2.0,
-          "memory": 4.625,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1667,
-          "duration_in_ticks": 12,
-          "end_tick": 1679,
-          "cpus": 2.0,
-          "memory": 4.75,
-          "vram": 4.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 7.25
-            }
-          ]
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 2.0,
-        "memory": 4.875,
-        "gpus": 1,
-        "vram": 4.875,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
       "id": "1ee1519c-5861-4b93-9286-1fb705c4347b",
       "start_tick": 674,
       "stop_tick": 2757,
@@ -10870,134 +9401,8 @@
       }
     },
     {
-      "id": "1efce2b5-1911-4f1b-bb81-cdf29def4a15",
-      "start_tick": 776,
-      "stop_tick": 1768,
-      "num_training_events": 3,
-      "trainings": [
-        {
-          "start_tick": 1705,
-          "duration_in_ticks": 6,
-          "end_tick": 1711,
-          "cpus": 2.0,
-          "memory": 4.5,
-          "vram": 1.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 8.0
-            }
-          ]
-        },
-        {
-          "start_tick": 1732,
-          "duration_in_ticks": 8,
-          "end_tick": 1740,
-          "cpus": 2.0,
-          "memory": 4.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 9.625
-            }
-          ]
-        },
-        {
-          "start_tick": 1741,
-          "duration_in_ticks": 4,
-          "end_tick": 1745,
-          "cpus": 2.0,
-          "memory": 4.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 2.0,
-        "memory": 4.75,
-        "gpus": 1,
-        "vram": 1.0,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
-      "id": "4efa7d52-2c91-4959-a34f-23a68f92a99e",
-      "start_tick": 781,
-      "stop_tick": 1821,
-      "num_training_events": 3,
-      "trainings": [
-        {
-          "start_tick": 1681,
-          "duration_in_ticks": 13,
-          "end_tick": 1694,
-          "cpus": 2.0,
-          "memory": 5.375,
-          "vram": 1.875,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 12.5
-            }
-          ]
-        },
-        {
-          "start_tick": 1697,
-          "duration_in_ticks": 5,
-          "end_tick": 1702,
-          "cpus": 2.0,
-          "memory": 5.5,
-          "vram": 3.625,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 12.375
-            }
-          ]
-        },
-        {
-          "start_tick": 1749,
-          "duration_in_ticks": 33,
-          "end_tick": 1782,
-          "cpus": 2.0,
-          "memory": 5.25,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 12.125
-            }
-          ]
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 2.0,
-        "memory": 5.5,
-        "gpus": 1,
-        "vram": 3.625,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
       "id": "336b00bd-ddae-42e8-8781-3f3aaff9f1ac",
-      "start_tick": 784,
+      "start_tick": 735,
       "stop_tick": 1869,
       "num_training_events": 8,
       "trainings": [
@@ -11099,69 +9504,8 @@
       }
     },
     {
-      "id": "0b2a10a8-238e-4e27-81ae-c4d7c6e86405",
-      "start_tick": 824,
-      "stop_tick": 1697,
-      "num_training_events": 3,
-      "trainings": [
-        {
-          "start_tick": 1616,
-          "duration_in_ticks": 4,
-          "end_tick": 1620,
-          "cpus": 2.0,
-          "memory": 4.75,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 12.125
-            }
-          ]
-        },
-        {
-          "start_tick": 1621,
-          "duration_in_ticks": 3,
-          "end_tick": 1624,
-          "cpus": 2.0,
-          "memory": 4.5,
-          "vram": 0.0,
-          "gpus": 0,
-          "gpu_utilizations": []
-        },
-        {
-          "start_tick": 1653,
-          "duration_in_ticks": 19,
-          "end_tick": 1672,
-          "cpus": 2.0,
-          "memory": 4.625,
-          "vram": 0.0,
-          "gpus": 1,
-          "gpu_utilizations": [
-            {
-              "utilization": 12.0
-            }
-          ]
-        }
-      ],
-      "trainings_completed": 0,
-      "current_resource_request": {
-        "cpus": 0,
-        "memory": 0.0,
-        "gpus": 0,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      },
-      "max_resource_request": {
-        "cpus": 2.0,
-        "memory": 4.75,
-        "gpus": 1,
-        "vram": 0.0,
-        "gpu_type": "ANY_GPU"
-      }
-    },
-    {
       "id": "2491a7ac-f4d2-451f-9977-2346412d4160",
-      "start_tick": 868,
+      "start_tick": 794,
       "stop_tick": 2862,
       "num_training_events": 61,
       "trainings": [
@@ -12714,6 +11058,1662 @@
         "memory": 151.875,
         "gpus": 8,
         "vram": 39.25,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "cafa1ff5-c5d5-4502-bad4-9109b817f211",
+      "start_tick": 878,
+      "stop_tick": 2867,
+      "num_training_events": 42,
+      "trainings": [
+        {
+          "start_tick": 1682,
+          "duration_in_ticks": 30,
+          "end_tick": 1712,
+          "cpus": 1.0,
+          "memory": 40.5,
+          "vram": 4.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 1715,
+          "duration_in_ticks": 3,
+          "end_tick": 1718,
+          "cpus": 1.0,
+          "memory": 43.125,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1719,
+          "duration_in_ticks": 18,
+          "end_tick": 1737,
+          "cpus": 1.0,
+          "memory": 47.375,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.125
+            }
+          ]
+        },
+        {
+          "start_tick": 2131,
+          "duration_in_ticks": 3,
+          "end_tick": 2134,
+          "cpus": 0.0,
+          "memory": 47.125,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2140,
+          "duration_in_ticks": 16,
+          "end_tick": 2156,
+          "cpus": 1.0,
+          "memory": 48.625,
+          "vram": 4.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2158,
+          "duration_in_ticks": 13,
+          "end_tick": 2171,
+          "cpus": 1.0,
+          "memory": 50.0,
+          "vram": 4.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2173,
+          "duration_in_ticks": 4,
+          "end_tick": 2177,
+          "cpus": 1.0,
+          "memory": 50.5,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2179,
+          "duration_in_ticks": 24,
+          "end_tick": 2203,
+          "cpus": 1.0,
+          "memory": 52.375,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2204,
+          "duration_in_ticks": 38,
+          "end_tick": 2242,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 2.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2243,
+          "duration_in_ticks": 3,
+          "end_tick": 2246,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2247,
+          "duration_in_ticks": 13,
+          "end_tick": 2260,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.625
+            }
+          ]
+        },
+        {
+          "start_tick": 2262,
+          "duration_in_ticks": 29,
+          "end_tick": 2291,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2292,
+          "duration_in_ticks": 24,
+          "end_tick": 2316,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2317,
+          "duration_in_ticks": 29,
+          "end_tick": 2346,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2347,
+          "duration_in_ticks": 16,
+          "end_tick": 2363,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2366,
+          "duration_in_ticks": 15,
+          "end_tick": 2381,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2386,
+          "duration_in_ticks": 7,
+          "end_tick": 2393,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2395,
+          "duration_in_ticks": 20,
+          "end_tick": 2415,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2416,
+          "duration_in_ticks": 12,
+          "end_tick": 2428,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 2.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2430,
+          "duration_in_ticks": 3,
+          "end_tick": 2433,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2437,
+          "duration_in_ticks": 17,
+          "end_tick": 2454,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2459,
+          "duration_in_ticks": 11,
+          "end_tick": 2470,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2472,
+          "duration_in_ticks": 4,
+          "end_tick": 2476,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 2.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2478,
+          "duration_in_ticks": 11,
+          "end_tick": 2489,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 6.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2493,
+          "duration_in_ticks": 26,
+          "end_tick": 2519,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2522,
+          "duration_in_ticks": 11,
+          "end_tick": 2533,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.75,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 3.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2534,
+          "duration_in_ticks": 9,
+          "end_tick": 2543,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2544,
+          "duration_in_ticks": 15,
+          "end_tick": 2559,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 2.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2565,
+          "duration_in_ticks": 5,
+          "end_tick": 2570,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 2.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 4.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2574,
+          "duration_in_ticks": 49,
+          "end_tick": 2623,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 9.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2628,
+          "duration_in_ticks": 3,
+          "end_tick": 2631,
+          "cpus": 1.0,
+          "memory": 54.25,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2632,
+          "duration_in_ticks": 24,
+          "end_tick": 2656,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2658,
+          "duration_in_ticks": 3,
+          "end_tick": 2661,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2662,
+          "duration_in_ticks": 15,
+          "end_tick": 2677,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 3.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2680,
+          "duration_in_ticks": 3,
+          "end_tick": 2683,
+          "cpus": 1.0,
+          "memory": 54.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2684,
+          "duration_in_ticks": 25,
+          "end_tick": 2709,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2714,
+          "duration_in_ticks": 12,
+          "end_tick": 2726,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2727,
+          "duration_in_ticks": 12,
+          "end_tick": 2739,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 9.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2740,
+          "duration_in_ticks": 18,
+          "end_tick": 2758,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.625
+            }
+          ]
+        },
+        {
+          "start_tick": 2761,
+          "duration_in_ticks": 48,
+          "end_tick": 2809,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 5.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2812,
+          "duration_in_ticks": 9,
+          "end_tick": 2821,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.125
+            }
+          ]
+        },
+        {
+          "start_tick": 2822,
+          "duration_in_ticks": 19,
+          "end_tick": 2841,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 1.0,
+        "memory": 54.75,
+        "gpus": 1,
+        "vram": 5.0,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "0b2a10a8-238e-4e27-81ae-c4d7c6e86405",
+      "start_tick": 929,
+      "stop_tick": 1697,
+      "num_training_events": 3,
+      "trainings": [
+        {
+          "start_tick": 1616,
+          "duration_in_ticks": 4,
+          "end_tick": 1620,
+          "cpus": 2.0,
+          "memory": 4.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 12.125
+            }
+          ]
+        },
+        {
+          "start_tick": 1621,
+          "duration_in_ticks": 3,
+          "end_tick": 1624,
+          "cpus": 2.0,
+          "memory": 4.5,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1653,
+          "duration_in_ticks": 19,
+          "end_tick": 1672,
+          "cpus": 2.0,
+          "memory": 4.625,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 12.0
+            }
+          ]
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 2.0,
+        "memory": 4.75,
+        "gpus": 1,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "c2bcd380-1c0b-42af-89e5-51c1d0342ae5",
+      "start_tick": 960,
+      "stop_tick": 1711,
+      "num_training_events": 3,
+      "trainings": [
+        {
+          "start_tick": 1623,
+          "duration_in_ticks": 11,
+          "end_tick": 1634,
+          "cpus": 2.0,
+          "memory": 5.25,
+          "vram": 1.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 12.5
+            }
+          ]
+        },
+        {
+          "start_tick": 1663,
+          "duration_in_ticks": 10,
+          "end_tick": 1673,
+          "cpus": 2.0,
+          "memory": 5.0,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 9.625
+            }
+          ]
+        },
+        {
+          "start_tick": 1674,
+          "duration_in_ticks": 9,
+          "end_tick": 1683,
+          "cpus": 2.0,
+          "memory": 5.0,
+          "vram": 4.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 5.625
+            }
+          ]
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 2.0,
+        "memory": 5.25,
+        "gpus": 1,
+        "vram": 4.0,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "66c39b96-0d56-421e-a786-1c2499f6ddf2",
+      "start_tick": 962,
+      "stop_tick": 1700,
+      "num_training_events": 3,
+      "trainings": [
+        {
+          "start_tick": 1647,
+          "duration_in_ticks": 3,
+          "end_tick": 1650,
+          "cpus": 2.0,
+          "memory": 4.875,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1651,
+          "duration_in_ticks": 3,
+          "end_tick": 1654,
+          "cpus": 2.0,
+          "memory": 4.625,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1667,
+          "duration_in_ticks": 12,
+          "end_tick": 1679,
+          "cpus": 2.0,
+          "memory": 4.75,
+          "vram": 4.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.25
+            }
+          ]
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 2.0,
+        "memory": 4.875,
+        "gpus": 1,
+        "vram": 4.875,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "b2bded90-e359-4419-ae75-ce01b18f4b57",
+      "start_tick": 967,
+      "stop_tick": 1691,
+      "num_training_events": 4,
+      "trainings": [
+        {
+          "start_tick": 1615,
+          "duration_in_ticks": 3,
+          "end_tick": 1618,
+          "cpus": 2.0,
+          "memory": 4.625,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1619,
+          "duration_in_ticks": 3,
+          "end_tick": 1622,
+          "cpus": 2.0,
+          "memory": 4.5,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 6.625
+            }
+          ]
+        },
+        {
+          "start_tick": 1623,
+          "duration_in_ticks": 3,
+          "end_tick": 1626,
+          "cpus": 2.0,
+          "memory": 4.375,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1650,
+          "duration_in_ticks": 14,
+          "end_tick": 1664,
+          "cpus": 2.0,
+          "memory": 4.5,
+          "vram": 1.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 12.25
+            }
+          ]
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 2.0,
+        "memory": 4.625,
+        "gpus": 1,
+        "vram": 1.5,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "cc076d34-5a9c-4dd8-9afc-bc5a6e97fed5",
+      "start_tick": 981,
+      "stop_tick": 2869,
+      "num_training_events": 49,
+      "trainings": [
+        {
+          "start_tick": 1667,
+          "duration_in_ticks": 3,
+          "end_tick": 1670,
+          "cpus": 0.0,
+          "memory": 20.375,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1683,
+          "duration_in_ticks": 13,
+          "end_tick": 1696,
+          "cpus": 1.0,
+          "memory": 32.5,
+          "vram": 2.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 1700,
+          "duration_in_ticks": 10,
+          "end_tick": 1710,
+          "cpus": 1.0,
+          "memory": 39.375,
+          "vram": 3.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.125
+            }
+          ]
+        },
+        {
+          "start_tick": 1712,
+          "duration_in_ticks": 43,
+          "end_tick": 1755,
+          "cpus": 1.0,
+          "memory": 48.875,
+          "vram": 2.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 1760,
+          "duration_in_ticks": 5,
+          "end_tick": 1765,
+          "cpus": 1.0,
+          "memory": 49.625,
+          "vram": 3.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 2.375
+            }
+          ]
+        },
+        {
+          "start_tick": 1767,
+          "duration_in_ticks": 24,
+          "end_tick": 1791,
+          "cpus": 1.0,
+          "memory": 51.625,
+          "vram": 4.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2150,
+          "duration_in_ticks": 4,
+          "end_tick": 2154,
+          "cpus": 1.0,
+          "memory": 51.75,
+          "vram": 4.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 5.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2155,
+          "duration_in_ticks": 31,
+          "end_tick": 2186,
+          "cpus": 1.0,
+          "memory": 53.625,
+          "vram": 5.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2187,
+          "duration_in_ticks": 9,
+          "end_tick": 2196,
+          "cpus": 1.0,
+          "memory": 54.25,
+          "vram": 4.75,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2197,
+          "duration_in_ticks": 14,
+          "end_tick": 2211,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 2.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2212,
+          "duration_in_ticks": 13,
+          "end_tick": 2225,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2228,
+          "duration_in_ticks": 8,
+          "end_tick": 2236,
+          "cpus": 1.0,
+          "memory": 54.375,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2238,
+          "duration_in_ticks": 5,
+          "end_tick": 2243,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.0
+            }
+          ]
+        },
+        {
+          "start_tick": 2244,
+          "duration_in_ticks": 9,
+          "end_tick": 2253,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 2.75,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2254,
+          "duration_in_ticks": 26,
+          "end_tick": 2280,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.125
+            }
+          ]
+        },
+        {
+          "start_tick": 2281,
+          "duration_in_ticks": 4,
+          "end_tick": 2285,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 1.125
+            }
+          ]
+        },
+        {
+          "start_tick": 2286,
+          "duration_in_ticks": 13,
+          "end_tick": 2299,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2301,
+          "duration_in_ticks": 11,
+          "end_tick": 2312,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 1.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.125
+            }
+          ]
+        },
+        {
+          "start_tick": 2313,
+          "duration_in_ticks": 5,
+          "end_tick": 2318,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 2.125
+            }
+          ]
+        },
+        {
+          "start_tick": 2324,
+          "duration_in_ticks": 9,
+          "end_tick": 2333,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 2.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2334,
+          "duration_in_ticks": 8,
+          "end_tick": 2342,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.75,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2343,
+          "duration_in_ticks": 36,
+          "end_tick": 2379,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2380,
+          "duration_in_ticks": 51,
+          "end_tick": 2431,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2432,
+          "duration_in_ticks": 41,
+          "end_tick": 2473,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2478,
+          "duration_in_ticks": 4,
+          "end_tick": 2482,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 2.125,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 1.625
+            }
+          ]
+        },
+        {
+          "start_tick": 2485,
+          "duration_in_ticks": 29,
+          "end_tick": 2514,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2515,
+          "duration_in_ticks": 15,
+          "end_tick": 2530,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2533,
+          "duration_in_ticks": 3,
+          "end_tick": 2536,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 2538,
+          "duration_in_ticks": 5,
+          "end_tick": 2543,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2544,
+          "duration_in_ticks": 25,
+          "end_tick": 2569,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2570,
+          "duration_in_ticks": 6,
+          "end_tick": 2576,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.25,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 5.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2577,
+          "duration_in_ticks": 36,
+          "end_tick": 2613,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2614,
+          "duration_in_ticks": 6,
+          "end_tick": 2620,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 4.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 9.0
+            }
+          ]
+        },
+        {
+          "start_tick": 2623,
+          "duration_in_ticks": 27,
+          "end_tick": 2650,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2652,
+          "duration_in_ticks": 33,
+          "end_tick": 2685,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 3.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2688,
+          "duration_in_ticks": 20,
+          "end_tick": 2708,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 2.5,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2709,
+          "duration_in_ticks": 6,
+          "end_tick": 2715,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 4.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.25
+            }
+          ]
+        },
+        {
+          "start_tick": 2717,
+          "duration_in_ticks": 4,
+          "end_tick": 2721,
+          "cpus": 1.0,
+          "memory": 54.5,
+          "vram": 4.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2722,
+          "duration_in_ticks": 6,
+          "end_tick": 2728,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 4.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2729,
+          "duration_in_ticks": 6,
+          "end_tick": 2735,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 4.375,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.375
+            }
+          ]
+        },
+        {
+          "start_tick": 2736,
+          "duration_in_ticks": 7,
+          "end_tick": 2743,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2746,
+          "duration_in_ticks": 30,
+          "end_tick": 2776,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2777,
+          "duration_in_ticks": 15,
+          "end_tick": 2792,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2793,
+          "duration_in_ticks": 6,
+          "end_tick": 2799,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 5.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.875
+            }
+          ]
+        },
+        {
+          "start_tick": 2804,
+          "duration_in_ticks": 6,
+          "end_tick": 2810,
+          "cpus": 1.0,
+          "memory": 54.5,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2812,
+          "duration_in_ticks": 21,
+          "end_tick": 2833,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.75
+            }
+          ]
+        },
+        {
+          "start_tick": 2834,
+          "duration_in_ticks": 10,
+          "end_tick": 2844,
+          "cpus": 1.0,
+          "memory": 54.75,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2845,
+          "duration_in_ticks": 17,
+          "end_tick": 2862,
+          "cpus": 1.0,
+          "memory": 54.625,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 8.5
+            }
+          ]
+        },
+        {
+          "start_tick": 2864,
+          "duration_in_ticks": 4,
+          "end_tick": 2868,
+          "cpus": 1.0,
+          "memory": 54.5,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 7.875
+            }
+          ]
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 1.0,
+        "memory": 54.75,
+        "gpus": 1,
+        "vram": 5.0,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "c10d70aa-3cdd-40c8-b375-0009148d6fa4",
+      "start_tick": 986,
+      "stop_tick": 1854,
+      "num_training_events": 3,
+      "trainings": [
+        {
+          "start_tick": 1743,
+          "duration_in_ticks": 3,
+          "end_tick": 1746,
+          "cpus": 4.0,
+          "memory": 11.875,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1757,
+          "duration_in_ticks": 3,
+          "end_tick": 1760,
+          "cpus": 4.0,
+          "memory": 11.875,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        },
+        {
+          "start_tick": 1768,
+          "duration_in_ticks": 3,
+          "end_tick": 1771,
+          "cpus": 4.0,
+          "memory": 12.0,
+          "vram": 0.0,
+          "gpus": 0,
+          "gpu_utilizations": []
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 4.0,
+        "memory": 12.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      }
+    },
+    {
+      "id": "4efa7d52-2c91-4959-a34f-23a68f92a99e",
+      "start_tick": 1084,
+      "stop_tick": 1821,
+      "num_training_events": 3,
+      "trainings": [
+        {
+          "start_tick": 1681,
+          "duration_in_ticks": 13,
+          "end_tick": 1694,
+          "cpus": 2.0,
+          "memory": 5.375,
+          "vram": 1.875,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 12.5
+            }
+          ]
+        },
+        {
+          "start_tick": 1697,
+          "duration_in_ticks": 5,
+          "end_tick": 1702,
+          "cpus": 2.0,
+          "memory": 5.5,
+          "vram": 3.625,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 12.375
+            }
+          ]
+        },
+        {
+          "start_tick": 1749,
+          "duration_in_ticks": 33,
+          "end_tick": 1782,
+          "cpus": 2.0,
+          "memory": 5.25,
+          "vram": 0.0,
+          "gpus": 1,
+          "gpu_utilizations": [
+            {
+              "utilization": 12.125
+            }
+          ]
+        }
+      ],
+      "trainings_completed": 0,
+      "current_resource_request": {
+        "cpus": 0,
+        "memory": 0.0,
+        "gpus": 0,
+        "vram": 0.0,
+        "gpu_type": "ANY_GPU"
+      },
+      "max_resource_request": {
+        "cpus": 2.0,
+        "memory": 5.5,
+        "gpus": 1,
+        "vram": 3.625,
         "gpu_type": "ANY_GPU"
       }
     },
