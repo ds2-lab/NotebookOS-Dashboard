@@ -1592,7 +1592,8 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 				zap.String("execute_request_msg_id", executeRequestId),
 				zap.Duration("timeout_interval", timeoutInterval),
 				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
-				zap.Error(getTrainingStatusError))
+				zap.Error(getTrainingStatusError),
+				zap.Error(err))
 		}
 	}
 
@@ -1605,7 +1606,8 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 		zap.Duration("timeout_interval", timeoutInterval),
 		zap.String("execute_request_msg_id", executeRequestId),
 		zap.Duration("time_elapsed", timeElapsed),
-		zap.Bool("is_training", isTraining))
+		zap.Bool("is_training", isTraining),
+		zap.Error(err))
 
 	c.notifyCallback(&proto.Notification{
 		Id:    uuid.NewString(),
