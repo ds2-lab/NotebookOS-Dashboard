@@ -1,5 +1,5 @@
 import { Button, Flex, FlexItem, Text, TextVariants, Tooltip } from '@patternfly/react-core';
-import { PauseIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
+import { CopyIcon, PauseIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
 import WorkloadDescriptiveIcons from '@src/Components/Workloads/WorkloadDescriptiveIcons';
 import { WorkloadRuntimeMetrics } from '@src/Components/Workloads/WorkloadRuntimeMetrics';
 import { IsActivelyRunning, IsInProgress, IsPaused, IsPausing, IsReadyAndWaiting, Workload } from '@src/Data';
@@ -16,24 +16,50 @@ export const WorkloadDataListCell: React.FunctionComponent<IWorkloadDataListCell
 ) => {
     const { pauseWorkload, startWorkload, stopWorkload } = React.useContext(WorkloadContext);
 
+    const [showCopySuccessContent, setShowCopySuccessContent] = React.useState<boolean>(false);
+
     return (
         <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsNone' }}>
             <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsNone' }}>
                 <FlexItem>
                     <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsNone' }}>
-                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsMd' }}>
+                        <FlexItem>
+                            <Text component={TextVariants.h2}>
+                                <strong>{props.workload.name}</strong>
+                            </Text>
+                        </FlexItem>
+                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsXs' }}>
                             <FlexItem>
-                                <Text component={TextVariants.h2}>
-                                    <strong>{props.workload.name}</strong>
+                                <Text component={TextVariants.small}>
+                                    <strong>ID: </strong>
                                 </Text>
+                                <Text component={TextVariants.small}>{props.workload.id}</Text>
+                            </FlexItem>
+                            <FlexItem>
+                                <Tooltip
+                                    content={
+                                        showCopySuccessContent
+                                            ? 'Copied successfully workload ID'
+                                            : 'Copy workload ID to clipboard'
+                                    }
+                                    position={'right'}
+                                    entryDelay={75}
+                                    exitDelay={200}
+                                    onTooltipHidden={() => setShowCopySuccessContent(false)}
+                                >
+                                    <Button
+                                        variant={'link'}
+                                        isInline
+                                        icon={<CopyIcon />}
+                                        onClick={async () => {
+                                            await navigator.clipboard.writeText(props.workload?.id);
+
+                                            setShowCopySuccessContent(true);
+                                        }}
+                                    />
+                                </Tooltip>
                             </FlexItem>
                         </Flex>
-                        <FlexItem>
-                            <Text component={TextVariants.small}>
-                                <strong>ID: </strong>
-                            </Text>
-                            <Text component={TextVariants.small}>{props.workload.id}</Text>
-                        </FlexItem>
                     </Flex>
                 </FlexItem>
                 <FlexItem align={{ default: 'alignRight' }}>
