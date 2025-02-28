@@ -1397,6 +1397,10 @@ func (c *Client) shouldStopWaitingForTrainingToStart(err error) bool {
 		return true
 	}
 
+	if strings.Contains(err.Error(), "failed to migrate kernel replica") {
+		return true
+	}
+
 	if strings.Contains(err.Error(), "there is already an active scaling operation taking place") {
 		return true
 	}
