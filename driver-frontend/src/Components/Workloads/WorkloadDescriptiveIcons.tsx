@@ -1,5 +1,5 @@
-import { Button, Flex, FlexItem, Switch, Tooltip } from '@patternfly/react-core';
-import { ArrowRightIcon, BlueprintIcon, ClockIcon, CubeIcon, DiceIcon, TaskIcon } from '@patternfly/react-icons';
+import { Flex, FlexItem, Switch, Tooltip } from '@patternfly/react-core';
+import { BlueprintIcon, ClockIcon, CodeIcon, CubeIcon, DiceIcon, TaskIcon } from '@patternfly/react-icons';
 import useNavigation from '@Providers/NavigationProvider';
 import { GetWorkloadStatusLabel, GetWorkloadStatusTooltip, IsWorkloadFinished, Workload } from '@src/Data';
 import { WorkloadContext } from '@src/Providers';
@@ -57,6 +57,16 @@ export const WorkloadDescriptiveIcons: React.FunctionComponent<IWorkloadDescript
                 <Tooltip content={`Total number of Sessions involved in the workload.`} position="bottom">
                     <React.Fragment>
                         <CubeIcon /> {props.workload?.sessions.length}
+                    </React.Fragment>
+                </Tooltip>
+            </FlexItem>
+            <FlexItem>
+                <Tooltip
+                    content={`Total number of training events across all Sessions in the workload.`}
+                    position="bottom"
+                >
+                    <React.Fragment>
+                        <CodeIcon /> {props.workload?.statistics.total_num_training_events}
                     </React.Fragment>
                 </Tooltip>
             </FlexItem>

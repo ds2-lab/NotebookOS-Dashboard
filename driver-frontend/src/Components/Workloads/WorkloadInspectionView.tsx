@@ -284,7 +284,7 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                                 Training Events Completed <CodeIcon />
                             </DescriptionListTerm>
                             <DescriptionListDescription>
-                                {props.workload?.statistics.num_tasks_executed}
+                                {props.workload?.statistics.num_tasks_executed} / {props.workload?.statistics.total_num_training_events}
                             </DescriptionListDescription>
                         </DescriptionListGroup>
                         <DescriptionListGroup>

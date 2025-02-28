@@ -182,6 +182,14 @@ function getStatusLabel(status: string, error_message?: string, isCompact:boolea
                     </Label>
                 </Tooltip>
             );
+        case 'client-exited':
+            return (
+                <Tooltip position="right" content="This session has been stopped permanently (because it encountered an error).">
+                    <Label icon={<OffIcon />} color="red" isCompact={isCompact}>
+                        {status}
+                    </Label>
+                </Tooltip>
+            );
         case 'erred':
             return (
                 <Tooltip

@@ -128,6 +128,7 @@ interface WorkloadStatistics {
     num_sessions_created: number;
     num_submitted_trainings: number;
     num_tasks_executed: number;
+    total_num_training_events: number;
     sessions_sample_percentage: number;
     simulation_clock_time: string;
     tick_durations_milliseconds: number[];
