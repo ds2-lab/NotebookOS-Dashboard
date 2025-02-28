@@ -51,7 +51,8 @@ export const WorkloadDataListCell: React.FunctionComponent<IWorkloadDataListCell
                                         variant={'link'}
                                         isInline
                                         icon={<CopyIcon />}
-                                        onClick={async () => {
+                                        onClick={async (event) => {
+                                            event.preventDefault();
                                             await navigator.clipboard.writeText(props.workload?.id);
 
                                             setShowCopySuccessContent(true);
