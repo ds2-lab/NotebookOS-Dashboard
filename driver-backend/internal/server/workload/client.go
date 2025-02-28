@@ -1393,17 +1393,25 @@ func (c *Client) doWaitForTrainingToStart(ctx context.Context, evt *domain.Event
 }
 
 func (c *Client) shouldStopWaitingForTrainingToStart(err error) bool {
-	if strings.Contains(err.Error(), "insufficient hosts available") {
+	if err == nil {
+		return false
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, jupyter.ErrRequestTimedOut) {
 		return true
 	}
 
-	if strings.Contains(err.Error(), "failed to migrate kernel replica") {
-		return true
-	}
-
-	if strings.Contains(err.Error(), "there is already an active scaling operation taking place") {
-		return true
-	}
+	//if strings.Contains(err.Error(), "insufficient hosts available") {
+	//	return true
+	//}
+	//
+	//if strings.Contains(err.Error(), "failed to migrate kernel replica") {
+	//	return true
+	//}
+	//
+	//if strings.Contains(err.Error(), "there is already an active scaling operation taking place") {
+	//	return true
+	//}
 
 	return false
 }
@@ -1431,7 +1439,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	if trainingStarted && err == nil {
 		// Training started. We can return.
 		return true, startedAtUnixMillis, nil
-	} else if err != nil && c.shouldStopWaitingForTrainingToStart(err) {
+	} else if c.shouldStopWaitingForTrainingToStart(err) {
 		return false, -1, nil
 	}
 
@@ -1443,7 +1451,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
 		if startedAtUnixMillis > 0 && err == nil {
 			return true, startedAtUnixMillis, nil
-		} else if err != nil && c.shouldStopWaitingForTrainingToStart(err) {
+		} else if c.shouldStopWaitingForTrainingToStart(err) {
 			return false, -1, nil
 		}
 	}
@@ -1463,7 +1471,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		if trainingStarted && startedAtUnixMillis > 0 && err == nil {
 			cancel()
 			return true, startedAtUnixMillis, nil
-		} else if err != nil && c.shouldStopWaitingForTrainingToStart(err) {
+		} else if c.shouldStopWaitingForTrainingToStart(err) {
 			cancel()
 			return false, -1, nil
 		}
@@ -1480,7 +1488,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
 			if startedAtUnixMillis > 0 && err == nil {
 				return true, startedAtUnixMillis, nil
-			} else if err != nil && c.shouldStopWaitingForTrainingToStart(err) {
+			} else if c.shouldStopWaitingForTrainingToStart(err) {
 				return false, -1, nil
 			}
 
