@@ -1475,7 +1475,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	startedWaitingAt := time.Now()
 
 	if isMigrating {
-		maximumAdditionalWaitTime = time.Minute * 8
+		maximumAdditionalWaitTime = time.Minute * 10 // We'll wait for a while if the kernel is migrating...
 	} else {
 		maximumAdditionalWaitTime = time.Minute * 5
 	}
