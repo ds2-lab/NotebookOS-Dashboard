@@ -239,9 +239,9 @@ func (s *serverImpl) GetJupyterMessage(kernelId string, messageId string, messag
 	return resp, nil
 }
 
-// IsKernelActivelyTrainingOrMigrating is used to query whether the Cluster Gateway believes that a particular kernel
+// IsKernelTrainingOrMigratingCallback is used to query whether the Cluster Gateway believes that a particular kernel
 // is actively training or not
-func (s *serverImpl) IsKernelActivelyTrainingOrMigrating(kernelId string) (*proto.IsKernelTrainingOrMigratingReply, error) {
+func (s *serverImpl) IsKernelTrainingOrMigratingCallback(kernelId string) (*proto.IsKernelTrainingOrMigratingReply, error) {
 	if s.gatewayRpcClient == nil {
 		return nil, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
 	}
