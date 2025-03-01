@@ -87,6 +87,10 @@ type ClientBuilder struct {
 	// getJupyterMessageCallback returns the configured scheduling policy along with a flag indicating whether the
 	// returned policy name is valid.
 	getJupyterMessageCallback GetJupyterMessageCallback
+
+	// saveSessionIoPubMessages is a boolean flag that, when true, instructs us to save and export all IO Pub messages
+	// received by each session with the workload statistics
+	saveSessionIoPubMessages bool `json:"-" csv:"-"`
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
@@ -95,6 +99,11 @@ func NewClientBuilder() *ClientBuilder {
 		maxSleepDuringInitSec:     120, // Default
 		timescaleAdjustmentFactor: 1.0, // Default
 	}
+}
+
+func (b *ClientBuilder) WithSaveSessionIoPubMessages(saveSessionIoPubMessages bool) *ClientBuilder {
+	b.saveSessionIoPubMessages = saveSessionIoPubMessages
+	return b
 }
 
 // WithMaxInitializationSleepIntervalSeconds is used to set the value of the maxSleepDuringInitSec field.
@@ -267,6 +276,7 @@ func (b *ClientBuilder) Build() *Client {
 		maxSleepDuringInitSec:            b.maxSleepDuringInitSec,
 		dropSessionsWithNoTrainingEvents: b.dropSessionsWithNoTrainingEvents,
 		MaxCreationAttempts:              b.maxCreationAttempts,
+		saveSessionIoPubMessages:         b.saveSessionIoPubMessages,
 		lastTrainingSubmittedAt:          time.UnixMilli(0),
 	}
 
@@ -387,6 +397,10 @@ type Client struct {
 	trainingEndedRequestMapMutex     sync.Mutex                             // trainingEndedRequestMapMutex provides atomic access when getting or setting values from/in the trainingEndedRequestMap field.
 	trainingStartedRequestMap        map[string]*atomic.Int32               // trainingStartedRequestMap provides an atomic way to keep track of if we've received a particular "smr_lead_task" message or not.
 	trainingStartedRequestMapMutex   sync.Mutex                             // trainingStartedRequestMapMutex provides atomic access when getting or setting values from/in the trainingStartedRequestMap field.
+
+	// saveSessionIoPubMessages is a boolean flag that, when true, instructs us to save and export all IO Pub messages
+	// received by each session with the workload statistics
+	saveSessionIoPubMessages bool `json:"-" csv:"-"`
 }
 
 func (c *Client) closeLogFile() error {
@@ -728,6 +742,11 @@ func (c *Client) initialize() (int, error) {
 		// Parse the IOPub message.
 		// If it is a stream message, this will return a *parsedIoPubMessage variable.
 		parsedIoPubMsgVal := c.HandleIOPubMessage(kernelMessage)
+
+		// If we have been configured to not save IO pub messages, then we just return.
+		if !c.saveSessionIoPubMessages {
+			return false // Doesn't matter what we return here
+		}
 
 		if parsedIoPubMsg, ok := parsedIoPubMsgVal.(*parsedIoPubMessage); ok {
 			switch parsedIoPubMsg.Stream {
@@ -1430,8 +1449,8 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		zap.Duration("time_elapsed", time.Since(sentRequestAt)))
 
 	// Wait for the training to end.
-	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, evt, startedHandlingAt, sentRequestAt,
-		originalTimeoutInterval, execReqId)
+	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, evt, startedHandlingAt,
+		sentRequestAt, originalTimeoutInterval, execReqId)
 	if trainingStarted && err == nil {
 		// Training started. We can return.
 		return true, startedAtUnixMillis, nil

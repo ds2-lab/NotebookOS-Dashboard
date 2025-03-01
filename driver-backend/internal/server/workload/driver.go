@@ -697,6 +697,8 @@ func (d *Driver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.
 		d.workloadSessionsMap[session.Id] = session
 	}
 
+	saveSessionIoPubMessages := d.opts.SaveSessionIoPubMessages || workloadRegistrationRequest.SaveSessionIoPubMessages
+
 	d.workloadRegistrationRequest = workloadRegistrationRequest
 	basicWorkload := NewBuilder(d.atom).
 		SetID(d.id).
@@ -708,6 +710,7 @@ func (d *Driver) createWorkloadFromTemplate(workloadRegistrationRequest *domain.
 		SetRemoteStorageDefinition(workloadRegistrationRequest.RemoteStorageDefinition).
 		SetSessionsSamplePercentage(workloadRegistrationRequest.SessionsSamplePercentage).
 		SetDropSessionsWithNoTrainingEvents(d.DropSessionsWithNoTrainingEvents).
+		SetSaveSessionIoPubMessages(saveSessionIoPubMessages).
 		Build()
 
 	err := basicWorkload.InitializeFromTemplate(workloadRegistrationRequest.Sessions)
@@ -1974,6 +1977,7 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 				WithNotifyCallback(d.notifyCallback).
 				WithWaitGroup(&d.clientsWaitGroup).
 				WithTimescaleAdjustmentFactor(d.timescaleAdjustmentFactor).
+				WithSaveSessionIoPubMessages(d.workload.SaveSessionIoPubMessages).
 				WithFileOutput(fileOutputDirectory).
 				WithMaxInitializationSleepIntervalSeconds(d.maxClientSleepDuringInitSeconds).
 				WithDropSessionsWithNoTrainingEvents(d.DropSessionsWithNoTrainingEvents).

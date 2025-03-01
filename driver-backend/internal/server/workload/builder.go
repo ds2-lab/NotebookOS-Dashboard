@@ -22,6 +22,7 @@ type Builder struct {
 	RemoteStorageDefinition          *proto.RemoteStorageDefinition `json:"remote-storage-definition"`
 	FileOutputPath                   string                         `json:"file_output_path"`
 	DropSessionsWithNoTrainingEvents bool                           `json:"drop_sessions_with_no_training_events"`
+	SaveSessionIoPubMessages         bool                           `json:"save_session_io_pub_messages"`
 
 	atom   *zap.AtomicLevel
 	logger *zap.Logger
@@ -62,6 +63,11 @@ func (b *Builder) String() string {
 // SetID sets the ID for the workload.
 func (b *Builder) SetID(id string) *Builder {
 	b.Id = id
+	return b
+}
+
+func (b *Builder) SetSaveSessionIoPubMessages(saveSessionIoPubMessages bool) *Builder {
+	b.SaveSessionIoPubMessages = saveSessionIoPubMessages
 	return b
 }
 
@@ -143,6 +149,7 @@ func (b *Builder) Build() *Workload {
 		Statistics:                       NewStatistics(b.SessionsSamplePercentage),
 		TimeCompressTrainingDurations:    b.TimeCompressTrainingDurations,
 		DropSessionsWithNoTrainingEvents: b.DropSessionsWithNoTrainingEvents,
+		SaveSessionIoPubMessages:         b.SaveSessionIoPubMessages,
 	}
 
 	zapEncoderConfig := zap.NewDevelopmentEncoderConfig()

@@ -199,6 +199,7 @@ type Configuration struct {
 	WorkloadJsonOutputFrequency   int    `name:"workload-output-json-frequency" json:"workload-output-json-frequency" yaml:"workload-output-json-frequency" description:"For every N times that we write statistics to a .CSV file, we write the workload struct itself to a .JSON file."`
 	TimeCompressTrainingDurations bool   `name:"apply-time-compression-to-training-durations" json:"apply-time-compression-to-training-durations" yaml:"apply-time-compression-to-training-durations"`
 	DropSessionsWithNoTrainings   bool   `name:"drop_sessions_with_no_trainings" json:"drop_sessions_with_no_trainings" yaml:"drop_sessions_with_no_trainings" description:"If true, then drop Sessions with no training events from workloads."`
+	SaveSessionIoPubMessages      bool   `name:"save_io_pub_messages" json:"save_io_pub_messages" yaml:"save_io_pub_messages" description:"If true, then we save and export all IO Pub messages received by each session with the workload statistics."`
 }
 
 func GetDefaultConfig() *Configuration {

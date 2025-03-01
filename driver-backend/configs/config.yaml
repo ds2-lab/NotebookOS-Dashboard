@@ -13,6 +13,7 @@ base-url: "/"
 workload-output-interval-seconds: 1
 workload-output-json-frequency: 5
 apply-time-compression-to-training-durations: true
+save_io_pub_messages: false
 drop_sessions_with_no_trainings: true
 
 # The address of the Jupyter Server.

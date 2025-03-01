@@ -178,6 +178,7 @@ type WorkloadRegistrationRequest struct {
 	Seed                      int64                          `name:"seed" yaml:"seed" json:"seed" description:"RNG seed for the workload."`
 	TimescaleAdjustmentFactor float64                        `name:"timescale_adjustment_factor" json:"timescale_adjustment_factor" description:"Adjusts how long ticks are simulated for."`
 	RemoteStorageDefinition   *proto.RemoteStorageDefinition `name:"remote_storage_definition" json:"remote_storage_definition" yaml:"remote_storage_definition" mapstructure:"remote_storage_definition" description:"Defines a simulated remote storage to be used during the workload."`
+	SaveSessionIoPubMessages  bool                           `name:"save_io_pub_messages" json:"save_io_pub_messages" yaml:"save_io_pub_messages" description:"If true, then we save and export all IO Pub messages received by each session with the workload statistics."`
 
 	// SessionsSamplePercentage is the percent of sessions from a CSV workload for which we'll actually process events.
 	//

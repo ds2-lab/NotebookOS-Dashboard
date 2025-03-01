@@ -129,6 +129,10 @@ type Workload struct {
 	DebugLoggingEnabled       bool    `json:"debug_logging_enabled"`
 	TimescaleAdjustmentFactor float64 `json:"timescale_adjustment_factor"`
 
+	// SaveSessionIoPubMessages is a boolean flag that, when true, instructs us to save and export all IO Pub messages
+	// received by each session with the workload statistics
+	SaveSessionIoPubMessages bool `json:"-" csv:"-"`
+
 	ErrorMessage           string `json:"error_message"`
 	SimulationClockTimeStr string `json:"simulation_clock_time"`
 	WorkloadType           Kind   `json:"workload_type"`
