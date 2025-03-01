@@ -239,11 +239,11 @@ func (s *serverImpl) GetJupyterMessage(kernelId string, messageId string, messag
 	return resp, nil
 }
 
-// IsKernelActivelyTraining is used to query whether the Cluster Gateway believes that a particular kernel is
-// actively training or not
-func (s *serverImpl) IsKernelActivelyTraining(kernelId string) (bool, error) {
+// IsKernelActivelyTrainingOrMigrating is used to query whether the Cluster Gateway believes that a particular kernel
+// is actively training or not
+func (s *serverImpl) IsKernelActivelyTrainingOrMigrating(kernelId string) (*proto.IsKernelTrainingOrMigratingReply, error) {
 	if s.gatewayRpcClient == nil {
-		return false, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
+		return nil, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -253,12 +253,12 @@ func (s *serverImpl) IsKernelActivelyTraining(kernelId string) (bool, error) {
 		Id: kernelId,
 	}
 
-	resp, err := s.gatewayRpcClient.IsKernelActivelyTraining(ctx, arg)
+	resp, err := s.gatewayRpcClient.IsKernelActivelyTrainingOrMigrating(ctx, arg)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return resp.IsTraining, nil
+	return resp, nil
 }
 
 // GetSchedulingPolicy returns the configured scheduling policy along with a flag indicating whether the returned

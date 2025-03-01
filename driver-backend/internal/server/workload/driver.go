@@ -147,72 +147,72 @@ type Driver struct {
 	sugaredLogger *zap.SugaredLogger
 	atom          *zap.AtomicLevel
 
-	statsPublisherWg                   sync.WaitGroup                             // statsPublisherWg is used to wait for the goroutine that outputs to the CSV file and retrieves statistics from the Cluster Gateway to finish
-	clockTime                          domain.SimulationClock                     // Contains the current clock time of the workload, which will be sometime between currentTick and currentTick + tick_duration.
-	clockTrigger                       *clock.Trigger                             // Trigger for the clock ticks
-	currentTick                        domain.SimulationClock                     // Contains the current tick of the workload.
-	workloadExecutionCompleteChan      chan interface{}                           // Used to signal that the workload has successfully processed all events and is complete.
-	workloadEventGeneratorCompleteChan chan interface{}                           // Used to signal that the generators have submitted all events. Once all remaining, already-enqueued events have been processed, the workload will be complete.
-	driverTimescale                    float64                                    // Multiplier that impacts the timescale at the Driver will operate on with respect to the trace data. For example, if each tick is 60 seconds, then a DriverTimescale value of 0.5 will mean that each tick will take 30 seconds.
-	errorChan                          chan error                                 // Used to stop the workload due to a critical error.
-	eventChan                          chan *domain.Event                         // Receives events from the Synthesizer.
-	eventQueue                         *event_queue.EventQueue                    // Maintains a queue of events to be processed for each session.
-	getSchedulingPolicyCallback        func() (string, bool)                      // getSchedulingPolicyCallback is a callback to retrieve the configured scheduling policy of the cluster.
-	schedulingPolicy                   string                                     // Cached scheduling policy value
-	id                                 string                                     // Unique ID (relative to other drivers). The workload registered with this driver will be assigned this ID.
-	KernelManager                      jupyter.KernelSessionManager               // Simplified Go implementation of the Jupyter JavaScript API.
-	mu                                 sync.Mutex                                 // Synchronizes access to internal data structures. Can be locked externally using the Lock/Unlock API exposed by the WorkloadDriver.
-	opts                               *domain.Configuration                      // The system's configuration, read from a file.
-	performClockTicks                  bool                                       // If true, then we'll issue clock ticks. Otherwise, don't issue them. Mostly used for testing/debugging.
-	servingTicks                       atomic.Bool                                // The WorkloadDriver::ServeTicks() method will continue looping as long as this flag is set to true.
-	sessionConnections                 map[string]*jupyter.SessionConnection      // Map from internal session ID to session connection.
-	sessionConnectionsMutex            sync.Mutex                                 // sessionConnections ensures atomic access to the sessionConnections map
-	sessions                           *hashmap.HashMap                           // Responsible for creating sessions and maintaining a collection of all the sessions active within the simulation.
-	stopChan                           chan interface{}                           // Used to stop the workload early/prematurely (i.e., before all events have been processed).
-	targetTickDuration                 time.Duration                              // How long each tick is supposed to last. This is the tick interval/step rate of the simulation.
-	targetTickDurationSeconds          int64                                      // Cached total number of seconds of targetTickDuration
-	tickDurationsSecondsMovingWindow   *statistics.MovingStat                     // Moving average of observed tick durations in seconds.
-	tickDurationsAll                   []time.Duration                            // All tick durations from the entire workload.
-	ticker                             *clock.Ticker                              // Receive Tick events this way.
-	ticksHandled                       atomic.Int64                               // Incremented/accessed atomically.
-	timescaleAdjustmentFactor          float64                                    // Adjusts the timescale of the simulation. Setting this to 1 means that each tick is simulated as a whole minute. Setting this to 0.5 means each tick will be simulated for half its real time. So, if ticks are 60 seconds, and this variable is set to 0.5, then each tick will be simulated for 30 seconds before continuing to the next tick.
-	maxClientSleepDuringInitSeconds    int                                        // maxClientSleepDuringInitSeconds is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
-	websocket                          domain.ConcurrentWebSocket                 // Shared Websocket used to communicate with frontend.
-	workload                           *Workload                                  // The workload being driven by this driver.
-	workloadStartTime                  time.Time                                  // The time at which the workload began.
-	workloadEndTime                    time.Time                                  // The time at which the workload completed.
-	workloadGenerator                  domain.WorkloadGenerator                   // The entity generating the workload (from trace data, a preset, or a template).
-	workloadPreset                     *domain.WorkloadPreset                     // The preset used by the associated workload. Will only be non-nil if the associated workload is a preset-based workload, rather than a template-based workload.
-	workloadPresets                    map[string]*domain.WorkloadPreset          // All the available workload presets.
-	workloadRegistrationRequest        *domain.WorkloadRegistrationRequest        // The request that registered the workload that is being driven by this driver.
-	workloadSessions                   []*domain.WorkloadTemplateSession          // The template used by the associated workload. Will only be non-nil if the associated workload is a template-based workload, rather than a preset-based workload.
-	workloadSessionsMap                map[string]*domain.WorkloadTemplateSession // Map from Session ID to *domain.WorkloadTemplateSession
-	paused                             bool                                       // Paused indicates whether the workload has been paused.
-	trainingSubmittedTimes             *hashmap.HashMap                           // trainingSubmittedTimes keeps track of when "execute_request" messages were sent for different sessions. Keys are internal session IDs, values are unix millisecond timestamps.
-	outputFile                         io.ReadWriteCloser                         // The opened .CSV output statistics file.
-	outputFileDirectory                string                                     // outputFileDirectory is the directory where all the workload-specific output directories live. There are sub-directories for each workload in this directory.
-	clientOutputDirectory              string                                     // clientOutputDirectory is the name of the directory where the individual clients will write their output.
-	outputSubdirectoryPath             string                                     // The actual directory where the output of this specific workload will be.
-	outputFilePath                     string                                     // Path to the outputFile
-	outputFileMutex                    sync.Mutex                                 // Atomic access to output file
-	appendToOutputFile                 bool                                       // Flag that is set to true after the first write
-	misbehavingSessions                map[string]interface{}                     // Map from session ID to sessions for sessions whose events we did not finish processing in a previous tick.
-	misbehavingSessionsMutex           sync.Mutex                                 // misbehavingSessionsMutex ensures atomic access to the misbehavingSessions
-	trainingStartedChannels            map[string]chan interface{}                // trainingStartedChannels are channels used to notify that training has started
-	trainingStartedChannelMutex        sync.Mutex                                 // trainingStartedChannelMutex ensures atomic access to the trainingStartedChannels
-	trainingStoppedChannels            map[string]chan interface{}                // trainingStartedChannels are channels used to notify that training has ended
-	trainingStoppedChannelsMutex       sync.Mutex                                 // trainingStoppedChannelsMutex ensures atomic access to the trainingStoppedChannels
-	workloadOutputInterval             time.Duration                              // workloadOutputInterval defines how often we should collect and write workload output statistics to the CSV file
-	workloadJsonOutputFrequency        int                                        // workloadJsonOutputFrequency determines how many iterations of statistics publishing must occur before the Workload struct is re-written to a JSON file.
-	timeCompressTrainingDurations      bool                                       // timeCompressTrainingDurations indicates whether the Workload's TimescaleAdjustmentFactor should be used to compress the duration of training events.
-	DropSessionsWithNoTrainingEvents   bool                                       // DropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
-	OutputCsvDisabled                  bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
-	isKernelTrainingCallback           IsKernelTrainingCallback                   // isKernelTrainingCallback is used to query whether a kernel is actively training as far as the cluster gateway knows.
-	getJupyterMessageCallback          GetJupyterMessageCallback                  // getJupyterMessageCallback returns the configured scheduling policy along with a flag indicating whether the returned policy name is valid.
-	rng                                *rand.Rand
-	Clients                            map[string]*Client
-	clientsWaitGroup                   sync.WaitGroup
-	trainingEventSubmitted             bool
+	statsPublisherWg                    sync.WaitGroup                             // statsPublisherWg is used to wait for the goroutine that outputs to the CSV file and retrieves statistics from the Cluster Gateway to finish
+	clockTime                           domain.SimulationClock                     // Contains the current clock time of the workload, which will be sometime between currentTick and currentTick + tick_duration.
+	clockTrigger                        *clock.Trigger                             // Trigger for the clock ticks
+	currentTick                         domain.SimulationClock                     // Contains the current tick of the workload.
+	workloadExecutionCompleteChan       chan interface{}                           // Used to signal that the workload has successfully processed all events and is complete.
+	workloadEventGeneratorCompleteChan  chan interface{}                           // Used to signal that the generators have submitted all events. Once all remaining, already-enqueued events have been processed, the workload will be complete.
+	driverTimescale                     float64                                    // Multiplier that impacts the timescale at the Driver will operate on with respect to the trace data. For example, if each tick is 60 seconds, then a DriverTimescale value of 0.5 will mean that each tick will take 30 seconds.
+	errorChan                           chan error                                 // Used to stop the workload due to a critical error.
+	eventChan                           chan *domain.Event                         // Receives events from the Synthesizer.
+	eventQueue                          *event_queue.EventQueue                    // Maintains a queue of events to be processed for each session.
+	getSchedulingPolicyCallback         func() (string, bool)                      // getSchedulingPolicyCallback is a callback to retrieve the configured scheduling policy of the cluster.
+	schedulingPolicy                    string                                     // Cached scheduling policy value
+	id                                  string                                     // Unique ID (relative to other drivers). The workload registered with this driver will be assigned this ID.
+	KernelManager                       jupyter.KernelSessionManager               // Simplified Go implementation of the Jupyter JavaScript API.
+	mu                                  sync.Mutex                                 // Synchronizes access to internal data structures. Can be locked externally using the Lock/Unlock API exposed by the WorkloadDriver.
+	opts                                *domain.Configuration                      // The system's configuration, read from a file.
+	performClockTicks                   bool                                       // If true, then we'll issue clock ticks. Otherwise, don't issue them. Mostly used for testing/debugging.
+	servingTicks                        atomic.Bool                                // The WorkloadDriver::ServeTicks() method will continue looping as long as this flag is set to true.
+	sessionConnections                  map[string]*jupyter.SessionConnection      // Map from internal session ID to session connection.
+	sessionConnectionsMutex             sync.Mutex                                 // sessionConnections ensures atomic access to the sessionConnections map
+	sessions                            *hashmap.HashMap                           // Responsible for creating sessions and maintaining a collection of all the sessions active within the simulation.
+	stopChan                            chan interface{}                           // Used to stop the workload early/prematurely (i.e., before all events have been processed).
+	targetTickDuration                  time.Duration                              // How long each tick is supposed to last. This is the tick interval/step rate of the simulation.
+	targetTickDurationSeconds           int64                                      // Cached total number of seconds of targetTickDuration
+	tickDurationsSecondsMovingWindow    *statistics.MovingStat                     // Moving average of observed tick durations in seconds.
+	tickDurationsAll                    []time.Duration                            // All tick durations from the entire workload.
+	ticker                              *clock.Ticker                              // Receive Tick events this way.
+	ticksHandled                        atomic.Int64                               // Incremented/accessed atomically.
+	timescaleAdjustmentFactor           float64                                    // Adjusts the timescale of the simulation. Setting this to 1 means that each tick is simulated as a whole minute. Setting this to 0.5 means each tick will be simulated for half its real time. So, if ticks are 60 seconds, and this variable is set to 0.5, then each tick will be simulated for 30 seconds before continuing to the next tick.
+	maxClientSleepDuringInitSeconds     int                                        // maxClientSleepDuringInitSeconds is the maximum amount of time that the Client should sleep for during exponential backoff when it is first being created.
+	websocket                           domain.ConcurrentWebSocket                 // Shared Websocket used to communicate with frontend.
+	workload                            *Workload                                  // The workload being driven by this driver.
+	workloadStartTime                   time.Time                                  // The time at which the workload began.
+	workloadEndTime                     time.Time                                  // The time at which the workload completed.
+	workloadGenerator                   domain.WorkloadGenerator                   // The entity generating the workload (from trace data, a preset, or a template).
+	workloadPreset                      *domain.WorkloadPreset                     // The preset used by the associated workload. Will only be non-nil if the associated workload is a preset-based workload, rather than a template-based workload.
+	workloadPresets                     map[string]*domain.WorkloadPreset          // All the available workload presets.
+	workloadRegistrationRequest         *domain.WorkloadRegistrationRequest        // The request that registered the workload that is being driven by this driver.
+	workloadSessions                    []*domain.WorkloadTemplateSession          // The template used by the associated workload. Will only be non-nil if the associated workload is a template-based workload, rather than a preset-based workload.
+	workloadSessionsMap                 map[string]*domain.WorkloadTemplateSession // Map from Session ID to *domain.WorkloadTemplateSession
+	paused                              bool                                       // Paused indicates whether the workload has been paused.
+	trainingSubmittedTimes              *hashmap.HashMap                           // trainingSubmittedTimes keeps track of when "execute_request" messages were sent for different sessions. Keys are internal session IDs, values are unix millisecond timestamps.
+	outputFile                          io.ReadWriteCloser                         // The opened .CSV output statistics file.
+	outputFileDirectory                 string                                     // outputFileDirectory is the directory where all the workload-specific output directories live. There are sub-directories for each workload in this directory.
+	clientOutputDirectory               string                                     // clientOutputDirectory is the name of the directory where the individual clients will write their output.
+	outputSubdirectoryPath              string                                     // The actual directory where the output of this specific workload will be.
+	outputFilePath                      string                                     // Path to the outputFile
+	outputFileMutex                     sync.Mutex                                 // Atomic access to output file
+	appendToOutputFile                  bool                                       // Flag that is set to true after the first write
+	misbehavingSessions                 map[string]interface{}                     // Map from session ID to sessions for sessions whose events we did not finish processing in a previous tick.
+	misbehavingSessionsMutex            sync.Mutex                                 // misbehavingSessionsMutex ensures atomic access to the misbehavingSessions
+	trainingStartedChannels             map[string]chan interface{}                // trainingStartedChannels are channels used to notify that training has started
+	trainingStartedChannelMutex         sync.Mutex                                 // trainingStartedChannelMutex ensures atomic access to the trainingStartedChannels
+	trainingStoppedChannels             map[string]chan interface{}                // trainingStartedChannels are channels used to notify that training has ended
+	trainingStoppedChannelsMutex        sync.Mutex                                 // trainingStoppedChannelsMutex ensures atomic access to the trainingStoppedChannels
+	workloadOutputInterval              time.Duration                              // workloadOutputInterval defines how often we should collect and write workload output statistics to the CSV file
+	workloadJsonOutputFrequency         int                                        // workloadJsonOutputFrequency determines how many iterations of statistics publishing must occur before the Workload struct is re-written to a JSON file.
+	timeCompressTrainingDurations       bool                                       // timeCompressTrainingDurations indicates whether the Workload's TimescaleAdjustmentFactor should be used to compress the duration of training events.
+	DropSessionsWithNoTrainingEvents    bool                                       // DropSessionsWithNoTrainingEvents is a flag that, when true, will cause the Client to return immediately if it finds it has no training events.
+	OutputCsvDisabled                   bool                                       // OutputCsvDisabled is a flag that, when true, prevents the driver from creating and writing statistics to the output CSV file. Used only during unit testing.
+	isKernelTrainingOrMigratingCallback IsKernelTrainingOrMigratingCallback        // isKernelTrainingOrMigratingCallback is used to query whether a kernel is actively training or migrating as far as the cluster gateway knows.
+	getJupyterMessageCallback           GetJupyterMessageCallback                  // getJupyterMessageCallback returns the configured scheduling policy along with a flag indicating whether the returned policy name is valid.
+	rng                                 *rand.Rand
+	Clients                             map[string]*Client
+	clientsWaitGroup                    sync.WaitGroup
+	trainingEventSubmitted              bool
 
 	pauseMutex sync.Mutex
 	pauseCond  *sync.Cond
@@ -251,51 +251,51 @@ func NewBasicWorkloadDriver(opts *domain.Configuration, performClockTicks bool, 
 	jupyterAddress := path.Join(opts.InternalJupyterServerAddress, opts.JupyterServerBasePath)
 
 	driver := &Driver{
-		id:                                 GenerateWorkloadID(8),
-		eventChan:                          make(chan *domain.Event),
-		outputFileDirectory:                opts.WorkloadOutputDirectory,
-		clockTrigger:                       clock.NewTrigger(),
-		opts:                               opts,
-		workloadExecutionCompleteChan:      make(chan interface{}, 1),
-		workloadEventGeneratorCompleteChan: make(chan interface{}),
-		stopChan:                           make(chan interface{}, 1),
-		errorChan:                          make(chan error, 2),
-		misbehavingSessions:                make(map[string]interface{}),
-		atom:                               atom,
-		trainingStartedChannels:            make(map[string]chan interface{}),
-		trainingStoppedChannels:            make(map[string]chan interface{}),
-		targetTickDuration:                 time.Second * time.Duration(opts.TraceStep),
-		targetTickDurationSeconds:          opts.TraceStep,
-		tickDurationsSecondsMovingWindow:   statistics.NewMovingStat(5),
-		tickDurationsAll:                   make([]time.Duration, 0),
-		driverTimescale:                    opts.DriverTimescale,
-		sessionConnections:                 make(map[string]*jupyter.SessionConnection),
-		performClockTicks:                  performClockTicks,
-		eventQueue:                         event_queue.NewEventQueue(atom),
-		trainingSubmittedTimes:             hashmap.New(100),
-		sessions:                           hashmap.New(100),
-		websocket:                          websocket,
-		timescaleAdjustmentFactor:          timescaleAdjustmentFactor,
-		currentTick:                        clock.NewSimulationClock(),
-		clockTime:                          clock.NewSimulationClock(),
-		onCriticalErrorOccurred:            callbackProvider.HandleCriticalWorkloadError,
-		onNonCriticalErrorOccurred:         callbackProvider.HandleWorkloadError,
-		notifyCallback:                     callbackProvider.SendNotification,
-		refreshClusterStatistics:           callbackProvider.RefreshAndClearClusterStatistics,
-		getSchedulingPolicyCallback:        callbackProvider.GetSchedulingPolicy,
-		getJupyterMessageCallback:          callbackProvider.GetJupyterMessage,
-		isKernelTrainingCallback:           callbackProvider.IsKernelActivelyTraining,
-		paused:                             false,
-		Clients:                            make(map[string]*Client),
-		workloadOutputInterval:             time.Second * time.Duration(opts.WorkloadOutputIntervalSec),
-		timeCompressTrainingDurations:      opts.TimeCompressTrainingDurations,
-		workloadJobConfig:                  workloadJobConfig,
-		modelDatasetCategories:             make([]string, 0),
-		modelsByCategory:                   make(map[string][]string),
-		datasetsByCategory:                 make(map[string][]string),
-		maxClientSleepDuringInitSeconds:    opts.MaxClientSleepDuringInitSeconds,
-		workloadJsonOutputFrequency:        opts.WorkloadJsonOutputFrequency,
-		DropSessionsWithNoTrainingEvents:   opts.DropSessionsWithNoTrainings,
+		id:                                  GenerateWorkloadID(8),
+		eventChan:                           make(chan *domain.Event),
+		outputFileDirectory:                 opts.WorkloadOutputDirectory,
+		clockTrigger:                        clock.NewTrigger(),
+		opts:                                opts,
+		workloadExecutionCompleteChan:       make(chan interface{}, 1),
+		workloadEventGeneratorCompleteChan:  make(chan interface{}),
+		stopChan:                            make(chan interface{}, 1),
+		errorChan:                           make(chan error, 2),
+		misbehavingSessions:                 make(map[string]interface{}),
+		atom:                                atom,
+		trainingStartedChannels:             make(map[string]chan interface{}),
+		trainingStoppedChannels:             make(map[string]chan interface{}),
+		targetTickDuration:                  time.Second * time.Duration(opts.TraceStep),
+		targetTickDurationSeconds:           opts.TraceStep,
+		tickDurationsSecondsMovingWindow:    statistics.NewMovingStat(5),
+		tickDurationsAll:                    make([]time.Duration, 0),
+		driverTimescale:                     opts.DriverTimescale,
+		sessionConnections:                  make(map[string]*jupyter.SessionConnection),
+		performClockTicks:                   performClockTicks,
+		eventQueue:                          event_queue.NewEventQueue(atom),
+		trainingSubmittedTimes:              hashmap.New(100),
+		sessions:                            hashmap.New(100),
+		websocket:                           websocket,
+		timescaleAdjustmentFactor:           timescaleAdjustmentFactor,
+		currentTick:                         clock.NewSimulationClock(),
+		clockTime:                           clock.NewSimulationClock(),
+		onCriticalErrorOccurred:             callbackProvider.HandleCriticalWorkloadError,
+		onNonCriticalErrorOccurred:          callbackProvider.HandleWorkloadError,
+		notifyCallback:                      callbackProvider.SendNotification,
+		refreshClusterStatistics:            callbackProvider.RefreshAndClearClusterStatistics,
+		getSchedulingPolicyCallback:         callbackProvider.GetSchedulingPolicy,
+		getJupyterMessageCallback:           callbackProvider.GetJupyterMessage,
+		isKernelTrainingOrMigratingCallback: callbackProvider.IsKernelTrainingOrMigratingCallback,
+		paused:                              false,
+		Clients:                             make(map[string]*Client),
+		workloadOutputInterval:              time.Second * time.Duration(opts.WorkloadOutputIntervalSec),
+		timeCompressTrainingDurations:       opts.TimeCompressTrainingDurations,
+		workloadJobConfig:                   workloadJobConfig,
+		modelDatasetCategories:              make([]string, 0),
+		modelsByCategory:                    make(map[string][]string),
+		datasetsByCategory:                  make(map[string][]string),
+		maxClientSleepDuringInitSeconds:     opts.MaxClientSleepDuringInitSeconds,
+		workloadJsonOutputFrequency:         opts.WorkloadJsonOutputFrequency,
+		DropSessionsWithNoTrainingEvents:    opts.DropSessionsWithNoTrainings,
 	}
 
 	driver.pauseCond = sync.NewCond(&driver.pauseMutex)
@@ -1965,7 +1965,7 @@ func (d *Driver) enqueueEventsForTick(tick time.Time) error {
 				WithAtom(d.atom).
 				WithDeepLearningModel(model).
 				WithDataset(dataset).
-				WithIsKernelTrainingCallback(d.isKernelTrainingCallback).
+				WithIsKernelTrainingOrMigratingCallback(d.isKernelTrainingOrMigratingCallback).
 				WithGetJupyterMessageCallback(d.getJupyterMessageCallback).
 				WithModelDatasetCategory(category).
 				WithSchedulingPolicy(d.getSchedulingPolicy()).

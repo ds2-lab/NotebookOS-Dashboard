@@ -78,9 +78,9 @@ type CallbackProvider interface {
 	// policy name is valid.
 	GetSchedulingPolicy() (string, bool)
 
-	// IsKernelActivelyTraining is used to query whether the Cluster Gateway believes that a particular kernel is
-	// actively training or not
-	IsKernelActivelyTraining(kernelId string) (bool, error)
+	// IsKernelTrainingOrMigratingCallback is used to query whether the Cluster Gateway believes that a particular
+	// kernel is actively training or not
+	IsKernelTrainingOrMigratingCallback(kernelId string) (*proto.IsKernelTrainingOrMigratingReply, error)
 
 	// GetJupyterMessage tries to retrieve the Jupyter message of the given type and with the given ID that is
 	// associated with the given kernel.
