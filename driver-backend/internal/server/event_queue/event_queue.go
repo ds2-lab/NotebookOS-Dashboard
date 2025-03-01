@@ -184,7 +184,7 @@ func (q *EventQueue) EnqueueEvent(evt *domain.Event) {
 	evt.RecordThatEventWasEnqueued()
 
 	if evt.GetNumTimesEnqueued() > 1 {
-		q.logger.Debug("Re-enqueued event.",
+		q.logger.Debug("EventEnqueue::EnqueueEvent (re-enqueue)",
 			zap.String("event_name", evt.Name.String()),
 			zap.String("event_id", evt.ID),
 			zap.String("session_id", evt.SessionID()),
@@ -194,7 +194,7 @@ func (q *EventQueue) EnqueueEvent(evt *domain.Event) {
 			zap.Int("num_events_enqueued_for_session", sessionEventQueue.Len()),
 			zap.Int("session_event_queue_heap_index", sessionEventQueue.HeapIndex))
 	} else {
-		q.logger.Debug("Enqueued event for the first time.",
+		q.logger.Debug("EventEnqueue::EnqueueEvent (first time)",
 			zap.String("event_name", evt.Name.String()),
 			zap.String("event_id", evt.ID),
 			zap.String("session_id", evt.SessionID()),
@@ -427,7 +427,7 @@ func (q *EventQueue) Pop(threshold time.Time) *domain.Event {
 		nextEvent.SetIndex(q.lenUnsafe())
 		nextEvent.Dequeued()
 
-		q.logger.Debug(fmt.Sprintf("Returning ready event: \"%s\"", domain.ColorizeText(nextEvent.Name.String(), domain.LightGreen)),
+		q.logger.Debug(fmt.Sprintf("EventQueue::Pop returning \"%s\"", domain.ColorizeText(nextEvent.Name.String(), domain.LightGreen)),
 			zap.String("event_name", nextEvent.Name.String()),
 			zap.String("event_id", nextEvent.ID),
 			zap.Time("threshold", threshold),

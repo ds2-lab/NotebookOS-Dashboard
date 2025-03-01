@@ -534,7 +534,7 @@ func (d *Driver) SubmitEvent(evt *domain.Event) {
 		return
 	}
 
-	d.logger.Debug("Submitting session-level event.",
+	d.logger.Debug("Driver::SubmitEvent.",
 		zap.String("session_id_field", evt.SessionId),
 		zap.String("session_id", evt.SessionID()),
 		zap.String("event_name", evt.Name.String()),
@@ -1260,7 +1260,7 @@ func (d *Driver) issueClockTicks(timestamp time.Time) error {
 		timeUntilNextEvent := nextEventAtTime.Sub(currentTick)
 		numTicksTilNextEvent := int64(timeUntilNextEvent / d.targetTickDuration)
 
-		d.logger.Debug("Preparing to issue clock ticks.",
+		d.logger.Debug("Driver::issueClockTicks",
 			zap.Time("current_tick", currentTick),
 			zap.Time("target_timestamp", timestamp),
 			zap.Int64("num_ticks_to_issue", numTicksToIssue),
@@ -1270,7 +1270,7 @@ func (d *Driver) issueClockTicks(timestamp time.Time) error {
 			zap.String("workload_id", d.id),
 			zap.String("workload_name", d.workload.WorkloadName()))
 	} else {
-		d.logger.Debug("Preparing to issue clock ticks. There are no events enqueued.",
+		d.logger.Debug("Driver::issueClockTicks",
 			zap.Time("current_tick", currentTick),
 			zap.Time("target_timestamp", timestamp),
 			zap.Int64("num_ticks_to_issue", numTicksToIssue),
@@ -1290,7 +1290,7 @@ func (d *Driver) issueClockTicks(timestamp time.Time) error {
 		// Increment the clock.
 		tick, err := d.currentTick.IncrementClockBy(d.targetTickDuration)
 		if err != nil {
-			d.logger.Error("Error while incrementing clock time.",
+			d.logger.Error("Driver::issueClockTicks: error while incrementing clock time.",
 				zap.Duration("tick-duration", d.targetTickDuration),
 				zap.String("workload_id", d.id),
 				zap.String("workload_name", d.workload.WorkloadName()),
@@ -1314,7 +1314,7 @@ func (d *Driver) issueClockTicks(timestamp time.Time) error {
 		// If the workload is no longer running, then we'll just return.
 		// This can happen if the user manually stopped the workload, or if the workload encountered a critical error.
 		if !d.workload.IsInProgress() {
-			d.logger.Warn("Workload is no longer running. Aborting post-issue-clock-tick procedure early.",
+			d.logger.Warn("Driver::issueClockTicks: workload is no longer running. Aborting post-issue-clock-tick procedure early.",
 				zap.String("workload_name", d.workload.WorkloadName()),
 				zap.String("workload_id", d.workload.GetId()),
 				zap.String("workload_state", d.workload.GetState().String()))
@@ -1330,7 +1330,7 @@ func (d *Driver) issueClockTicks(timestamp time.Time) error {
 		// Verify that the issuing of the tick did not exceed the specified real-clock-time that a tick should last.
 		// TODO: Handle this more elegantly, such as by decreasing the length of subsequent ticks or something?
 		if tickRemaining < 0 {
-			d.logger.Warn("Issuing clock tick lasted too long.",
+			d.logger.Warn("Driver::issueClockTicks: issuing clock tick lasted too long.",
 				zap.Int("tick_number", tickNumber),
 				zap.Time("tick_timestamp", tick),
 				zap.Duration("time_elapsed", tickElapsedBase),
@@ -1378,13 +1378,13 @@ func (d *Driver) issueClockTicks(timestamp time.Time) error {
 		time.Sleep(time.Second * 5)
 
 		if d.workload.IsInProgress() {
-			d.logger.Error("Issued incorrect number of ticks, and workload is still running.",
+			d.logger.Error("Driver::issueClockTicks: Issued incorrect number of ticks, and workload is still running.",
 				zap.Int64("expected_ticks", numTicksToIssue),
 				zap.Int64("ticks_issued", numTicksIssued),
 				zap.String("workload_id", d.id),
 				zap.String("workload_name", d.workload.WorkloadName()))
 		} else {
-			d.logger.Warn("Issued incorrect number of ticks, but workload is no longer running, so that's probably why.",
+			d.logger.Warn("Driver::issueClockTicks: Issued incorrect number of ticks, but workload is no longer running, so that's probably why.",
 				zap.Int64("expected_ticks", numTicksToIssue),
 				zap.Int64("ticks_issued", numTicksIssued),
 				zap.String("workload_id", d.id),
@@ -1507,8 +1507,8 @@ OUTER:
 
 			// If the event occurs during this tick, then call EnqueueEvent to enqueue the event in the EventQueue.
 			if evt.Timestamp.Before(nextTick) {
-				d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" DOES occur before next tick [%v]. Enqueuing event now (timestamp=%v).",
-					evt.Name.String(), evt.ID, evt.SessionID(), nextTick, evt.Timestamp)
+				//d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" DOES occur before next tick [%v]. Enqueuing event now (timestamp=%v).",
+				//	evt.Name.String(), evt.ID, evt.SessionID(), nextTick, evt.Timestamp)
 
 				d.workload.SetNextEventTick(d.convertTimestampToTickNumber(evt.Timestamp))
 				d.workload.SetNextExpectedEventName(evt.Name)
@@ -1520,8 +1520,8 @@ OUTER:
 					d.trainingEventSubmitted = true
 				}
 			} else {
-				d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" does NOT occur before next tick [%v] (i.e., tick #%d). Will have to issue clock ticks until we get to event's timestamp of [%v] (i.e., tick #%d).",
-					evt.Name.String(), evt.ID, evt.SessionID(), nextTick, nextTick.Unix()/d.targetTickDurationSeconds, evt.Timestamp, evt.Timestamp.Unix()/d.targetTickDurationSeconds)
+				//d.sugaredLogger.Debugf("\"%s\" event \"%s\" targeting session \"%s\" does NOT occur before next tick [%v] (i.e., tick #%d). Will have to issue clock ticks until we get to event's timestamp of [%v] (i.e., tick #%d).",
+				//	evt.Name.String(), evt.ID, evt.SessionID(), nextTick, nextTick.Unix()/d.targetTickDurationSeconds, evt.Timestamp, evt.Timestamp.Unix()/d.targetTickDurationSeconds)
 
 				d.workload.SetNextEventTick(d.convertTimestampToTickNumber(evt.Timestamp))
 				d.workload.SetNextExpectedEventName(evt.Name)

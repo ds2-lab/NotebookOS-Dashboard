@@ -1388,7 +1388,7 @@ func (c *Client) doWaitForTrainingToStart(ctx context.Context, evt *domain.Event
 				{
 					trainingStartedAt := v.(int64)
 					delayMilliseconds := trainingStartedAt - c.lastTrainingSubmittedAt.UnixMilli()
-					c.logger.Debug(domain.ColorizeText("Kernel started training.", domain.Green),
+					c.logger.Debug(domain.ColorizeText("Client::doWaitForTrainingToStart: Kernel started training.", domain.Green),
 						zap.String("workload_id", c.Workload.GetId()),
 						zap.String("workload_name", c.Workload.WorkloadName()),
 						zap.String("session_id", c.SessionId),
@@ -1440,7 +1440,7 @@ func (c *Client) shouldStopWaitingForTrainingToStart(err error) bool {
 func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *domain.Event, startedHandlingAt time.Time,
 	sentRequestAt time.Time, originalTimeoutInterval time.Duration, execReqId string) (bool, int64, error) {
 
-	c.logger.Debug("Waiting for session to start training before continuing...",
+	c.logger.Debug("Client::trainingStartTimedOut: Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
@@ -1452,7 +1452,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, evt, startedHandlingAt,
 		sentRequestAt, originalTimeoutInterval, execReqId)
 	if trainingStarted {
-		c.logger.Debug("Training started.",
+		c.logger.Debug("Client::trainingStartTimedOut: Training started.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1466,7 +1466,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	}
 
 	if c.shouldStopWaitingForTrainingToStart(err) {
-		c.logger.Warn("Training did not start for a particular reason such that we should stop waiting.",
+		c.logger.Warn("Client::trainingStartTimedOut: Training did not start for a particular reason such that we should stop waiting.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1483,15 +1483,17 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	// If the kernel IS training, then we'll try to retrieve the associated "smr_lead_task" message via gRPC,
 	// in case it was dropped or otherwise delayed.
 	if isTraining {
-		trainingStarted, startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
+		trainingStarted, startedAtUnixMillis, err, _ = c.checkIfTrainingStartedViaGrpc(execReqId)
 
 		if trainingStarted {
-			c.logger.Debug("Training started.",
+			c.logger.Debug("Client::trainingStartTimedOut: Training started.",
 				zap.String("session_id", c.SessionId),
 				zap.String("workload_id", c.Workload.GetId()),
 				zap.String("workload_name", c.Workload.WorkloadName()),
 				zap.String("execute_request_msg_id", execReqId),
 				zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+				zap.Bool("is_actively_training", isTraining),
+				zap.Bool("is_actively_migrating", isMigrating),
 				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 				zap.Error(err))
 
@@ -1499,12 +1501,15 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		}
 
 		if c.shouldStopWaitingForTrainingToStart(err) {
-			c.logger.Warn("Training did not start for a particular reason such that we should stop waiting.",
+			c.logger.Warn("Client::trainingStartTimedOut: Training did not start for a particular reason such that we should stop waiting.",
 				zap.String("session_id", c.SessionId),
 				zap.String("workload_id", c.Workload.GetId()),
 				zap.String("workload_name", c.Workload.WorkloadName()),
 				zap.String("execute_request_msg_id", execReqId),
 				zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+				zap.Bool("is_actively_training", isTraining),
+				zap.Bool("is_actively_migrating", isMigrating),
+				zap.Bool("training_started", trainingStarted),
 				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 				zap.Error(err))
 
@@ -1532,12 +1537,14 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			originalTimeoutInterval, execReqId)
 
 		if trainingStarted {
-			c.logger.Debug("Training started.",
+			c.logger.Debug("Client::trainingStartTimedOut: Training started.",
 				zap.String("session_id", c.SessionId),
 				zap.String("workload_id", c.Workload.GetId()),
 				zap.String("workload_name", c.Workload.WorkloadName()),
 				zap.String("execute_request_msg_id", execReqId),
 				zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+				zap.Bool("is_actively_training", isTraining),
+				zap.Bool("is_actively_migrating", isMigrating),
 				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 				zap.Error(err))
 
@@ -1546,12 +1553,14 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		}
 
 		if c.shouldStopWaitingForTrainingToStart(err) {
-			c.logger.Warn("Training did not start for a particular reason such that we should stop waiting.",
+			c.logger.Warn("Client::trainingStartTimedOut: Training did not start for a particular reason such that we should stop waiting.",
 				zap.String("session_id", c.SessionId),
 				zap.String("workload_id", c.Workload.GetId()),
 				zap.String("workload_name", c.Workload.WorkloadName()),
 				zap.String("execute_request_msg_id", execReqId),
 				zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+				zap.Bool("is_actively_training", isTraining),
+				zap.Bool("is_actively_migrating", isMigrating),
 				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 				zap.Error(err))
 
@@ -1568,14 +1577,16 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			// After the initial timeout, we'll have been waiting long enough that we'll check even if it says that
 			// the kernel is not yet training -- though this is unlikely to succeed in that case. The gateway learns that
 			// the kernel is no longer training by receiving the "smr_lead_task" message.
-			trainingStarted, startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
+			trainingStarted, startedAtUnixMillis, err, _ = c.checkIfTrainingStartedViaGrpc(execReqId)
 			if trainingStarted {
-				c.logger.Debug("Training started.",
+				c.logger.Debug("Client::trainingStartTimedOut: Training started.",
 					zap.String("session_id", c.SessionId),
 					zap.String("workload_id", c.Workload.GetId()),
 					zap.String("workload_name", c.Workload.WorkloadName()),
 					zap.String("execute_request_msg_id", execReqId),
 					zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+					zap.Bool("is_actively_training", isTraining),
+					zap.Bool("is_actively_migrating", isMigrating),
 					zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 					zap.Error(err))
 
@@ -1583,19 +1594,21 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			}
 
 			if c.shouldStopWaitingForTrainingToStart(err) {
-				c.logger.Warn("Training did not start for a particular reason such that we should stop waiting.",
+				c.logger.Warn("Client::trainingStartTimedOut: Training did not start for a particular reason such that we should stop waiting.",
 					zap.String("session_id", c.SessionId),
 					zap.String("workload_id", c.Workload.GetId()),
 					zap.String("workload_name", c.Workload.WorkloadName()),
 					zap.String("execute_request_msg_id", execReqId),
 					zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+					zap.Bool("is_actively_training", isTraining),
+					zap.Bool("is_actively_migrating", isMigrating),
 					zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 					zap.Error(err))
 
 				return false, -1, nil
 			}
 
-			c.logger.Debug("Failed to retrieve \"smr_lead_task\" message via gRPC.",
+			c.logger.Debug("Client::trainingStartTimedOut: Failed to retrieve \"smr_lead_task\" message via gRPC.",
 				zap.String("session_id", c.SessionId),
 				zap.String("workload_id", c.Workload.GetId()),
 				zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1607,7 +1620,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 			continue
 		}
 
-		c.logger.Error("Received unexpected error while waiting for training to start.",
+		c.logger.Error("Client::trainingStartTimedOut: Received unexpected error while waiting for training to start.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1622,7 +1635,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		return false, -1, err
 	}
 
-	c.logger.Error("Completely timed out waiting for training to begin. Assuming message was lost...",
+	c.logger.Error("Client::trainingStartTimedOut: Completely timed out waiting for training to begin. Assuming message was lost...",
 		zap.String("session_id", c.SessionId),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1716,7 +1729,7 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 		var getTrainingStatusError error
 		resp, getTrainingStatusError = c.isKernelTrainingOrMigratingCallback(c.SessionId)
 		if resp == nil || getTrainingStatusError != nil {
-			c.logger.Warn("Failed to query Cluster Gateway regarding training status of kernel on 'training started' time-out.",
+			c.logger.Warn("Client::trainingStartTimedOut: Failed to query Cluster Gateway regarding training status of kernel on 'training started' time-out.",
 				zap.String("session_id", c.SessionId),
 				zap.String("workload_id", c.Workload.GetId()),
 				zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1732,7 +1745,7 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 	}
 
 	timeElapsed := time.Since(sentRequestAt)
-	c.logger.Warn(fmt.Sprintf("Have not received 'training started' notification for over %v.",
+	c.logger.Warn(fmt.Sprintf("Client::trainingStartTimedOut: Have not received 'training started' notification for over %v.",
 		time.Since(sentRequestAt)),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
@@ -2112,12 +2125,15 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 // Specifically, checkIfTrainingStartedViaGrpc attempts to retrieve the JupyterMessage that may
 // have been dropped.
 //
-// checkIfTrainingStartedViaGrpc returns an error if it is unable to resolve the status of the training. So,
-// if checkIfTrainingStartedViaGrpc returns an error, then the Client should keep waiting.
-func (c *Client) checkIfTrainingStartedViaGrpc(execReqMsgId string) (bool, int64, error) {
+// checkIfTrainingStartedViaGrpc returns two errors. The first is an error that is associated with the starting of
+// the training, like if the training couldn't be started due to there being insufficient hosts.
+//
+// The second is a gRPC error. The gRPC error should not impact the client's decision to continue waiting or stop
+// waiting for the training to start.
+func (c *Client) checkIfTrainingStartedViaGrpc(execReqMsgId string) (bool, int64, error, error) {
 	// If our callback for retrieving a Jupyter message is nil, then just return.
 	if c.getJupyterMessageCallback == nil {
-		return false, -1, fmt.Errorf("no 'get jupyter message' callback configured for client")
+		return false, -1, nil, fmt.Errorf("no 'get jupyter message' callback configured for client")
 	}
 
 	c.logger.Debug("Attempting to retrieve \"smr_lead_task\" message via gRPC, in case the ZMQ version was dropped.",
@@ -2136,7 +2152,7 @@ func (c *Client) checkIfTrainingStartedViaGrpc(execReqMsgId string) (bool, int64
 			zap.String("execute_request_msg_id", execReqMsgId),
 			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 			zap.Error(err))
-		return false, -1, err
+		return false, -1, nil, err
 	}
 
 	return c.handleTrainingStartedViaGrpc(execReqMsgId, resp)
@@ -2196,7 +2212,12 @@ func (c *Client) claimTrainingStartedNotification(jupyterMsg jupyter.KernelMessa
 	return nil
 }
 
-func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.GetJupyterMessageResponse) (bool, int64, error) {
+// handleTrainingStartedViaGrpc returns two errors. The first is an error that is associated with the starting of
+// the training, like if the training couldn't be started due to there being insufficient hosts.
+//
+// The second is a gRPC error. The gRPC error should not impact the client's decision to continue waiting or stop
+// waiting for the training to start.
+func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.GetJupyterMessageResponse) (bool, int64, error, error) {
 	jupyterMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
 	if conversionErr != nil {
 		c.logger.Error("Failed to convert \"smr_lead_task\" proto JupyterMessage to standard JupyterMessage",
@@ -2207,18 +2228,18 @@ func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.G
 			zap.String("execute_reply_message_proto", resp.String()),
 			zap.Error(conversionErr))
 
-		return true, -1, conversionErr
+		return true, -1, nil, conversionErr
 	}
 
 	// Claim ownership over handling the notification. We're "competing" with the goroutine listening
 	// for "smr_lead_task" messages sent via ZMQ/WebSockets/whatever it is that we're using.
 	err := c.claimTrainingStartedNotification(jupyterMsg, execReqMsgId, gRPC)
 	if err != nil {
-		return false, -1, err
+		return false, -1, nil, err
 	}
 
 	trainingStartedAt := c.handleTrainingStartedNotification(jupyterMsg, gRPC)
-	return true, trainingStartedAt, nil
+	return true, trainingStartedAt, nil, nil
 }
 
 // checkIfTrainingStoppedViaGrpc is called when the Client times out waiting for a training to end.
