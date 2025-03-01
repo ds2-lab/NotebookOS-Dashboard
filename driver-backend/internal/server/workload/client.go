@@ -1451,10 +1451,30 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	// Wait for the training to end.
 	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, evt, startedHandlingAt,
 		sentRequestAt, originalTimeoutInterval, execReqId)
-	if trainingStarted && err == nil {
+	if trainingStarted {
+		c.logger.Debug("Training started.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqId),
+			zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+			zap.Error(err))
+
 		// Training started. We can return.
 		return true, startedAtUnixMillis, nil
-	} else if c.shouldStopWaitingForTrainingToStart(err) {
+	}
+
+	if c.shouldStopWaitingForTrainingToStart(err) {
+		c.logger.Warn("Training did not start for a particular reason such that we should stop waiting.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqId),
+			zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+			zap.Error(err))
+
 		return false, -1, nil
 	}
 
@@ -1463,10 +1483,31 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	// If the kernel IS training, then we'll try to retrieve the associated "smr_lead_task" message via gRPC,
 	// in case it was dropped or otherwise delayed.
 	if isTraining {
-		startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
-		if startedAtUnixMillis > 0 && err == nil {
+		trainingStarted, startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
+
+		if trainingStarted {
+			c.logger.Debug("Training started.",
+				zap.String("session_id", c.SessionId),
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("execute_request_msg_id", execReqId),
+				zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+				zap.Error(err))
+
 			return true, startedAtUnixMillis, nil
-		} else if c.shouldStopWaitingForTrainingToStart(err) {
+		}
+
+		if c.shouldStopWaitingForTrainingToStart(err) {
+			c.logger.Warn("Training did not start for a particular reason such that we should stop waiting.",
+				zap.String("session_id", c.SessionId),
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("execute_request_msg_id", execReqId),
+				zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+				zap.Error(err))
+
 			return false, -1, nil
 		}
 	}
@@ -1489,27 +1530,68 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 
 		trainingStarted, startedAtUnixMillis, err = c.doWaitForTrainingToStart(ctx, evt, startedHandlingAt, sentRequestAt,
 			originalTimeoutInterval, execReqId)
-		if trainingStarted && startedAtUnixMillis > 0 && err == nil {
+
+		if trainingStarted {
+			c.logger.Debug("Training started.",
+				zap.String("session_id", c.SessionId),
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("execute_request_msg_id", execReqId),
+				zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+				zap.Error(err))
+
 			cancel()
 			return true, startedAtUnixMillis, nil
-		} else if c.shouldStopWaitingForTrainingToStart(err) {
+		}
+
+		if c.shouldStopWaitingForTrainingToStart(err) {
+			c.logger.Warn("Training did not start for a particular reason such that we should stop waiting.",
+				zap.String("session_id", c.SessionId),
+				zap.String("workload_id", c.Workload.GetId()),
+				zap.String("workload_name", c.Workload.WorkloadName()),
+				zap.String("execute_request_msg_id", execReqId),
+				zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+				zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+				zap.Error(err))
+
 			cancel()
 			return false, -1, nil
 		}
 
 		// Error related to timing out? Or we simply haven't started training?
 		// If so, log a message, send a notification, and keep on waiting.
-		if (!trainingStarted && err == nil) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, jupyter.ErrRequestTimedOut) {
+		if err == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, jupyter.ErrRequestTimedOut) {
 			isTraining, isMigrating = c.trainingStartTimedOut(sentRequestAt, timeoutInterval, execReqId, err)
 			cancel()
 
 			// After the initial timeout, we'll have been waiting long enough that we'll check even if it says that
 			// the kernel is not yet training -- though this is unlikely to succeed in that case. The gateway learns that
 			// the kernel is no longer training by receiving the "smr_lead_task" message.
-			startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
-			if startedAtUnixMillis > 0 && err == nil {
+			trainingStarted, startedAtUnixMillis, err = c.checkIfTrainingStartedViaGrpc(execReqId)
+			if trainingStarted {
+				c.logger.Debug("Training started.",
+					zap.String("session_id", c.SessionId),
+					zap.String("workload_id", c.Workload.GetId()),
+					zap.String("workload_name", c.Workload.WorkloadName()),
+					zap.String("execute_request_msg_id", execReqId),
+					zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+					zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+					zap.Error(err))
+
 				return true, startedAtUnixMillis, nil
-			} else if c.shouldStopWaitingForTrainingToStart(err) {
+			}
+
+			if c.shouldStopWaitingForTrainingToStart(err) {
+				c.logger.Warn("Training did not start for a particular reason such that we should stop waiting.",
+					zap.String("session_id", c.SessionId),
+					zap.String("workload_id", c.Workload.GetId()),
+					zap.String("workload_name", c.Workload.WorkloadName()),
+					zap.String("execute_request_msg_id", execReqId),
+					zap.Int64("started_at_unix_millis", startedAtUnixMillis),
+					zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
+					zap.Error(err))
+
 				return false, -1, nil
 			}
 
@@ -1524,6 +1606,16 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 
 			continue
 		}
+
+		c.logger.Error("Received unexpected error while waiting for training to start.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqId),
+			zap.Bool("is_actively_training", isTraining),
+			zap.Bool("is_actively_migrating", isMigrating),
+			zap.Duration("original_timeout_interval", originalTimeoutInterval),
+			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
 
 		// We received some other error. We'll just return it. Something is wrong, apparently.
 		cancel()
@@ -2022,10 +2114,10 @@ func (c *Client) getTimeoutInterval(evt *domain.Event) time.Duration {
 //
 // checkIfTrainingStartedViaGrpc returns an error if it is unable to resolve the status of the training. So,
 // if checkIfTrainingStartedViaGrpc returns an error, then the Client should keep waiting.
-func (c *Client) checkIfTrainingStartedViaGrpc(execReqMsgId string) (int64, error) {
+func (c *Client) checkIfTrainingStartedViaGrpc(execReqMsgId string) (bool, int64, error) {
 	// If our callback for retrieving a Jupyter message is nil, then just return.
 	if c.getJupyterMessageCallback == nil {
-		return -1, fmt.Errorf("no 'get jupyter message' callback configured for client")
+		return false, -1, fmt.Errorf("no 'get jupyter message' callback configured for client")
 	}
 
 	c.logger.Debug("Attempting to retrieve \"smr_lead_task\" message via gRPC, in case the ZMQ version was dropped.",
@@ -2044,7 +2136,7 @@ func (c *Client) checkIfTrainingStartedViaGrpc(execReqMsgId string) (int64, erro
 			zap.String("execute_request_msg_id", execReqMsgId),
 			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)),
 			zap.Error(err))
-		return -1, err
+		return false, -1, err
 	}
 
 	return c.handleTrainingStartedViaGrpc(execReqMsgId, resp)
@@ -2104,7 +2196,7 @@ func (c *Client) claimTrainingStartedNotification(jupyterMsg jupyter.KernelMessa
 	return nil
 }
 
-func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.GetJupyterMessageResponse) (int64, error) {
+func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.GetJupyterMessageResponse) (bool, int64, error) {
 	jupyterMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
 	if conversionErr != nil {
 		c.logger.Error("Failed to convert \"smr_lead_task\" proto JupyterMessage to standard JupyterMessage",
@@ -2115,18 +2207,18 @@ func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.G
 			zap.String("execute_reply_message_proto", resp.String()),
 			zap.Error(conversionErr))
 
-		return -1, conversionErr
+		return true, -1, conversionErr
 	}
 
 	// Claim ownership over handling the notification. We're "competing" with the goroutine listening
 	// for "smr_lead_task" messages sent via ZMQ/WebSockets/whatever it is that we're using.
 	err := c.claimTrainingStartedNotification(jupyterMsg, execReqMsgId, gRPC)
 	if err != nil {
-		return -1, err
+		return false, -1, err
 	}
 
 	trainingStartedAt := c.handleTrainingStartedNotification(jupyterMsg, gRPC)
-	return trainingStartedAt, nil
+	return true, trainingStartedAt, nil
 }
 
 // checkIfTrainingStoppedViaGrpc is called when the Client times out waiting for a training to end.
