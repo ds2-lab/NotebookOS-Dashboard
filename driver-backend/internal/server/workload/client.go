@@ -1529,7 +1529,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	cumulativeTimeoutInterval := originalTimeoutInterval
 	timeoutInterval := time.Second * 60
 
-	for time.Since(startedWaitingAt) < maximumAdditionalWaitTime {
+	for time.Since(startedWaitingAt) < maximumAdditionalWaitTime && c.shouldContinue() {
 		cumulativeTimeoutInterval = cumulativeTimeoutInterval + timeoutInterval
 		ctx, cancel := context.WithTimeout(context.Background(), timeoutInterval)
 
@@ -1633,6 +1633,20 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		// We received some other error. We'll just return it. Something is wrong, apparently.
 		cancel()
 		return false, -1, err
+	}
+
+	if !c.shouldContinue() {
+		c.logger.Warn("Client is exiting while waiting for training to start.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqId),
+			zap.Bool("is_actively_training", isTraining),
+			zap.Bool("is_actively_migrating", isMigrating),
+			zap.Duration("original_timeout_interval", originalTimeoutInterval),
+			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
+
+		return false, -1, errShutdownClient
 	}
 
 	c.logger.Error("Client::trainingStartTimedOut: Completely timed out waiting for training to begin. Assuming message was lost...",
@@ -2440,7 +2454,7 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 
 	// Keep waiting for a while.
 	// We'll start printing more frequent warnings.
-	for time.Since(startedWaitingAt) < maximumAdditionalWaitTime {
+	for time.Since(startedWaitingAt) < maximumAdditionalWaitTime && c.shouldContinue() {
 		cumulativeTimeoutInterval = cumulativeTimeoutInterval + timeoutInterval
 		ctx, cancel := context.WithTimeout(context.Background(), timeoutInterval)
 
@@ -2479,6 +2493,19 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 		// We received some other error. We'll just return it. Something is wrong, apparently.
 		cancel()
 		return err
+	}
+
+	if !c.shouldContinue() {
+		c.logger.Warn("Client is exiting while waiting for training to stop.",
+			zap.String("session_id", c.SessionId),
+			zap.String("workload_id", c.Workload.GetId()),
+			zap.String("workload_name", c.Workload.WorkloadName()),
+			zap.String("execute_request_msg_id", execReqMsgId),
+			zap.Bool("is_actively_training", isTraining),
+			zap.Duration("original_timeout_interval", originalTimeoutInterval),
+			zap.Duration("time_elapsed", time.Since(c.lastTrainingSubmittedAt)))
+
+		return errShutdownClient
 	}
 
 	c.logger.Error("Completely timed out waiting for training to end.",

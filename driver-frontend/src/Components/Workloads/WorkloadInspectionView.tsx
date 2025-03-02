@@ -284,7 +284,8 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                                 Training Events Completed <CodeIcon />
                             </DescriptionListTerm>
                             <DescriptionListDescription>
-                                {props.workload?.statistics.num_tasks_executed} / {props.workload?.statistics.total_num_training_events}
+                                {props.workload?.statistics.num_tasks_executed} /{' '}
+                                {props.workload?.statistics.total_num_training_events}
                             </DescriptionListDescription>
                         </DescriptionListGroup>
                         <DescriptionListGroup>
@@ -313,6 +314,12 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                             </DescriptionListTerm>
                             <DescriptionListDescription>
                                 {props.workload ? props.workload.statistics.num_failed_execution_attempts : 0}
+                            </DescriptionListDescription>
+                        </DescriptionListGroup>
+                        <DescriptionListGroup>
+                            <DescriptionListTerm>Pending Trainings</DescriptionListTerm>
+                            <DescriptionListDescription>
+                                {props.workload ? props.workload.statistics.num_outstanding_requests : 0}
                             </DescriptionListDescription>
                         </DescriptionListGroup>
                     </DescriptionList>
