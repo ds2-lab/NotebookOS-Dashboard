@@ -89,6 +89,11 @@ func GetWorkloadStateAsString(state State) string {
 	}
 }
 
+type PendingTraining struct {
+	KernelId              string `json:"kernel_id"`
+	SubmittedAtUnixMillis int64  `json:"submitted_at_unix_millis"`
+}
+
 type Workload struct {
 	logger        *zap.Logger
 	sugaredLogger *zap.SugaredLogger
@@ -116,6 +121,8 @@ type Workload struct {
 	//
 	// UnsampledSessions is a sort of counterpart to the SampledSessions field.
 	UnsampledSessions map[string]interface{} `json:"-"`
+
+	PendingTrainings map[string]*PendingTraining `json:"pending_trainings"`
 
 	// NumSessionsDiscardedDueToNoTrainingEvents is a counter that keeps track of the number
 	// of sessions that have been discarded because they do not have any training events whatsoever.
@@ -823,6 +830,12 @@ func (w *Workload) TrainingSubmitted(sessionId string, evt *domain.Event) {
 	w.Statistics.NumSubmittedTrainings += 1
 	w.Statistics.NumOutstandingExecRequests += 1
 
+	pendingTraining := &PendingTraining{
+		KernelId:              sessionId,
+		SubmittedAtUnixMillis: time.Now().UnixMilli(),
+	}
+	w.PendingTrainings[sessionId] = pendingTraining
+
 	val, ok := w.sessionsMap[sessionId]
 	if !ok {
 		w.logger.Error("Failed to find now-training session in session map.",
@@ -862,6 +875,10 @@ func (w *Workload) TrainingStarted(sessionId string, tickNumber int64) {
 
 	w.Statistics.NumActiveTrainings += 1
 	w.Statistics.NumOutstandingExecRequests -= 1
+
+	if _, ok := w.PendingTrainings[sessionId]; ok {
+		delete(w.PendingTrainings, sessionId)
+	}
 
 	w.logger.Debug("Session has started training.",
 		zap.String("session_id", sessionId),

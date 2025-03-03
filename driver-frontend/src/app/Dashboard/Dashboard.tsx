@@ -2,7 +2,7 @@ import '@patternfly/react-core/dist/styles/base.css';
 
 import { KernelListCard, KernelSpecList, NodeListCard, UtilizationCard, WorkloadCard } from '@Components/Cards/';
 import { MigrationModal } from '@Components/Modals';
-import { Grid, GridItem, PageSection, gridSpans } from '@patternfly/react-core';
+import { Grid, GridItem, gridSpans, PageSection } from '@patternfly/react-core';
 import { MigrateKernelReplica } from '@src/Components';
 
 import React, { createContext } from 'react';
@@ -44,6 +44,10 @@ const Dashboard: React.FunctionComponent = () => {
         setIsMigrateModalOpen(false);
         setMigrateReplica(null);
         setMigrateKernel(null);
+
+        console.log(
+            `Migrating replica ${targetReplica.replicaId} of kernel ${targetKernel.kernelId} to node ${targetNodeId}`,
+        );
 
         await MigrateKernelReplica(targetReplica, targetKernel, targetNodeId);
     };

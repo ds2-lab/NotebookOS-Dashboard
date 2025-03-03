@@ -49,6 +49,12 @@ export const KernelReplicaTableRow: React.FunctionComponent<KernelReplicaTableRo
             <Td dataLabel="Node" width={25} modifier="truncate">
                 {props.replica.nodeId}
             </Td>
+            <Td dataLabel="Executions" width={25} modifier="truncate">
+                {props.replica.numTimesPrimaryReplica || 0}
+            </Td>
+            <Td dataLabel="Prev. Primary Replica" width={25} modifier="truncate">
+                {props.replica.wasLastPrimaryReplica || 'no'}
+            </Td>
             <Td width={45}>
                 <OverflowMenu breakpoint="xl">
                     <OverflowMenuContent>

@@ -146,6 +146,7 @@ func (b *Builder) Build() *Workload {
 		RemoteStorageDefinition:          b.RemoteStorageDefinition,
 		SampledSessions:                  make(map[string]interface{}),
 		UnsampledSessions:                make(map[string]interface{}),
+		PendingTrainings:                 make(map[string]*PendingTraining),
 		Statistics:                       NewStatistics(b.SessionsSamplePercentage),
 		TimeCompressTrainingDurations:    b.TimeCompressTrainingDurations,
 		DropSessionsWithNoTrainingEvents: b.DropSessionsWithNoTrainingEvents,

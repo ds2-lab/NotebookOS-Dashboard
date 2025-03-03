@@ -1478,7 +1478,8 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		return false, -1, nil
 	}
 
-	isTraining, isMigrating := c.trainingStartTimedOut(sentRequestAt, originalTimeoutInterval, execReqId, err)
+	numTimeouts := 1
+	isTraining, isMigrating := c.trainingStartTimedOut(sentRequestAt, originalTimeoutInterval, execReqId, numTimeouts, err)
 
 	// If the kernel IS training, then we'll try to retrieve the associated "smr_lead_task" message via gRPC,
 	// in case it was dropped or otherwise delayed.
@@ -1571,7 +1572,8 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		// Error related to timing out? Or we simply haven't started training?
 		// If so, log a message, send a notification, and keep on waiting.
 		if err == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, jupyter.ErrRequestTimedOut) {
-			isTraining, isMigrating = c.trainingStartTimedOut(sentRequestAt, timeoutInterval, execReqId, err)
+			numTimeouts += 1
+			isTraining, isMigrating = c.trainingStartTimedOut(sentRequestAt, timeoutInterval, execReqId, numTimeouts, err)
 			cancel()
 
 			// After the initial timeout, we'll have been waiting long enough that we'll check even if it says that
@@ -1734,7 +1736,9 @@ func (c *Client) trainingStoppedTimedOut(sentRequestAt time.Time, timeoutInterva
 // trainingStartTimedOut returns a tuple where the first element is a flag indicating whether the kernel is presently
 // training based on our result of querying the cluster gateway directly for this information, and the second element
 // is a flag indicating whether the kernel is actively migrating.
-func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration, executeRequestId string, err error) (bool, bool) {
+func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval time.Duration, executeRequestId string,
+	numTimeouts int, err error) (bool, bool) {
+
 	var (
 		resp                    *proto.IsKernelTrainingOrMigratingReply
 		isTraining, isMigrating bool
@@ -1759,8 +1763,8 @@ func (c *Client) trainingStartTimedOut(sentRequestAt time.Time, timeoutInterval 
 	}
 
 	timeElapsed := time.Since(sentRequestAt)
-	c.logger.Warn(fmt.Sprintf("Client::trainingStartTimedOut: Have not received 'training started' notification for over %v.",
-		time.Since(sentRequestAt)),
+	c.logger.Warn(fmt.Sprintf("Client::trainingStartTimedOut: Have not received 'training started' notification for over %v (%d).",
+		time.Since(sentRequestAt), numTimeouts),
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),

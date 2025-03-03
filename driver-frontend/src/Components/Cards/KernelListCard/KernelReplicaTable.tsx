@@ -2,7 +2,7 @@ import { KernelReplicaTableRow } from '@Cards/KernelListCard/KernelReplicaTableR
 import { DistributedJupyterKernel, JupyterKernelReplica } from '@Data/Kernel';
 import { Skeleton } from '@patternfly/react-core';
 
-import { BundleIcon, VirtualMachineIcon } from '@patternfly/react-icons';
+import { BundleIcon, CodeIcon, CubeIcon, VirtualMachineIcon } from '@patternfly/react-icons';
 import { Table, Tbody, Td, Th, Thead, Tr } from '@patternfly/react-table';
 import React from 'react';
 
@@ -30,6 +30,12 @@ export const KernelReplicaTable: React.FunctionComponent<KernelReplicaTableProps
                 <Td dataLabel="Node" width={25} modifier="truncate">
                     <Skeleton width="100%" />
                 </Td>
+                <Td dataLabel="Primary Replica" width={25} modifier="truncate">
+                    <Skeleton width="100%" />
+                </Td>
+                <Td dataLabel="Was Last Primary Replica" width={25} modifier="truncate">
+                    <Skeleton width="100%" />
+                </Td>
                 <Td width={45} />
             </Tr>
         );
@@ -47,6 +53,14 @@ export const KernelReplicaTable: React.FunctionComponent<KernelReplicaTableProps
                     <Th aria-label={'kernel-node'}>
                         <VirtualMachineIcon />
                         {' Node'}
+                    </Th>
+                    <Th aria-label={'kernel-replica-num-executions'}>
+                        <CodeIcon />
+                        {' Executions'}
+                    </Th>
+                    <Th aria-label={'kernel-node'}>
+                        <CubeIcon />
+                        {' Prev. Primary Replica'}
                     </Th>
                     <Th aria-label={'blank'} />
                 </Tr>
