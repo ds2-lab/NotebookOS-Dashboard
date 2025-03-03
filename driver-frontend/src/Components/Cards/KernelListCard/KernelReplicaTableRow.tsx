@@ -50,10 +50,10 @@ export const KernelReplicaTableRow: React.FunctionComponent<KernelReplicaTableRo
                 {props.replica.nodeId}
             </Td>
             <Td dataLabel="Executions" width={25} modifier="truncate">
-                {props.replica.numTimesPrimaryReplica || 0}
+                {props.replica.numExecutions || 0}
             </Td>
             <Td dataLabel="Prev. Primary Replica" width={25} modifier="truncate">
-                {props.replica.wasLastPrimaryReplica || 'no'}
+                {props.replica.wasLastPrimaryReplica ? '✓' : '✗'}
             </Td>
             <Td width={45}>
                 <OverflowMenu breakpoint="xl">

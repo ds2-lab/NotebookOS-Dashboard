@@ -17,7 +17,7 @@ interface JupyterKernelReplica {
     nodeId: string;
     isMigrating: boolean;
     wasLastPrimaryReplica: boolean;
-    numTimesPrimaryReplica: number;
+    numExecutions: number;
 }
 
 // The KernelSpec used within the Distributed Notebook cluster.
