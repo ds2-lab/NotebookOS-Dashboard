@@ -400,7 +400,7 @@ type Client struct {
 
 	// saveSessionIoPubMessages is a boolean flag that, when true, instructs us to save and export all IO Pub messages
 	// received by each session with the workload statistics
-	saveSessionIoPubMessages bool `json:"-" csv:"-"`
+	saveSessionIoPubMessages bool
 }
 
 func (c *Client) closeLogFile() error {
@@ -1226,6 +1226,12 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 		return time.Time{}, executeRequestId, err
 	}
 
+	// Update the 'training started' map.
+	c.trainingStartedRequestMapMutex.Lock()
+	defer c.trainingStartedRequestMapMutex.Unlock()
+	var receivedSmrLeadTaskFlag atomic.Int32
+	c.trainingStartedRequestMap[executeRequestId] = &receivedSmrLeadTaskFlag
+
 	// We reset this once the training is handled, in case we have to resubmit,
 	// as resubmissions count against the delay.
 	if c.lastTrainingSubmittedAt.Equal(time.UnixMilli(0)) {
@@ -1241,12 +1247,6 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 	c.lastSubmittedExecuteRequestId = executeRequestId
 	c.outstandingExecuteRequestId = executeRequestId
 	c.trainingEndedRequestMapMutex.Unlock()
-
-	// Update the 'training started' map.
-	c.trainingStartedRequestMapMutex.Lock()
-	defer c.trainingStartedRequestMapMutex.Unlock()
-	var receivedSmrLeadTaskFlag atomic.Int32
-	c.trainingStartedRequestMap[executeRequestId] = &receivedSmrLeadTaskFlag
 
 	return sentRequestAt, executeRequestId, nil
 }
@@ -1440,7 +1440,7 @@ func (c *Client) shouldStopWaitingForTrainingToStart(err error) bool {
 func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *domain.Event, startedHandlingAt time.Time,
 	sentRequestAt time.Time, originalTimeoutInterval time.Duration, execReqId string) (bool, int64, error) {
 
-	c.logger.Debug("Client::trainingStartTimedOut: Waiting for session to start training before continuing...",
+	c.logger.Debug("Client::waitForTrainingToStart: Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
 		zap.String("workload_name", c.Workload.WorkloadName()),
 		zap.String("session_id", c.SessionId),
@@ -1452,7 +1452,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, evt, startedHandlingAt,
 		sentRequestAt, originalTimeoutInterval, execReqId)
 	if trainingStarted {
-		c.logger.Debug("Client::trainingStartTimedOut: Training started.",
+		c.logger.Debug("Client::waitForTrainingToStart: Training started.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1466,7 +1466,7 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 	}
 
 	if c.shouldStopWaitingForTrainingToStart(err) {
-		c.logger.Warn("Client::trainingStartTimedOut: Training did not start for a particular reason such that we should stop waiting.",
+		c.logger.Warn("Client::waitForTrainingToStart: Training did not start for a particular reason such that we should stop waiting.",
 			zap.String("session_id", c.SessionId),
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
@@ -1822,7 +1822,7 @@ func (c *Client) HandleIOPubMessage(kernelMessage jupyter.KernelMessage) interfa
 
 	// Claim ownership over handling the notification. We're "competing" with the goroutine listening
 	// for "smr_lead_task" messages sent via ZMQ/WebSockets/whatever it is that we're using.
-	err := c.claimTrainingStartedNotification(kernelMessage, kernelMessage.GetParentHeader().MessageId, gRPC)
+	err := c.claimTrainingStartedNotification(kernelMessage, kernelMessage.GetParentHeader().MessageId, zmq)
 	if err != nil {
 		c.logger.Debug("\"smr_lead_task\" message has already been claimed. Discarding ZMQ message.",
 			zap.String("workload_id", c.Workload.GetId()),
@@ -2236,7 +2236,7 @@ func (c *Client) claimTrainingStartedNotification(jupyterMsg jupyter.KernelMessa
 // The second is a gRPC error. The gRPC error should not impact the client's decision to continue waiting or stop
 // waiting for the training to start.
 func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.GetJupyterMessageResponse) (bool, int64, error, error) {
-	jupyterMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
+	smrLeadTaskMsg, conversionErr := proto_utilities.ProtoToJupyterMessage(resp.Message)
 	if conversionErr != nil {
 		c.logger.Error("Failed to convert \"smr_lead_task\" proto JupyterMessage to standard JupyterMessage",
 			zap.String("session_id", c.SessionId),
@@ -2251,12 +2251,12 @@ func (c *Client) handleTrainingStartedViaGrpc(execReqMsgId string, resp *proto.G
 
 	// Claim ownership over handling the notification. We're "competing" with the goroutine listening
 	// for "smr_lead_task" messages sent via ZMQ/WebSockets/whatever it is that we're using.
-	err := c.claimTrainingStartedNotification(jupyterMsg, execReqMsgId, gRPC)
+	err := c.claimTrainingStartedNotification(smrLeadTaskMsg, execReqMsgId, gRPC)
 	if err != nil {
 		return false, -1, nil, err
 	}
 
-	trainingStartedAt := c.handleTrainingStartedNotification(jupyterMsg, gRPC)
+	trainingStartedAt := c.handleTrainingStartedNotification(smrLeadTaskMsg, gRPC)
 	return true, trainingStartedAt, nil, nil
 }
 

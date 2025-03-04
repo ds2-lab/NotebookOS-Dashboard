@@ -187,6 +187,7 @@ func (h *ClusterDashboardHandler) HandleConnectionError() {
 	go func() {
 		gid := goid.Get()
 		h.sugaredLogger.Debug("Handling connection error: attempting to reconnect to Cluster Gateway.", zap.Int64("gid", gid))
+
 		st := time.Now()
 		err := h.setupRpcResources(h.gatewayAddress)
 		if err != nil {
