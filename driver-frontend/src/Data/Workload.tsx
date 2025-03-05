@@ -207,7 +207,13 @@ interface Workload {
     remote_storage_definition: RemoteStorageDefinition;
     statistics: WorkloadStatistics;
     workload_preset_name: string;
+    pending_trainings: Map<string, PendingTraining>;
     workload_preset_key: string;
+}
+
+export interface PendingTraining {
+  kernel_id: string;
+  submitted_at_unix_millis: number;
 }
 
 export function IsPaused(workload: Workload) {

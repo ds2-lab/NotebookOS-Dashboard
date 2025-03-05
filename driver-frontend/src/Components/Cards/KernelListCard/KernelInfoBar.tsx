@@ -112,7 +112,7 @@ export const KernelInfoIcons: React.FunctionComponent<IKernelInfoIconsProps> = (
 
     return (
         <Flex className="kernel-list-stat-icons" spaceItems={{ default: props.iconSpacingOverride || 'spaceItemsLg' }}>
-            {getIconAndLabel(<CubesIcon />, props.kernel ? props.kernel.numReplicas : 'TBD')}
+            {getIconAndLabel(<CubesIcon />, props.kernel ? props.kernel.numReplicas || 0 : 'TBD')}
             {getIconAndLabel(
                 props.kernel ? kernelStatusIcons[props.kernel.aggregateBusyStatus] : kernelStatusIcons['starting'],
                 props.kernel ? props.kernel.aggregateBusyStatus : 'starting',

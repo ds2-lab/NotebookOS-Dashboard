@@ -322,6 +322,12 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                                 {props.workload ? props.workload.statistics.num_outstanding_requests : 0}
                             </DescriptionListDescription>
                         </DescriptionListGroup>
+                        <DescriptionListGroup>
+                            <DescriptionListTerm>Pending Trainings v2</DescriptionListTerm>
+                            <DescriptionListDescription>
+                                {props.workload ? props.workload.pending_trainings.size || "N/A" : 0}
+                            </DescriptionListDescription>
+                        </DescriptionListGroup>
                     </DescriptionList>
                 </FlexItem>
             </Flex>

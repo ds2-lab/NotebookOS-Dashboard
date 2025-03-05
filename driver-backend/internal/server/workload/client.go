@@ -1829,7 +1829,8 @@ func (c *Client) HandleIOPubMessage(kernelMessage jupyter.KernelMessage) interfa
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
 			zap.String("jupyter_message_id", kernelMessage.GetHeader().MessageId),
-			zap.String("parent_jupyter_message_id", kernelMessage.GetParentHeader().MessageId))
+			zap.String("parent_jupyter_message_id", kernelMessage.GetParentHeader().MessageId),
+			zap.Error(err))
 
 		return kernelMessage
 	}
@@ -2176,9 +2177,9 @@ func (c *Client) checkIfTrainingStartedViaGrpc(execReqMsgId string) (bool, int64
 	return c.handleTrainingStartedViaGrpc(execReqMsgId, resp)
 }
 
-func (c *Client) claimTrainingStartedNotification(jupyterMsg jupyter.KernelMessage, execReqMsgId string, source requestSource) error {
+func (c *Client) claimTrainingStartedNotification(smrLeadTaskMsg jupyter.KernelMessage, execReqMsgId string, source requestSource) error {
 	c.trainingStartedRequestMapMutex.Lock()
-	receivedFlag, loaded := c.trainingStartedRequestMap[jupyterMsg.GetParentHeader().MessageId]
+	receivedFlag, loaded := c.trainingStartedRequestMap[execReqMsgId]
 	c.trainingStartedRequestMapMutex.Unlock()
 
 	if !loaded {
@@ -2186,15 +2187,15 @@ func (c *Client) claimTrainingStartedNotification(jupyterMsg jupyter.KernelMessa
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
-			zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
+			zap.String("execute_request_id", smrLeadTaskMsg.GetHeader().MessageId),
 			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
 			zap.String("request_source", source.String()),
-			zap.String("smr_lead_task_message", jupyterMsg.String()))
+			zap.String("smr_lead_task_message", smrLeadTaskMsg.String()))
 
 		title := fmt.Sprintf("No Request Flag for \"smr_lead_task\" Message \"%s\" For Execution \"%s\" Targeting Kernel \"%s\"",
-			jupyterMsg.GetHeader().MessageId, jupyterMsg.GetParentHeader().MessageId, c.SessionId)
+			smrLeadTaskMsg.GetHeader().MessageId, execReqMsgId, c.SessionId)
 		message := fmt.Sprintf("Cannot properly handle 'training-started' event after receiving \"smr_lead_task\" message \"%s\" via %s.",
-			jupyterMsg.GetHeader().MessageId, source.String())
+			smrLeadTaskMsg.GetHeader().MessageId, source.String())
 
 		c.notifyCallback(&proto.Notification{
 			Id:               uuid.NewString(),
@@ -2219,10 +2220,10 @@ func (c *Client) claimTrainingStartedNotification(jupyterMsg jupyter.KernelMessa
 			zap.String("workload_id", c.Workload.GetId()),
 			zap.String("workload_name", c.Workload.WorkloadName()),
 			zap.String("session_id", c.SessionId),
-			zap.String("execute_request_id", jupyterMsg.GetHeader().MessageId),
+			zap.String("execute_request_id", smrLeadTaskMsg.GetHeader().MessageId),
 			zap.String("outstanding_execute_request_id", c.outstandingExecuteRequestId),
 			zap.String("request_source", source.String()),
-			zap.String("smr_lead_task_message", jupyterMsg.String()))
+			zap.String("smr_lead_task_message", smrLeadTaskMsg.String()))
 
 		return fmt.Errorf("failed to flip 'received' flag for \"smr_lead_task\"")
 	}
