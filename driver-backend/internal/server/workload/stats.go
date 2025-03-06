@@ -59,6 +59,11 @@ type Statistics struct {
 	TotalExecuteRequestEndToEndLatencyMillis   int64   `json:"total_execute_request_end_to_end_latency_millis" csv:"total_execute_request_end_to_end_latency_millis"`
 	TotalExecuteRequestEndToEndLatenciesMillis []int64 `json:"total_execute_request_end_to_end_latencies_millis" csv:"-"`
 
+	// CumulativeExecutionTime is the sum of the time spent actually executing user-submitted code by kernels.
+	CumulativeExecutionTime int64 `json:"cumulative_execution_time" csv:"cumulative_execution_time"`
+	// AllExecutionTimes is each individual time spent executing user-submitted code by a kernel.
+	AllExecutionTimes []int64 `json:"all_execution_times" csv:"-"`
+
 	NumTimesSessionDelayedResourceContention int `json:"num_times_session_delayed_resource_contention" csv:"num_times_session_delayed_resource_contention"`
 
 	// CumulativeTrainingTimeTicks is the cumulative, aggregate time spent training (in ticks),
@@ -108,6 +113,7 @@ func NewStatistics(sessionsSamplePercentage float64) *Statistics {
 		JupyterExecRequestTimesMillis:              make([]int64, 0),
 		TotalReplyLatenciesMillis:                  make([]int64, 0),
 		TotalExecuteRequestEndToEndLatenciesMillis: make([]int64, 0),
+		AllExecutionTimes:                          make([]int64, 0),
 		EventCounts:                                make(map[string]int),
 		SessionsSamplePercentage:                   sessionsSamplePercentage,
 		TimeElapsed:                                time.Duration(0),
@@ -282,6 +288,13 @@ type SerializableClusterStatistics struct {
 
 	NumSuccessfulMigrations int32 `json:"num_successful_migrations" csv:"num_successful_migrations"`
 
+	CumulativeCommitExecutionCompleteNotificationMilliseconds float64 `json:"cumulative_commit_execution_complete_notification_milliseconds" csv:"cumulative_commit_execution_complete_notification_milliseconds"`
+	CumulativeSynchronizeUpdatedStateMilliseconds             float64 `json:"cumulative_synchronize_updated_state_milliseconds" csv:"cumulative_synchronize_updated_state_milliseconds"`
+
+	LargeObjectWriteLatenciesMillis []float64 `json:"large_object_write_latencies_millis" csv:"-"`
+	LargeObjectReadLatenciesMillis  []float64 `json:"large_object_read_latencies_millis" csv:"-"`
+	SynchronizationTimes            []float64 `json:"synchronization_times" csv:"-"`
+
 	////////////////////////
 	// Dynamic Scheduling //
 	////////////////////////
@@ -390,10 +403,19 @@ func (stats *SerializableClusterStatistics) ToClusterStatistics() *ClusterStatis
 		SubscriptionRatio:                                    stats.SubscriptionRatio,
 		TotalNumCellsReplayed:                                stats.TotalNumCellsReplayed,
 		TotalNumReplays:                                      stats.TotalNumReplays,
+		CumulativeCommitExecutionCompleteNotificationMilliseconds: stats.CumulativeCommitExecutionCompleteNotificationMilliseconds,
+		CumulativeSynchronizeUpdatedStateMilliseconds:             stats.CumulativeSynchronizeUpdatedStateMilliseconds,
+		LargeObjectWriteLatenciesMillis:                           stats.LargeObjectWriteLatenciesMillis,
+		LargeObjectReadLatenciesMillis:                            stats.LargeObjectReadLatenciesMillis,
+		SynchronizationTimes:                                      stats.SynchronizationTimes,
 	}
 }
 
 type ClusterStatistics struct {
+	LargeObjectWriteLatenciesMillis []float64 `json:"large_object_write_latencies_millis" csv:"-"`
+	LargeObjectReadLatenciesMillis  []float64 `json:"large_object_read_latencies_millis" csv:"-"`
+	SynchronizationTimes            []float64 `json:"synchronization_times" csv:"-"`
+
 	///////////
 	// Hosts //
 	///////////
@@ -646,6 +668,9 @@ type ClusterStatistics struct {
 	//////////////
 
 	CompletedTrainings int32 `csv:"CompletedTrainings" json:"CompletedTrainings"`
+
+	CumulativeCommitExecutionCompleteNotificationMilliseconds float64 `json:"cumulative_commit_execution_complete_notification_milliseconds" csv:"cumulative_commit_execution_complete_notification_milliseconds"`
+	CumulativeSynchronizeUpdatedStateMilliseconds             float64 `json:"cumulative_synchronize_updated_state_milliseconds" csv:"cumulative_synchronize_updated_state_milliseconds"`
 }
 
 func NewClusterStatistics() *ClusterStatistics {
@@ -654,43 +679,51 @@ func NewClusterStatistics() *ClusterStatistics {
 		AggregateSessionLifetimesSec:        make([]float64, 0),
 		ClusterEvents:                       make([]*ClusterEvent, 0),
 		ExecuteRequestTraces:                make([]*proto.RequestTrace, 0),
+		LargeObjectReadLatenciesMillis:      make([]float64, 0),
+		LargeObjectWriteLatenciesMillis:     make([]float64, 0),
+		SynchronizationTimes:                make([]float64, 0),
 	}
 }
 
 func (stats *ClusterStatistics) ConvertToSerializable() *SerializableClusterStatistics {
 	return &SerializableClusterStatistics{
-		Hosts:                                          stats.Hosts,
-		NumDisabledHosts:                               stats.NumDisabledHosts,
-		NumEmptyHosts:                                  stats.NumEmptyHosts,
-		CumulativeHostActiveTime:                       stats.CumulativeHostActiveTime,
-		CumulativeHostIdleTime:                         stats.CumulativeHostIdleTime,
-		AggregateHostLifetime:                          stats.AggregateHostLifetime,
-		AggregateHostLifetimeOfRunningHosts:            stats.AggregateHostLifetimeOfRunningHosts,
-		CumulativeNumHostsProvisioned:                  stats.CumulativeNumHostsProvisioned,
-		CumulativeNumHostsReleased:                     stats.CumulativeNumHostsReleased,
-		CumulativeTimeProvisioningHosts:                stats.CumulativeTimeProvisioningHosts,
-		NumActiveScaleOutEvents:                        stats.NumActiveScaleOutEvents,
-		NumSuccessfulScaleOutEvents:                    stats.NumSuccessfulScaleOutEvents,
-		NumFailedScaleOutEvents:                        stats.NumFailedScaleOutEvents,
-		NumActiveScaleInEvents:                         stats.NumActiveScaleInEvents,
-		NumSuccessfulScaleInEvents:                     stats.NumSuccessfulScaleInEvents,
-		NumFailedScaleInEvents:                         stats.NumFailedScaleInEvents,
-		NumJupyterMessagesReceivedByClusterGateway:     stats.NumJupyterMessagesReceivedByClusterGateway,
-		NumJupyterRepliesSentByClusterGateway:          stats.NumJupyterRepliesSentByClusterGateway,
-		CumulativeRequestProcessingTimeClusterGateway:  stats.CumulativeRequestProcessingTimeClusterGateway,
-		CumulativeRequestProcessingTimeLocalDaemon:     stats.CumulativeRequestProcessingTimeLocalDaemon,
-		CumulativeRequestProcessingTimeKernel:          stats.CumulativeRequestProcessingTimeKernel,
-		CumulativeResponseProcessingTimeClusterGateway: stats.CumulativeResponseProcessingTimeClusterGateway,
-		CumulativeResponseProcessingTimeLocalDaemon:    stats.CumulativeResponseProcessingTimeLocalDaemon,
-		CumulativeCudaInitMicroseconds:                 stats.CumulativeCudaInitMicroseconds,
-		NumCudaRuntimesInitialized:                     stats.NumCudaRuntimesInitialized,
-		CumulativeTimeDownloadTrainingDataMicroseconds: stats.CumulativeTimeDownloadTrainingDataMicroseconds,
-		NumTimesDownloadTrainingDataMicroseconds:       stats.NumTimesDownloadTrainingDataMicroseconds,
-		CumulativeTokenizeDatasetMicroseconds:          stats.CumulativeTokenizeDatasetMicroseconds,
-		NumTimesTokenizeDatasetMicroseconds:            stats.NumTimesTokenizeDatasetMicroseconds,
-		ClusterEvents:                                  stats.ClusterEvents,
-		ExecuteRequestTraces:                           stats.ExecuteRequestTraces,
-		AggregateSessionLifetimesSec:                   stats.AggregateSessionLifetimesSec,
-		JupyterTrainingStartLatenciesMillis:            stats.JupyterTrainingStartLatenciesMillis,
+		Hosts:                                                     stats.Hosts,
+		NumDisabledHosts:                                          stats.NumDisabledHosts,
+		NumEmptyHosts:                                             stats.NumEmptyHosts,
+		CumulativeHostActiveTime:                                  stats.CumulativeHostActiveTime,
+		CumulativeHostIdleTime:                                    stats.CumulativeHostIdleTime,
+		AggregateHostLifetime:                                     stats.AggregateHostLifetime,
+		AggregateHostLifetimeOfRunningHosts:                       stats.AggregateHostLifetimeOfRunningHosts,
+		CumulativeNumHostsProvisioned:                             stats.CumulativeNumHostsProvisioned,
+		CumulativeNumHostsReleased:                                stats.CumulativeNumHostsReleased,
+		CumulativeTimeProvisioningHosts:                           stats.CumulativeTimeProvisioningHosts,
+		NumActiveScaleOutEvents:                                   stats.NumActiveScaleOutEvents,
+		NumSuccessfulScaleOutEvents:                               stats.NumSuccessfulScaleOutEvents,
+		NumFailedScaleOutEvents:                                   stats.NumFailedScaleOutEvents,
+		NumActiveScaleInEvents:                                    stats.NumActiveScaleInEvents,
+		NumSuccessfulScaleInEvents:                                stats.NumSuccessfulScaleInEvents,
+		NumFailedScaleInEvents:                                    stats.NumFailedScaleInEvents,
+		NumJupyterMessagesReceivedByClusterGateway:                stats.NumJupyterMessagesReceivedByClusterGateway,
+		NumJupyterRepliesSentByClusterGateway:                     stats.NumJupyterRepliesSentByClusterGateway,
+		CumulativeRequestProcessingTimeClusterGateway:             stats.CumulativeRequestProcessingTimeClusterGateway,
+		CumulativeRequestProcessingTimeLocalDaemon:                stats.CumulativeRequestProcessingTimeLocalDaemon,
+		CumulativeRequestProcessingTimeKernel:                     stats.CumulativeRequestProcessingTimeKernel,
+		CumulativeResponseProcessingTimeClusterGateway:            stats.CumulativeResponseProcessingTimeClusterGateway,
+		CumulativeResponseProcessingTimeLocalDaemon:               stats.CumulativeResponseProcessingTimeLocalDaemon,
+		CumulativeCudaInitMicroseconds:                            stats.CumulativeCudaInitMicroseconds,
+		NumCudaRuntimesInitialized:                                stats.NumCudaRuntimesInitialized,
+		CumulativeTimeDownloadTrainingDataMicroseconds:            stats.CumulativeTimeDownloadTrainingDataMicroseconds,
+		NumTimesDownloadTrainingDataMicroseconds:                  stats.NumTimesDownloadTrainingDataMicroseconds,
+		CumulativeTokenizeDatasetMicroseconds:                     stats.CumulativeTokenizeDatasetMicroseconds,
+		NumTimesTokenizeDatasetMicroseconds:                       stats.NumTimesTokenizeDatasetMicroseconds,
+		ClusterEvents:                                             stats.ClusterEvents,
+		ExecuteRequestTraces:                                      stats.ExecuteRequestTraces,
+		AggregateSessionLifetimesSec:                              stats.AggregateSessionLifetimesSec,
+		JupyterTrainingStartLatenciesMillis:                       stats.JupyterTrainingStartLatenciesMillis,
+		CumulativeCommitExecutionCompleteNotificationMilliseconds: stats.CumulativeCommitExecutionCompleteNotificationMilliseconds,
+		CumulativeSynchronizeUpdatedStateMilliseconds:             stats.CumulativeSynchronizeUpdatedStateMilliseconds,
+		LargeObjectWriteLatenciesMillis:                           stats.LargeObjectWriteLatenciesMillis,
+		LargeObjectReadLatenciesMillis:                            stats.LargeObjectReadLatenciesMillis,
+		SynchronizationTimes:                                      stats.SynchronizationTimes,
 	}
 }

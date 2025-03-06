@@ -1155,7 +1155,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 
 		trainingEventsHandled := c.trainingEventsHandled.Add(1)
 
-		sleepInterval := (time.Second * 3) + (time.Millisecond * time.Duration(rand.Intn(2000)))
+		sleepInterval := (time.Second * 3) + (time.Millisecond * time.Duration(rand.Intn(3000)))
 
 		c.logger.Debug(fmt.Sprintf("Handled \"%s\" event.", domain.ColorizeText("training-stopped", domain.LightGreen)),
 			zap.String("session_id", c.SessionId),
@@ -2623,6 +2623,9 @@ func (c *Client) handleTrainingEnded(event *domain.Event, notification *training
 
 		stats.TotalExecuteRequestEndToEndLatencyMillis += e2eLatency.Milliseconds()
 		stats.TotalExecuteRequestEndToEndLatenciesMillis = append(stats.TotalExecuteRequestEndToEndLatenciesMillis, e2eLatency.Milliseconds())
+
+		stats.AllExecutionTimes = append(stats.AllExecutionTimes, execTimeMillis)
+		stats.CumulativeExecutionTime += execTimeMillis
 	})
 
 	c.Workload.TrainingStopped(c.SessionId, event, c.convertCurrentTickTimestampToTickNumber())
