@@ -174,6 +174,7 @@ type SerializableClusterStatistics struct {
 	Migrated                          int32   `csv:"Migrated" json:"Migrated"`
 	JupyterTrainingStartLatencyMillis float64 `json:"jupyter_training_start_latency_millis" csv:"jupyter_training_start_latency_millis"`
 	NumFailedMigrations               int32   `json:"num_failed_migrations" csv:"num_failed_migrations"`
+	NumActiveMigrations               int32   `json:"num_active_migrations" csv:"num_active_migrations"`
 	OnDemandContainer                 int32   `csv:"OnDemandContainers" json:"OnDemandContainers"`
 	NumNonTerminatedSessions          int32   `csv:"NumNonTerminatedSessions" json:"NumNonTerminatedSessions"`
 	NumIdleSessions                   int32   `csv:"NumIdleSessions" json:"NumIdleSessions"`
@@ -366,6 +367,7 @@ func (stats *SerializableClusterStatistics) ToClusterStatistics() *ClusterStatis
 		NumDisabledHosts:                                     stats.NumDisabledHosts,
 		NumFailedMigrations:                                  stats.NumFailedMigrations,
 		NumFailedScaleInEvents:                               stats.NumFailedScaleInEvents,
+		NumActiveMigrations:                                  stats.NumActiveMigrations,
 		NumFailedScaleOutEvents:                              stats.NumFailedScaleOutEvents,
 		NumIdleSessions:                                      stats.NumIdleSessions,
 		NumJupyterMessagesReceivedByClusterGateway:           stats.NumJupyterMessagesReceivedByClusterGateway,
@@ -643,6 +645,7 @@ type ClusterStatistics struct {
 
 	NumSuccessfulMigrations int32 `json:"num_successful_migrations" csv:"num_successful_migrations"`
 	NumFailedMigrations     int32 `json:"num_failed_migrations" csv:"num_failed_migrations"`
+	NumActiveMigrations     int32 `json:"num_active_migrations" csv:"num_active_migrations"`
 
 	// The amount of time that Sessions have spent idling throughout the entire simulation.
 	CumulativeSessionIdleTime float64 `csv:"CumulativeSessionIdleTimeSec" json:"CumulativeSessionIdleTimeSec"`
@@ -703,6 +706,7 @@ func (stats *ClusterStatistics) ConvertToSerializable() *SerializableClusterStat
 		NumActiveScaleInEvents:                                    stats.NumActiveScaleInEvents,
 		NumSuccessfulScaleInEvents:                                stats.NumSuccessfulScaleInEvents,
 		NumFailedScaleInEvents:                                    stats.NumFailedScaleInEvents,
+		NumActiveMigrations:                                       stats.NumActiveMigrations,
 		NumJupyterMessagesReceivedByClusterGateway:                stats.NumJupyterMessagesReceivedByClusterGateway,
 		NumJupyterRepliesSentByClusterGateway:                     stats.NumJupyterRepliesSentByClusterGateway,
 		CumulativeRequestProcessingTimeClusterGateway:             stats.CumulativeRequestProcessingTimeClusterGateway,

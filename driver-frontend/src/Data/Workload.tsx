@@ -121,6 +121,7 @@ interface WorkloadStatistics {
     next_event_expected_tick: number;
     next_expected_event_name: string;
     next_expected_event_target: string;
+    num_active_migrations: number;
     num_active_sessions: number;
     num_active_trainings: number;
     num_discarded_sessions: number;
@@ -212,8 +213,8 @@ interface Workload {
 }
 
 export interface PendingTraining {
-  kernel_id: string;
-  submitted_at_unix_millis: number;
+    kernel_id: string;
+    submitted_at_unix_millis: number;
 }
 
 export function IsPaused(workload: Workload) {

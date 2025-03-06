@@ -323,9 +323,9 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                             </DescriptionListDescription>
                         </DescriptionListGroup>
                         <DescriptionListGroup>
-                            <DescriptionListTerm>Pending Trainings v2</DescriptionListTerm>
+                            <DescriptionListTerm>Active Migrations</DescriptionListTerm>
                             <DescriptionListDescription>
-                                {props.workload ? props.workload.pending_trainings.size || "N/A" : 0}
+                                {props.workload ? props.workload.statistics.num_active_migrations || 'N/A' : 0}
                             </DescriptionListDescription>
                         </DescriptionListGroup>
                     </DescriptionList>
