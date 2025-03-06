@@ -122,6 +122,8 @@ interface WorkloadStatistics {
     next_expected_event_name: string;
     next_expected_event_target: string;
     num_active_migrations: number;
+    num_successful_migrations: number;
+    num_failed_migrations: number;
     num_active_sessions: number;
     num_active_trainings: number;
     num_discarded_sessions: number;

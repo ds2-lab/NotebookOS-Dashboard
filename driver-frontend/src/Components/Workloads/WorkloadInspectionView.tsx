@@ -156,6 +156,17 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
         return props.workload?.statistics.time_elapsed_str;
     };
 
+    const getSuccessfulMigrationsDisplay = (): string => {
+        if (!props.workload || !props.workload.statistics) {
+            return 'N/A';
+        }
+
+        const totalNumMigrations: number =
+            props.workload.statistics.num_successful_migrations + props.workload.statistics.num_failed_migrations;
+
+        return `${props.workload.statistics.num_successful_migrations}/${totalNumMigrations}`;
+    };
+
     const randomizeSessionStates = () => {
         const sessions: Session[] = props.workload.sessions;
         const sessionStates: string[] = [
@@ -327,6 +338,10 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                             <DescriptionListDescription>
                                 {props.workload ? props.workload.statistics.num_active_migrations || 'N/A' : 0}
                             </DescriptionListDescription>
+                        </DescriptionListGroup>
+                        <DescriptionListGroup>
+                            <DescriptionListTerm>Successful Migrations</DescriptionListTerm>
+                            <DescriptionListDescription>{getSuccessfulMigrationsDisplay()}</DescriptionListDescription>
                         </DescriptionListGroup>
                     </DescriptionList>
                 </FlexItem>
