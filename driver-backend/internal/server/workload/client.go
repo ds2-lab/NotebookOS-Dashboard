@@ -398,6 +398,9 @@ type Client struct {
 	trainingStartedRequestMap           map[string]*atomic.Int32               // trainingStartedRequestMap provides an atomic way to keep track of if we've received a particular "smr_lead_task" message or not.
 	trainingStartedRequestMapMutex      sync.Mutex                             // trainingStartedRequestMapMutex provides atomic access when getting or setting values from/in the trainingStartedRequestMap field.
 
+	cancelWaitForTrainingToStartContext context.CancelFunc
+	cancelWaitForTrainingToEndContext   context.CancelFunc
+
 	// saveSessionIoPubMessages is a boolean flag that, when true, instructs us to save and export all IO Pub messages
 	// received by each session with the workload statistics
 	saveSessionIoPubMessages bool
@@ -530,6 +533,16 @@ func (c *Client) stop() {
 
 	// Close the log file.
 	_ = c.closeLogFile()
+
+	cancelWaitTrainingStart := c.cancelWaitForTrainingToStartContext
+	if cancelWaitTrainingStart != nil {
+		cancelWaitTrainingStart()
+	}
+
+	cancelWaitTrainingEnd := c.cancelWaitForTrainingToEndContext
+	if cancelWaitTrainingEnd != nil {
+		cancelWaitTrainingEnd()
+	}
 
 	c.running.Store(0)
 
@@ -1093,8 +1106,8 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 		WithMetadata("latency_milliseconds", time.Since(sentRequestAt).Milliseconds()).
 		WithError(err)) // Will be nil on success
 
-	trainingStarted, trainingStartedAtUnixMillis, err := c.waitForTrainingToStart(startTrainingCtx, event, startedHandlingAt,
-		sentRequestAt, startTrainingTimeoutInterval, executeRequestId)
+	trainingStarted, trainingStartedAtUnixMillis, err := c.waitForTrainingToStart(startTrainingCtx, startTrainingCancel,
+		event, startedHandlingAt, sentRequestAt, startTrainingTimeoutInterval, executeRequestId)
 	trainingStartedAt := time.UnixMilli(trainingStartedAtUnixMillis)
 
 	if !trainingStarted {
@@ -1370,8 +1383,10 @@ func (c *Client) handleExecuteRequestErred(err error, evt *domain.Event, started
 	time.Sleep(sleepInterval)
 }
 
-func (c *Client) doWaitForTrainingToStart(ctx context.Context, evt *domain.Event, startedHandlingAt time.Time,
-	sentRequestAt time.Time, timeoutInterval time.Duration, execReqId string) (bool, int64, error) {
+func (c *Client) doWaitForTrainingToStart(ctx context.Context, cancel context.CancelFunc, evt *domain.Event,
+	startedHandlingAt time.Time, sentRequestAt time.Time, timeoutInterval time.Duration, execReqId string) (bool, int64, error) {
+
+	c.cancelWaitForTrainingToStartContext = cancel
 
 	select {
 	case v := <-c.TrainingStartedChannel:
@@ -1437,8 +1452,9 @@ func (c *Client) shouldStopWaitingForTrainingToStart(err error) bool {
 //
 // waitForTrainingToStart returns a 3-tuple where the first element is a bool flag indicating whether training started,
 // the second element is the unix milliseconds timestamp at which the training began, and the third is an error.
-func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *domain.Event, startedHandlingAt time.Time,
-	sentRequestAt time.Time, originalTimeoutInterval time.Duration, execReqId string) (bool, int64, error) {
+func (c *Client) waitForTrainingToStart(initialContext context.Context, cancelInitialContext context.CancelFunc,
+	evt *domain.Event, startedHandlingAt time.Time, sentRequestAt time.Time, originalTimeoutInterval time.Duration,
+	execReqId string) (bool, int64, error) {
 
 	c.logger.Debug("Client::waitForTrainingToStart: Waiting for session to start training before continuing...",
 		zap.String("workload_id", c.Workload.GetId()),
@@ -1449,8 +1465,8 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		zap.Duration("time_elapsed", time.Since(sentRequestAt)))
 
 	// Wait for the training to end.
-	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, evt, startedHandlingAt,
-		sentRequestAt, originalTimeoutInterval, execReqId)
+	trainingStarted, startedAtUnixMillis, err := c.doWaitForTrainingToStart(initialContext, cancelInitialContext, evt,
+		startedHandlingAt, sentRequestAt, originalTimeoutInterval, execReqId)
 	if trainingStarted {
 		c.logger.Debug("Client::waitForTrainingToStart: Training started.",
 			zap.String("session_id", c.SessionId),
@@ -1534,8 +1550,8 @@ func (c *Client) waitForTrainingToStart(initialContext context.Context, evt *dom
 		cumulativeTimeoutInterval = cumulativeTimeoutInterval + timeoutInterval
 		ctx, cancel := context.WithTimeout(context.Background(), timeoutInterval)
 
-		trainingStarted, startedAtUnixMillis, err = c.doWaitForTrainingToStart(ctx, evt, startedHandlingAt, sentRequestAt,
-			originalTimeoutInterval, execReqId)
+		trainingStarted, startedAtUnixMillis, err = c.doWaitForTrainingToStart(ctx, cancel, evt, startedHandlingAt,
+			sentRequestAt, originalTimeoutInterval, execReqId)
 
 		if trainingStarted {
 			c.logger.Debug("Client::trainingStartTimedOut: Training started.",
@@ -2420,8 +2436,8 @@ func (c *Client) handleTrainingStopViaGrpc(evt *domain.Event, execReqMsgId strin
 // waitForTrainingToEnd waits for a training to begin being processed by a kernel replica.
 //
 // waitForTrainingToEnd is called by handleTrainingEvent after submitTrainingToKernel is called.
-func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domain.Event, execReqMsgId string,
-	originalTimeoutInterval time.Duration) error {
+func (c *Client) waitForTrainingToEnd(initialContext context.Context, cancelInitialContext context.CancelFunc,
+	evt *domain.Event, execReqMsgId string, originalTimeoutInterval time.Duration) error {
 
 	defer func() {
 		// Reset this value regardless of whether we successfully stop training or not.
@@ -2432,7 +2448,7 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 	maximumAdditionalWaitTime := time.Minute * 10
 
 	// Wait for the training to end.
-	err := c.doWaitForTrainingToEnd(initialContext, evt, execReqMsgId, originalTimeoutInterval)
+	err := c.doWaitForTrainingToEnd(initialContext, cancelInitialContext, evt, execReqMsgId, originalTimeoutInterval)
 	if err == nil {
 		// Training ended. We can return.
 		return nil
@@ -2464,7 +2480,7 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 		ctx, cancel := context.WithTimeout(context.Background(), timeoutInterval)
 
 		// Wait a little longer for the training to end.
-		err = c.doWaitForTrainingToEnd(ctx, evt, execReqMsgId, timeoutInterval)
+		err = c.doWaitForTrainingToEnd(ctx, cancel, evt, execReqMsgId, timeoutInterval)
 		if err == nil {
 			// Training has finally ended. We can return.
 			cancel()
@@ -2533,7 +2549,11 @@ func (c *Client) waitForTrainingToEnd(initialContext context.Context, evt *domai
 }
 
 // waitForTrainingToEnd waits until we receive an "execute_request" from the kernel.
-func (c *Client) doWaitForTrainingToEnd(ctx context.Context, event *domain.Event, execReqMsgId string, timeoutInterval time.Duration) error {
+func (c *Client) doWaitForTrainingToEnd(ctx context.Context, cancel context.CancelFunc, event *domain.Event,
+	execReqMsgId string, timeoutInterval time.Duration) error {
+
+	c.cancelWaitForTrainingToEndContext = cancel
+
 	select {
 	case v := <-c.TrainingStoppedChannel:
 		{
