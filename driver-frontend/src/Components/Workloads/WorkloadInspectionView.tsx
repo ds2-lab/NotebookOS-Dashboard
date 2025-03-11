@@ -1,3 +1,4 @@
+import { PendingRequestsTable } from '@Components/Tables/PendingRequestTable';
 import {
     Badge,
     Button,
@@ -17,6 +18,7 @@ import {
     CodeIcon,
     CubeIcon,
     DiceIcon,
+    HourglassEndIcon,
     MonitoringIcon,
     ServerIcon,
     StopwatchIcon,
@@ -158,6 +160,10 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
 
     const getSuccessfulMigrationsDisplay = (): string => {
         if (!props.workload || !props.workload.statistics) {
+            return 'N/A';
+        }
+
+        if (!props.workload.statistics.num_successful_migrations || !props.workload.statistics.num_failed_migrations) {
             return 'N/A';
         }
 
@@ -347,6 +353,17 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                 </FlexItem>
             </Flex>
             <FlexItem>
+                <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsNone' }}>
+                    <FlexItem align={{ default: 'alignLeft' }}>
+                        <HourglassEndIcon /> {<strong>Pending Training Submissions </strong>}{' '}
+                        {`(${props.workload?.pending_trainings?.size || '0'})`}
+                    </FlexItem>
+                    <FlexItem>
+                        <PendingRequestsTable pending_trainings={props.workload?.pending_trainings} />
+                    </FlexItem>
+                </Flex>
+            </FlexItem>
+            <FlexItem>
                 <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXs' }}>
                     <Flex direction={{ default: 'row' }}>
                         {/*<FlexItem align={{ default: 'alignLeft' }}>*/}
@@ -374,7 +391,7 @@ export const WorkloadInspectionView: React.FunctionComponent<IWorkloadInspection
                 <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsNone' }}>
                     <Flex direction={{ default: 'row' }}>
                         <FlexItem align={{ default: 'alignLeft' }}>
-                            <ClipboardCheckIcon /> {<strong>Sessions: </strong>}
+                            <CubeIcon /> {<strong>Sessions </strong>}
                             {props.workload?.statistics.num_sessions_created} / {getTotalNumSessions()} (
                             {RoundToTwoDecimalPlaces(
                                 100 * (props.workload?.statistics.num_sessions_created / getTotalNumSessions()),

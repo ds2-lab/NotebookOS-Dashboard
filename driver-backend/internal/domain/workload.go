@@ -131,7 +131,7 @@ type Workload interface {
 	// Just updates some internal metrics.
 	TrainingStarted(sessionId string, tickNumber int64)
 	// TrainingSubmitted when an "execute_request" message is sent.
-	TrainingSubmitted(sessionId string, evt *Event)
+	TrainingSubmitted(sessionId string, evt *Event, executeRequestId string)
 	// TrainingStopped is Called when a training stops during/in the workload.
 	// Just updates some internal metrics.
 	TrainingStopped(sessionId string, evt *Event, tickNumber int64)

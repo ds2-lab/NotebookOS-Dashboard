@@ -31,6 +31,8 @@ export function FormatSecondsLong(sec_num: number): string {
 }
 
 export function FormatSecondsShort(sec_num: number): string {
+    console.log(`sec_num: ${sec_num}`);
+
     let hours: string | number = Math.floor(sec_num / 3600);
     let minutes: string | number = Math.floor((sec_num - hours * 3600) / 60);
     let seconds: string | number = Math.floor(sec_num - hours * 3600 - minutes * 60);
@@ -82,16 +84,30 @@ export function UnixDurationToString(ts: number): string {
 /**
  * Convert the given Unix Milliseconds timestamp to a human-readable string.
  */
-export function UnixTimestampToDateString(unixTimestamp: number): string {
+export function UnixTimestampToDateString(unixTimestamp: number, military: boolean = true): string {
     const date: Date = new Date(unixTimestamp * 1000);
     const months: string[] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const year: number = date.getFullYear();
     const month: string = months[date.getMonth()];
     const day: number = date.getDate();
-    const hour: number = date.getHours();
+    let hour: number = date.getHours();
     const min: number = date.getMinutes();
     const sec: number = date.getSeconds();
-    return day + ' ' + month + ' ' + year + ' ' + hour + ':' + min + ':' + sec;
+
+    if (military) {
+        return day + ' ' + month + ' ' + year + ' ' + hour + ':' + min + ':' + sec;
+    }
+
+    let pm: boolean = false;
+    if (hour >= 12) {
+        pm = true;
+
+        if (hour > 12) {
+            hour = hour - 12;
+        }
+    }
+
+    return day + ' ' + month + ' ' + year + ' ' + hour + ':' + min + ':' + sec + (pm ? ' PM' : ' AM');
 }
 
 /**

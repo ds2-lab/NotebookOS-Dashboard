@@ -217,6 +217,7 @@ interface Workload {
 export interface PendingTraining {
     kernel_id: string;
     submitted_at_unix_millis: number;
+    execute_request_id: string;
 }
 
 export function IsPaused(workload: Workload) {

@@ -287,7 +287,7 @@ func (h *ClusterDashboardHandler) setupRpcResources(gatewayAddress string) error
 
 	start := time.Now()
 	connectionTimeout := time.Second * 30 // How long each individual connection attempt should last before timing-out.
-	totalTimeout := time.Minute * 5       // How long to keep trying to connect over-and-over before completely giving up and panicking.
+	totalTimeout := time.Minute * 30      // How long to keep trying to connect over-and-over before completely giving up and panicking.
 	var connectedToGateway = false
 	var numAttempts = 1
 	var gatewayConn net.Conn

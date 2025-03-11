@@ -92,6 +92,7 @@ func GetWorkloadStateAsString(state State) string {
 type PendingTraining struct {
 	KernelId              string `json:"kernel_id"`
 	SubmittedAtUnixMillis int64  `json:"submitted_at_unix_millis"`
+	ExecuteRequestId      string `json:"execute_request_id"`
 }
 
 type Workload struct {
@@ -823,7 +824,7 @@ func (w *Workload) SessionStopped(sessionId string) {
 }
 
 // TrainingSubmitted when an "execute_request" message is sent.
-func (w *Workload) TrainingSubmitted(sessionId string, evt *domain.Event) {
+func (w *Workload) TrainingSubmitted(sessionId string, evt *domain.Event, executeRequestId string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -833,6 +834,7 @@ func (w *Workload) TrainingSubmitted(sessionId string, evt *domain.Event) {
 	pendingTraining := &PendingTraining{
 		KernelId:              sessionId,
 		SubmittedAtUnixMillis: time.Now().UnixMilli(),
+		ExecuteRequestId:      executeRequestId,
 	}
 	w.PendingTrainings[sessionId] = pendingTraining
 

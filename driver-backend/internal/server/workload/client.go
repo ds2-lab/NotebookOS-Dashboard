@@ -90,7 +90,7 @@ type ClientBuilder struct {
 
 	// saveSessionIoPubMessages is a boolean flag that, when true, instructs us to save and export all IO Pub messages
 	// received by each session with the workload statistics
-	saveSessionIoPubMessages bool `json:"-" csv:"-"`
+	saveSessionIoPubMessages bool
 }
 
 // NewClientBuilder initializes a new ClientBuilder.
@@ -1154,7 +1154,7 @@ func (c *Client) handleTrainingEvent(event *domain.Event, tick time.Time) error 
 	stopTrainingCtx, stopTrainingCancel := context.WithTimeout(context.Background(), stopTrainingTimeoutInterval)
 	defer stopTrainingCancel()
 
-	err = c.waitForTrainingToEnd(stopTrainingCtx, event, executeRequestId, stopTrainingTimeoutInterval)
+	err = c.waitForTrainingToEnd(stopTrainingCtx, stopTrainingCancel, event, executeRequestId, stopTrainingTimeoutInterval)
 	if err == nil {
 		c.Workload.ProcessedEvent(domain.NewEmptyWorkloadEvent().
 			WithEventId(event.Id()).
@@ -1251,7 +1251,7 @@ func (c *Client) submitTrainingToKernel(evt *domain.Event) (sentRequestAt time.T
 		c.lastTrainingSubmittedAt = time.Now()
 	}
 
-	c.Workload.TrainingSubmitted(c.SessionId, evt)
+	c.Workload.TrainingSubmitted(c.SessionId, evt, executeRequestId)
 
 	// Update the 'training ended' map.
 	c.trainingEndedRequestMapMutex.Lock()

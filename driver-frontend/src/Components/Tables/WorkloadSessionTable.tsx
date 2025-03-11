@@ -138,9 +138,17 @@ function getRemainingTrainings(session: Session): string | number {
     return 'N/A';
 }
 
-const sessionStatuses: string[] = ['awaiting start', 'idle', 'training_submitted', 'training', 'terminated', 'erred'];
+const sessionStatuses: string[] = [
+    'awaiting start',
+    'idle',
+    'training_submitted',
+    'training',
+    'terminated',
+    'erred',
+    'client-exited',
+];
 
-function getStatusLabel(status: string, error_message?: string, isCompact:boolean = false): ReactElement {
+function getStatusLabel(status: string, error_message?: string, isCompact: boolean = false): ReactElement {
     switch (status) {
         case 'awaiting start':
             return (
@@ -184,7 +192,10 @@ function getStatusLabel(status: string, error_message?: string, isCompact:boolea
             );
         case 'client-exited':
             return (
-                <Tooltip position="right" content="This session has been stopped permanently (because it encountered an error).">
+                <Tooltip
+                    position="right"
+                    content="This session has been stopped permanently (because it encountered an error or was otherwise explicitly instructed to stop prematurely)."
+                >
                     <Label icon={<OffIcon />} color="red" isCompact={isCompact}>
                         {status}
                     </Label>
