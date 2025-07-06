@@ -10,7 +10,7 @@ The repository for NotebookOS, the system with which this dashboard is designed 
 
 ## Repository Overview
 
-The backend is contained within the `driver-backend/` directory. The frontend is contained within the `dashboard-frontend/` directory. 
+The backend is contained within the `driver-backend/` directory. The frontend is contained within the `driver-frontend/` directory. 
 
 The entrypoint for the backend is the `driver-backend/cmd/server/main.go` file.
 
@@ -22,7 +22,7 @@ git clone https://github.com/Scusemua/workload-driver-react
 cd workload-driver-react
 ```
 
-To run the `frontend`, execute the following (from within the `dashboard-frontend/` directory):
+To run the `frontend`, execute the following (from within the `driver-frontend/` directory):
 ```bash
 npm install && npm run start:dev
 ```
