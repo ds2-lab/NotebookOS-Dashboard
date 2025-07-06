@@ -6,6 +6,8 @@ The Workload Driver provides a web interface containing a dashboard for monitori
 
 ![demo image](docs/demo_images/dashboard_combined.jpg?raw=true)
 
+The repository for NotebookOS, the system with which this dashboard is designed to work, is available [here](https://github.com/ds2-lab/NotebookOS/).
+
 ## Repository Overview 
 
 The backend is contained within the `internal/` directory. The frontend is contained within the `web/` directory. The entrypoint for the backend is in the `cmd/server/` directory. 
