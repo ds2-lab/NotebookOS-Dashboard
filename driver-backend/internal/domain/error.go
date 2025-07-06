@@ -2,9 +2,19 @@ package domain
 
 import (
 	"encoding/json"
+	"errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"net/http"
+)
+
+const (
+	ResponseStatusError string = "ERROR"
+	ResponseStatusOK    string = "OK"
+)
+
+var (
+	ErrUnknownSession = errors.New("received 'training-started' or 'training-ended' event for unknown session")
 )
 
 // ErrorHandler is used to pass errors back to another window.
@@ -16,6 +26,9 @@ type ErrorMessage struct {
 	Description  string `json:"Description"`  // Provides additional context for what occurred; written by us.
 	ErrorMessage string `json:"ErrorMessage"` // The value returned by err.Error() for whatever error occurred.
 	Valid        bool   `json:"Valid"`        // Used to determine if the struct was sent/received correctly over the network.
+	Operation    string `json:"op"`           // The original operation of the request to which this error is being sent as a response.
+	Status       string `json:"status"`       // ERROR.
+	MessageId    string `json:"msg_id"`       // Corresponding MessageId, if applicable (such as when sending/receiving JSON WebSocket messages).
 }
 
 func (m *ErrorMessage) Encode() []byte {

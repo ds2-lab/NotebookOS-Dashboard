@@ -31,7 +31,12 @@ const (
 
 	// WorkloadEndpoint is used internally (by the frontend) to trigger the start of a new workload or
 	// retrieve the list of workloads.
+	//
+	// WorkloadEndpoint is used as the workload websocket endpoint.
 	WorkloadEndpoint = "workload"
+
+	// WorkloadsEndpoint is its own gin route group used for HTTP workload API.
+	WorkloadsEndpoint = "workloads"
 
 	// GeneralWebsocketEndpoint is used for WebSocket-based communication between the frontend and backend
 	// that is unrelated to workloads or logs.
@@ -48,6 +53,12 @@ const (
 	// PrometheusEndpoint is the default path on which Prometheus issues GET requests to scrape metrics.
 	PrometheusEndpoint = "prometheus"
 
+	// ClusterStatisticsEndpoint is used to fetch the ClusterStatistics.
+	ClusterStatisticsEndpoint = "cluster-statistics"
+
+	// WorkloadStatisticsEndpoint returns the .CSV file associated with a particular workload, if it exists.
+	WorkloadStatisticsEndpoint = "workload-statistics"
+
 	// MetricsEndpoint is used by the frontend to post/share Prometheus metrics.
 	MetricsEndpoint = "metrics"
 
@@ -55,11 +66,21 @@ const (
 	// workload presets from the backend.
 	WorkloadPresetEndpoint = "workload-presets"
 
+	// WorkloadTemplatesEndpoint is used internally (by the frontend) to get the list of available
+	// workload templates from the backend.
+	WorkloadTemplatesEndpoint = "workload-templates"
+
 	// PanicEndpoint is used to cause the Cluster Gateway to panic. used for debugging/testing.
 	PanicEndpoint = "panic"
 
 	// ClusterAgeEndpoint is used to retrieve the UnixMillisecond timestamp at which the Cluster was created.
 	ClusterAgeEndpoint = "cluster-age"
+
+	// SchedulingPolicyEndpoint is targeted by HTTP GET requests to get the scheduling policy of the cluster.
+	SchedulingPolicyEndpoint = "scheduling-policy"
+
+	// DeploymentModeEndpoint is used to retrieve the configured deployment mode of the cluster.
+	DeploymentModeEndpoint = "deployment-mode"
 
 	// RefreshToken is used to refresh a JWT auth token.
 	RefreshToken = "refresh_token"
@@ -97,6 +118,9 @@ const (
 	// VariablesEndpoint is queried by Grafana to query for values used to create Grafana variables that are then
 	// used to dynamically create a Grafana Dashboard.
 	VariablesEndpoint = "variables"
+
+	// NoOpEndpoint is essentially just used to test the validity of the current authentication token.
+	NoOpEndpoint = "no-op"
 )
 
 var (

@@ -10,33 +10,42 @@ import {
     DataListToggle,
     Pagination,
     PaginationVariant,
+    PerPageOptions,
 } from '@patternfly/react-core';
 import { useKernels } from '@Providers/KernelProvider';
+import useNavigation from '@Providers/NavigationProvider';
 import { KernelReplicaTable } from '@src/Components';
+import { JoinPaths } from '@src/Utils/path_utils';
 import { numberArrayFromRange } from '@src/Utils/utils';
 import React, { useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export interface KernelDataListProps {
     openMigrationModal: (kernel: DistributedJupyterKernel, replica: JupyterKernelReplica) => void;
     kernelsPerPage: number;
+    perPageOption: PerPageOptions[];
     searchValue: string;
     statusSelections: string[];
-    onExecuteCodeClicked: (kernel: DistributedJupyterKernel | null, replicaIdx?: number | undefined) => void;
+    onExecuteCodeClicked: (kernel?: DistributedJupyterKernel, replicaIdx?: number | undefined) => void;
     onPingKernelClicked: (kernel: DistributedJupyterKernel) => void;
     onInterruptKernelClicked: (kernel: DistributedJupyterKernel) => void;
     onTerminateKernelClicked: (kernel: DistributedJupyterKernel) => void;
     onStopTrainingClicked: (kernel: DistributedJupyterKernel) => void;
+    onSelectKernel: (kernelId: string) => void;
+    selectedKernels: string[];
+    kernelsNotClickable?: boolean;
 }
 
 export const KernelDataList: React.FunctionComponent<KernelDataListProps> = (props: KernelDataListProps) => {
     const [expandedKernels, setExpandedKernels] = React.useState<string[]>([]);
-    const [selectedKernels, setSelectedKernels] = React.useState<string[]>([]);
 
     const numKernelsCreating = useRef(0); // Used to display "pending" entries in the kernel list.
 
     const [page, setPage] = React.useState(1);
     const [perPage, setPerPage] = React.useState(props.kernelsPerPage);
     const { kernels } = useKernels(false);
+
+    const { navigate } = useNavigation();
 
     const [openReplicaDropdownMenu, setOpenReplicaDropdownMenu] = React.useState<string>('');
     const [openKernelDropdownMenu, setOpenKernelDropdownMenu] = React.useState<string>('');
@@ -57,14 +66,8 @@ export const KernelDataList: React.FunctionComponent<KernelDataListProps> = (pro
         _checked: boolean,
         kernelId: string | undefined,
     ) => {
-        const item = kernelId as string;
-
-        // console.log('onSelectKernel: ' + item);
-
-        if (selectedKernels.includes(item)) {
-            setSelectedKernels(selectedKernels.filter((id) => id !== item));
-        } else {
-            setSelectedKernels([...selectedKernels, item]);
+        if (kernelId) {
+            props.onSelectKernel(kernelId);
         }
     };
 
@@ -82,7 +85,8 @@ export const KernelDataList: React.FunctionComponent<KernelDataListProps> = (pro
         let searchValueInput: RegExp;
         try {
             searchValueInput = new RegExp(props.searchValue, 'i');
-        } catch (err) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (_err) {
             searchValueInput = new RegExp(props.searchValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
         }
         const matchesSearchValue = repo.kernelId.search(searchValueInput) >= 0;
@@ -121,13 +125,30 @@ export const KernelDataList: React.FunctionComponent<KernelDataListProps> = (pro
 
     const filteredKernels = kernels.filter(onFilter).slice(perPage * (page - 1), perPage * (page - 1) + perPage);
 
-    const getKernelDataListRow = (kernel: DistributedJupyterKernel | null, idx: number) => {
+    const onClickKernel = (_event: React.MouseEvent | React.KeyboardEvent, id: string) => {
+        const foundKernels: DistributedJupyterKernel[] | undefined = filteredKernels.filter(
+            (val: DistributedJupyterKernel) => val.kernelId == id,
+        );
+
+        if (!foundKernels || foundKernels.length === 0) {
+            console.warn(`Could not find kernel with ID=${id}`);
+            return;
+        }
+
+        const kernel: DistributedJupyterKernel = foundKernels[0];
+
+        console.log(`Clicked kernel ${kernel.kernelId}.`);
+
+        navigate(['kernels', kernel.kernelId]);
+    };
+
+    const getKernelDataListRow = (kernel?: DistributedJupyterKernel, idx?: number) => {
         return (
             <DataListItem
                 isExpanded={expandedKernels.includes(kernel?.kernelId || 'Pending...')}
-                key={'kernel-data-row-' + idx}
+                key={'kernel-data-row-' + (idx || -1)}
                 className="kernel-list-row"
-                id={'kernel-data-list-' + idx}
+                id={kernel?.kernelId}
             >
                 <DataListItemRow>
                     <DataListCheck
@@ -139,7 +160,7 @@ export const KernelDataList: React.FunctionComponent<KernelDataListProps> = (pro
                             onSelectKernel(event, checked, kernel?.kernelId)
                         }
                         isDisabled={kernel == null}
-                        defaultChecked={kernel != null && kernel.kernelId in selectedKernels}
+                        defaultChecked={kernel != null && kernel.kernelId in props.selectedKernels}
                     />
                     <DataListToggle
                         onClick={() => {
@@ -192,8 +213,13 @@ export const KernelDataList: React.FunctionComponent<KernelDataListProps> = (pro
 
     return (
         <React.Fragment>
-            <DataList isCompact aria-label="data list" hidden={kernels.length == 0 && pendingKernelArr.length == 0}>
-                {pendingKernelArr.map((_, idx) => getKernelDataListRow(null, idx))}
+            <DataList
+                isCompact
+                aria-label="data list"
+                hidden={kernels.length == 0 && pendingKernelArr.length == 0}
+                onSelectDataListItem={props.kernelsNotClickable ? () => {} : onClickKernel}
+            >
+                {pendingKernelArr.map((_, idx) => getKernelDataListRow(undefined, idx))}
                 {filteredKernels.map((kernel, idx) => getKernelDataListRow(kernel, idx + pendingKernelArr.length))}
             </DataList>
             <Pagination
@@ -204,20 +230,7 @@ export const KernelDataList: React.FunctionComponent<KernelDataListProps> = (pro
                 perPage={perPage}
                 page={page}
                 variant={PaginationVariant.bottom}
-                perPageOptions={[
-                    {
-                        title: '1 kernels',
-                        value: 1,
-                    },
-                    {
-                        title: '2 kernels',
-                        value: 2,
-                    },
-                    {
-                        title: '3 kernels',
-                        value: 3,
-                    },
-                ]}
+                perPageOptions={props.perPageOption}
                 onSetPage={onSetPage}
                 onPerPageSelect={onPerPageSelect}
             />

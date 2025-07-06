@@ -20,13 +20,20 @@ import (
 
 const (
 	ZapSessionIDKey       = "session_id"
-	WorkloadIdMetadataKey = "workload-id"
+	WorkloadIdMetadataKey = "workload_id"
+
+	// RemoteStorageDefinitionMetadataKey is used to register a proto.RemoteStorageDefinition with a
+	// KernelSessionManager so that the proto.RemoteStorageDefinition can be embedded in the metadata
+	// of "execute_request" and "yield_request" messages to instruct the kernel how to simulate
+	// remote storage reads and writes.
+	RemoteStorageDefinitionMetadataKey = "remote_storage_definition"
 )
 
 var (
 	ErrCreateFileBadRequest    = errors.New("bad request when trying to create a file")
 	ErrCreateSessionBadRequest = errors.New("bad request when trying to create a new session")
 	ErrStopKernelBadRequest    = errors.New("bad request when trying to stop a kernel")
+	ErrStopKernelNotFound      = errors.New("jupyter server could not find specified kernel during stop-kernel operation")
 
 	ErrCreateFileUnknownFailure    = errors.New("the 'create file' operation failed for an unknown or unexpected reason")
 	ErrCreateSessionUnknownFailure = errors.New("the 'create session' operation failed for an unknown or unexpected reason")
@@ -91,9 +98,12 @@ type BasicKernelSessionManager struct {
 	localSessionIdToJupyterSessionId map[string]string             // Map from "local" (provided by us) Session IDs to the Jupyter-provided Session IDs.
 	kernelIdToJupyterSessionId       map[string]string             // Map from Kernel IDs to "local" Session IDs. Jupyter provides both the Session IDs and the Kernel IDs.
 	sessionMap                       map[string]*SessionConnection // Map from Session ID to Session. The keys are the Session IDs supplied by us/the trace data.
-	metadata                         map[string]string             // Metadata is miscellaneous metadata attached to the BasicKernelSessionManager that is mostly used for kernelMetricsManager
+	metadata                         map[string]interface{}        // Metadata is miscellaneous metadata attached to the BasicKernelSessionManager that is mostly used for kernelMetricsManager
 	metadataMutex                    sync.Mutex                    // Synchronizes access to the metadata map.
 	adjustSessionNames               bool                          // If true, ensure all session names are 36 characters in length. For now, this should be true. Setting it to false causes problems for some reason...
+
+	// Invoked in a new goroutine when an error occurs.
+	onError ErrorHandler
 
 	mu sync.Mutex
 }
@@ -107,7 +117,7 @@ func NewKernelSessionManager(jupyterServerAddress string, adjustSessionNames boo
 		kernelIdToJupyterSessionId:       make(map[string]string),
 		kernelIdToLocalSessionId:         make(map[string]string),
 		sessionMap:                       make(map[string]*SessionConnection),
-		metadata:                         make(map[string]string),
+		metadata:                         make(map[string]interface{}),
 		adjustSessionNames:               adjustSessionNames,
 		atom:                             atom,
 	}
@@ -120,6 +130,24 @@ func NewKernelSessionManager(jupyterServerAddress string, adjustSessionNames boo
 	return manager
 }
 
+// RegisterOnErrorHandler registers an error handler to be called if the kernel manager encounters an error.
+// The error handler is invoked in a new goroutine.
+//
+// If there is already an existing error handler, then it is overwritten.
+func (m *BasicKernelSessionManager) RegisterOnErrorHandler(handler ErrorHandler) {
+	m.onError = handler
+}
+
+func (m *BasicKernelSessionManager) tryCallErrorHandler(kernelId string, sessionId string, err error) {
+	if strings.Contains(err.Error(), "insufficient hosts available") {
+		return
+	}
+
+	if m.onError != nil {
+		go m.onError(kernelId, sessionId, err)
+	}
+}
+
 // AddMetadata attaches some metadata to the BasicKernelSessionManager.
 //
 // All metadata should be added when the BasicKernelSessionManager is created, as
@@ -130,7 +158,7 @@ func NewKernelSessionManager(jupyterServerAddress string, adjustSessionNames boo
 // KernelConnection instances.
 //
 // This particular implementation of AddMetadata is thread-safe.
-func (m *BasicKernelSessionManager) AddMetadata(key, value string) {
+func (m *BasicKernelSessionManager) AddMetadata(key string, value interface{}) {
 	m.metadataMutex.Lock()
 	defer m.metadataMutex.Unlock()
 
@@ -146,7 +174,7 @@ func (m *BasicKernelSessionManager) AddMetadata(key, value string) {
 // string is returned, along with a boolean equal to false.
 //
 // This particular implementation of GetMetadata is thread-safe.
-func (m *BasicKernelSessionManager) GetMetadata(key string) (string, bool) {
+func (m *BasicKernelSessionManager) GetMetadata(key string) (interface{}, bool) {
 	m.metadataMutex.Lock()
 	defer m.metadataMutex.Unlock()
 
@@ -160,7 +188,11 @@ func (m *BasicKernelSessionManager) GetMetadata(key string) (string, bool) {
 // CreateSession creates a new session.
 //
 // This is thread-safe.
-func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath string, sessionType string, kernelSpecName string, resourceSpec *ResourceSpec) (*SessionConnection, error) {
+func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath string, sessionType string,
+	kernelSpecName string, resourceSpec *ResourceSpec) (*SessionConnection, error) {
+
+	workloadId, loadedWorkloadIdFromMetadata := m.GetMetadata(WorkloadIdMetadataKey)
+
 	if m.adjustSessionNames {
 		if len(sessionId) < 36 {
 			generatedUuid := uuid.NewString()
@@ -170,29 +202,45 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 		}
 	}
 
-	requestBody := newJupyterSessionForRequest(sessionId, sessionPath, sessionType, kernelSpecName, resourceSpec)
+	var requestBody *jupyterSessionReq
+	if loadedWorkloadIdFromMetadata {
+		requestBody = newJupyterSessionForRequest(sessionId, sessionPath, sessionType, kernelSpecName, resourceSpec, workloadId.(string))
+	} else {
+		requestBody = newJupyterSessionForRequest(sessionId, sessionPath, sessionType, kernelSpecName, resourceSpec, "N/A")
+	}
 
 	requestBodyJson, err := json.Marshal(&requestBody)
 	if err != nil {
 		m.logger.Error("Error encountered while marshalling payload for CreateSession operation.", zap.Error(err))
+		m.tryCallErrorHandler("", sessionId, err)
 		return nil, err
 	}
-
-	m.logger.Debug("Issuing 'CREATE-SESSION' request now.", zap.String("request-args", requestBody.String()))
 
 	address := path.Join(m.jupyterServerAddress, "/api/sessions")
 	url := fmt.Sprintf("http://%s", address)
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(requestBodyJson))
 	if err != nil {
-		m.logger.Error("Error encountered while creating request for CreateFile operation.", zap.String("request-args", requestBody.String()), zap.String("sessionPath", sessionPath), zap.String("url", url), zap.Error(err))
+		m.logger.Error("Error encountered while creating request for CreateFile operation.",
+			zap.String("request-args", requestBody.String()),
+			zap.String("sessionPath", sessionPath),
+			zap.String("url", url), zap.Error(err))
+		m.tryCallErrorHandler("", sessionId, err)
 		return nil, err
 	}
+
+	m.logger.Debug("Issuing 'CREATE-SESSION' request now.",
+		zap.String("request-args", requestBody.String()),
+		zap.String("request-url", url))
 
 	sentAt := time.Now()
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		m.logger.Error("Received error when creating new session.", zap.String("request-args", requestBody.String()), zap.String("local-session-id", sessionId), zap.String("url", url), zap.Error(err))
+		m.logger.Error("Received error when creating new session.",
+			zap.String("request-args", requestBody.String()),
+			zap.String("local-session-id", sessionId),
+			zap.String("url", url), zap.Error(err))
+		m.tryCallErrorHandler("", sessionId, err)
 		return nil, err
 	}
 
@@ -203,13 +251,17 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 	switch resp.StatusCode {
 	case http.StatusCreated:
 		{
-			var jupyterSession *jupyterSession
+			var jupyterSession *SessionModel
 			if err := json.Unmarshal(body, &jupyterSession); err != nil {
 				m.logger.Error("Failed to decode Jupyter Session from JSON.", zap.Error(err))
+				m.tryCallErrorHandler("", sessionId, err)
 				return nil, err
 			}
 
-			m.logger.Debug("Received 'Created' when creating session", zap.Int("status-code", resp.StatusCode), zap.String("status", resp.Status), zap.String(ZapSessionIDKey, sessionId))
+			m.logger.Debug("Received 'Created' when creating session",
+				zap.Int("status-code", resp.StatusCode),
+				zap.String("status", resp.Status),
+				zap.String(ZapSessionIDKey, sessionId))
 
 			var kernelId = jupyterSession.JupyterKernel.Id
 			var jupyterSessionId = jupyterSession.JupyterSessionId
@@ -224,9 +276,15 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 
 			st := time.Now()
 			// Connect to the Session and to the associated kernel.
-			sessionConnection, err = NewSessionConnection(jupyterSession, "", m.jupyterServerAddress, m.atom, m.kernelMetricsManager.metricsConsumer)
+			sessionConnection, err = NewSessionConnection(jupyterSession, "", m.jupyterServerAddress, m.atom,
+				m.kernelMetricsManager.metricsConsumer, func(err error) {
+					m.tryCallErrorHandler(kernelId, sessionId, err)
+				})
 			if err != nil {
-				m.logger.Error("Could not establish connection to Session.", zap.String(ZapSessionIDKey, sessionId), zap.String("kernel_id", kernelId), zap.Error(err))
+				m.logger.Error("Could not establish connection to Session.",
+					zap.String(ZapSessionIDKey, sessionId),
+					zap.String("kernel_id", kernelId), zap.Error(err))
+				m.tryCallErrorHandler("", sessionId, err)
 				return nil, err
 			}
 			creationTime := time.Since(st)
@@ -235,36 +293,90 @@ func (m *BasicKernelSessionManager) CreateSession(sessionId string, sessionPath 
 			m.sessionMap[sessionId] = sessionConnection
 			m.mu.Unlock()
 
-			m.logger.Debug("Successfully created and setup session.", zap.Duration("time-to-create", creationTime), zap.String("local-session-id", sessionId), zap.String("jupyter-session-id", jupyterSessionId), zap.String("kernel_id", kernelId))
+			m.logger.Debug("Successfully created and setup session.",
+				zap.Duration("time-to-create", creationTime),
+				zap.String("local-session-id", sessionId),
+				zap.String("jupyter-session-id", jupyterSessionId),
+				zap.String("kernel_id", kernelId))
 		}
 	case http.StatusBadRequest:
 		{
-			m.logger.Error("Received HTTP 400 'Bad Request' when creating session", zap.String("status", resp.Status), zap.Any("headers", resp.Header), zap.Any("body", body))
+			m.logger.Error("Received HTTP 400 'Bad Request' when creating session",
+				zap.String("status", resp.Status),
+				zap.Any("headers", resp.Header),
+				zap.Any("body", body))
+			m.tryCallErrorHandler("", sessionId, err)
 			return nil, fmt.Errorf("ErrCreateSessionBadRequest %w : %s", ErrCreateSessionBadRequest, string(body))
+		}
+	case http.StatusInternalServerError:
+		{
+			m.logger.Warn("Failed to create session due to HTTP 500 Internal Server Error.",
+				zap.String("status", resp.Status),
+				zap.Any("headers", resp.Header),
+				zap.String("body", string(body)))
+
+			return nil, fmt.Errorf(string(body))
 		}
 	default:
 		var responseJson map[string]interface{}
 		if err := json.Unmarshal(body, &responseJson); err != nil {
-			m.logger.Error("Failed to decode JSON response with unexpected HTTP status code.", zap.Int("http-status-code", http.StatusBadRequest), zap.Error(err))
+			m.logger.Error("Failed to decode JSON response with unexpected HTTP status code.",
+				zap.Int("http-status-code", http.StatusBadRequest), zap.Error(err))
 		}
 
-		m.logger.Warn("Unexpected response status code when creating a new session.", zap.Int("status-code", resp.StatusCode), zap.String("status", resp.Status), zap.Any("headers", resp.Header), zap.Any("body", body), zap.String("request-args", requestBody.String()), zap.String("response-body", string(body)))
+		m.logger.Warn("Unexpected response status code when creating a new session.",
+			zap.Int("status-code", resp.StatusCode),
+			zap.String("status", resp.Status),
+			zap.Any("headers", resp.Header),
+			zap.Any("body", body),
+			zap.String("request-args", requestBody.String()),
+			zap.String("response-body", string(body)),
+			zap.Any("response-json", responseJson))
+
 		if message, ok := responseJson["message"]; ok {
-			return nil, fmt.Errorf("ErrCreateSessionUnknownFailure %w: %s", ErrCreateSessionUnknownFailure, message)
-		} else if reason, ok := responseJson["reason"]; ok {
-			return nil, fmt.Errorf("ErrCreateSessionUnknownFailure %w: %s", ErrCreateSessionUnknownFailure, reason)
-		} else {
-			return nil, fmt.Errorf("ErrCreateSessionUnknownFailure %w: %s", ErrCreateSessionUnknownFailure, string(body))
+			err = fmt.Errorf("%w: HTTP %d %s - %s",
+				ErrCreateSessionUnknownFailure, resp.StatusCode, resp.Status, message)
+
+			m.tryCallErrorHandler("", sessionId, err)
+
+			return nil, err
 		}
+
+		if reason, ok := responseJson["reason"]; ok {
+			err = fmt.Errorf("%w: HTTP %d %s - %s",
+				ErrCreateSessionUnknownFailure, resp.StatusCode, resp.Status, reason)
+
+			m.tryCallErrorHandler("", sessionId, err)
+
+			return nil, err
+		}
+
+		err = fmt.Errorf("%w: HTTP %d %s - %s",
+			ErrCreateSessionUnknownFailure, resp.StatusCode, resp.Status, string(body))
+
+		m.tryCallErrorHandler("", sessionId, err)
+
+		return nil, err
 	}
 
-	workloadId, _ := m.GetMetadata(WorkloadIdMetadataKey)
+	if loadedWorkloadIdFromMetadata {
+		m.mu.Lock()
+		m.kernelMetricsManager.SessionCreated(time.Since(sentAt), workloadId.(string))
+		m.mu.Unlock()
 
-	m.mu.Lock()
-	m.kernelMetricsManager.SessionCreated(time.Since(sentAt), workloadId)
-	m.mu.Unlock()
-
-	sessionConnection.AddMetadata(WorkloadIdMetadataKey, workloadId, true)
+		err := sessionConnection.AddMetadata(WorkloadIdMetadataKey, workloadId.(string), true)
+		if err != nil {
+			m.logger.Error("Error while adding metadata to session connection.",
+				zap.String(ZapSessionIDKey, sessionId),
+				zap.String("metadata_key", WorkloadIdMetadataKey),
+				zap.String("metadata_value", workloadId.(string)),
+				zap.String("workload_id", workloadId.(string)))
+		}
+	} else {
+		m.logger.Warn("Could not load WorkloadID metadata from KernelSessionManager while creating session.",
+			zap.String("session_id", sessionId),
+			zap.Int("num_metadata_entries", len(m.metadata)))
+	}
 
 	// TODO(Ben): Does this also create a new kernel?
 	return sessionConnection, nil
@@ -288,23 +400,26 @@ func (m *BasicKernelSessionManager) InterruptKernel(sessionId string) error {
 		return ErrKernelNotFound
 	}
 
-	if sess.kernel == nil {
+	if sess.Kernel == nil {
 		m.logger.Error("Cannot interrupt kernel. No active connection to kernel.", zap.String("session_id", sessionId))
 		return ErrNoActiveConnection
 	}
 
-	conn := sess.kernel
+	conn := sess.Kernel
 	if conn.ConnectionStatus() == KernelDead {
 		// Cannot interrupt a dead kernel.
-		return ErrKernelIsDead
+		return fmt.Errorf("%w: no connection to kernel \"%s\" (session ID = \"%s\")",
+			ErrKernelIsDead, conn.KernelId(), sessionId)
 	}
 
 	var requestBody = make(map[string]interface{})
-	requestBody["kernel_id"] = conn.KernelId()
+	kernelId := conn.KernelId()
+	requestBody["kernel_id"] = kernelId
 
 	requestBodyEncoded, err := json.Marshal(requestBody)
 	if err != nil {
 		m.logger.Error("Failed to marshal request body for kernel interruption request", zap.Error(err))
+		m.tryCallErrorHandler(kernelId, sessionId, err)
 		return err
 	}
 
@@ -313,6 +428,7 @@ func (m *BasicKernelSessionManager) InterruptKernel(sessionId string) error {
 
 	if err != nil {
 		m.logger.Error("Failed to create HTTP request for kernel interruption.", zap.String("url", url), zap.Error(err))
+		m.tryCallErrorHandler(kernelId, sessionId, err)
 		return err
 	}
 
@@ -320,12 +436,14 @@ func (m *BasicKernelSessionManager) InterruptKernel(sessionId string) error {
 	resp, err := client.Do(req)
 	if err != nil {
 		m.logger.Error("Error while issuing HTTP request to interrupt kernel.", zap.String("url", url), zap.Error(err))
+		m.tryCallErrorHandler(kernelId, sessionId, err)
 		return err
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		m.logger.Error("Failed to read response to interrupting kernel.", zap.Error(err))
+		m.tryCallErrorHandler(kernelId, sessionId, err)
 		return err
 	}
 
@@ -342,12 +460,14 @@ func (m *BasicKernelSessionManager) CreateFile(target string) error {
 	payload, err := json.Marshal(&createFileRequest)
 	if err != nil {
 		m.logger.Error("Error encountered while marshalling payload for CreateFile operation.", zap.Error(err))
+		m.tryCallErrorHandler("", "", err)
 		return err
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payload))
 	if err != nil {
 		m.logger.Error("Error encountered while creating request for CreateFile operation.", zap.String("target", target), zap.String("url", url), zap.Error(err))
+		m.tryCallErrorHandler("", "", err)
 		return err
 	}
 
@@ -355,6 +475,7 @@ func (m *BasicKernelSessionManager) CreateFile(target string) error {
 	resp, err := client.Do(req)
 	if err != nil {
 		m.logger.Error("Received error when creating new file.", zap.String("target", target), zap.String("url", url), zap.Error(err))
+		m.tryCallErrorHandler("", "", err)
 		return err
 	}
 
@@ -369,18 +490,24 @@ func (m *BasicKernelSessionManager) CreateFile(target string) error {
 	case http.StatusBadRequest:
 		{
 			m.logger.Error("Received HTTP 400 'Bad Request' when creating file", zap.String("status", resp.Status), zap.Any("headers", resp.Header), zap.Any("body", string(body)))
-			return fmt.Errorf("ErrCreateFileBadRequest %w : %s", ErrCreateFileBadRequest, string(body))
+			err = fmt.Errorf("ErrCreateFileBadRequest %w : %s", ErrCreateFileBadRequest, string(body))
+			m.tryCallErrorHandler("", "", err)
+			return err
 		}
 	case http.StatusNotFound:
 		{
 			m.logger.Error("Received HTTP 400 'Bad Request' when creating file", zap.String("status", resp.Status), zap.Any("headers", resp.Header), zap.Any("body", string(body)))
-			return fmt.Errorf("ErrCreateFileBadRequest %w : %s", ErrCreateFileBadRequest, string(body))
+			err = fmt.Errorf("ErrCreateFileBadRequest %w : %s", ErrCreateFileBadRequest, string(body))
+			m.tryCallErrorHandler("", "", err)
+			return err
 		}
 	default:
 		m.logger.Warn("Unexpected respone status code when creating file.", zap.Int("status-code", resp.StatusCode), zap.String("status", resp.Status), zap.Any("headers", resp.Header), zap.Any("body", string(body)))
 
 		if resp.StatusCode >= 400 {
-			return fmt.Errorf("ErrCreateFileUnknownFailure %w: %s", ErrCreateFileUnknownFailure, string(body))
+			err = fmt.Errorf("ErrCreateFileUnknownFailure %w: %s", ErrCreateFileUnknownFailure, string(body))
+			m.tryCallErrorHandler("", "", err)
+			return err
 		}
 	}
 
@@ -392,7 +519,7 @@ func (m *BasicKernelSessionManager) StopKernel(id string) error {
 	pathSuffix := fmt.Sprintf("/api/sessions/%s", id)
 	address := path.Join(m.jupyterServerAddress, pathSuffix)
 	url := fmt.Sprintf("http://%s", address)
-	
+
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {
 		m.logger.Error("Failed to create DeleteSession request while stopping kernel.", zap.String(ZapSessionIDKey, id), zap.Error(err))
@@ -419,14 +546,27 @@ func (m *BasicKernelSessionManager) StopKernel(id string) error {
 	case http.StatusBadRequest:
 		{
 			m.logger.Error("Received HTTP 400 'Bad Request'", zap.String("status", resp.Status), zap.Any("headers", resp.Header), zap.Any("body", string(body)))
-			return fmt.Errorf("ErrStopKernelBadRequest %w : %s", ErrStopKernelBadRequest, string(body))
+			return fmt.Errorf("%w : %s", ErrStopKernelBadRequest, string(body))
+		}
+	case http.StatusNotFound:
+		{
+			m.logger.Error("Received HTTP 404 'Bad Request'", zap.String("status", resp.Status), zap.Any("headers", resp.Header), zap.Any("body", string(body)))
+			return fmt.Errorf("%w: \"%s\" (%s)", ErrStopKernelNotFound, id, string(body))
 		}
 	default:
 		m.logger.Warn("Unexpected response status code when stopping session.", zap.Int("status-code", resp.StatusCode), zap.String("status", resp.Status), zap.Any("headers", resp.Header), zap.Any("body", string(body)))
 	}
 
-	workloadId, _ := m.GetMetadata(WorkloadIdMetadataKey)
-	m.kernelMetricsManager.SessionTerminated(time.Since(sentAt), workloadId)
+	workloadId, loaded := m.GetMetadata(WorkloadIdMetadataKey)
+
+	if loaded {
+		m.kernelMetricsManager.SessionTerminated(time.Since(sentAt), workloadId.(string))
+	} else {
+		m.logger.Warn("Could not load WorkloadId from KernelSessionManager metadata while stopping kernel.",
+			zap.String("kernel_id", id),
+			zap.Int("num_metadata_entries", len(m.metadata)))
+	}
+
 	// TODO(Ben): Does this also terminate the kernel?
 	return nil
 }
@@ -444,24 +584,27 @@ func (m *BasicKernelSessionManager) GetMetrics() KernelManagerMetrics {
 // @returns a WebSocket-backed connection to the kernel.
 func (m *BasicKernelSessionManager) ConnectTo(kernelId string, sessionId string, username string) (KernelConnection, error) {
 	m.logger.Debug("Connecting to kernel now.", zap.String("kernel_id", kernelId), zap.String("session_id", sessionId))
-	conn, err := NewKernelConnection(kernelId, sessionId, username, m.jupyterServerAddress, m.atom, m.kernelMetricsManager.metricsConsumer)
+	conn, err := NewKernelConnection(kernelId, sessionId, username, m.jupyterServerAddress, m.atom, m.kernelMetricsManager.metricsConsumer, func(err error) { m.tryCallErrorHandler(kernelId, sessionId, err) })
 	if err != nil {
-		m.logger.Error("Failed to connect to kernel.", zap.String("kernel_id", kernelId), zap.String("session_id", sessionId))
+		m.logger.Error("Failed to connect to kernel.",
+			zap.String("kernel_id", kernelId), zap.String("session_id", sessionId))
+		m.tryCallErrorHandler(kernelId, sessionId, err)
 		return nil, err
-	} else {
-		m.logger.Debug("Successfully connected to kernel.", zap.String("kernel_id", kernelId), zap.String("session_id", sessionId))
-
-		// Add all the BasicKernelSessionManager's metadata to the new KernelConnection.
-		m.metadataMutex.Lock()
-		defer m.metadataMutex.Unlock()
-		for key, value := range m.metadata {
-			m.logger.Debug("Adding metadata to kernel.", zap.String("kernel_id", kernelId),
-				zap.String("metadata_key", key), zap.String("metadata_value", value))
-			conn.AddMetadata(key, value)
-		}
-
-		// On success, conn will be non-nil and err will be nil.
-		// If there is an error, then err will be non-nil and connection will be nil.
-		return conn, err
 	}
+
+	m.logger.Debug("Successfully connected to kernel.",
+		zap.String("kernel_id", kernelId), zap.String("session_id", sessionId))
+
+	// Add all the BasicKernelSessionManager's metadata to the new KernelConnection.
+	m.metadataMutex.Lock()
+	defer m.metadataMutex.Unlock()
+	for key, value := range m.metadata {
+		m.logger.Debug("Adding metadata to kernel.", zap.String("kernel_id", kernelId),
+			zap.String("metadata_key", key), zap.Any("metadata_value", value))
+		conn.AddMetadata(key, value)
+	}
+
+	// On success, conn will be non-nil and err will be nil.
+	// If there is an error, then err will be non-nil and connection will be nil.
+	return conn, nil
 }

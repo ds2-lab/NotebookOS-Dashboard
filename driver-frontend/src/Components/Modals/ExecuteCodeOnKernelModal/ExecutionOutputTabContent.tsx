@@ -1,22 +1,24 @@
-/* eslint-disable camelcase */
-import { DarkModeContext } from '@src/Providers';
 import {
     Button,
     Card,
     CardBody,
     Checkbox,
     ClipboardCopy,
+    ClipboardCopyVariant,
     Flex,
-    FlexItem, Title,
+    FlexItem,
+    Title,
     Toolbar,
     ToolbarContent,
     ToolbarGroup,
     ToolbarItem,
     ToolbarToggleGroup,
-    Tooltip
+    Tooltip,
 } from '@patternfly/react-core';
 import { DownloadIcon, EllipsisVIcon } from '@patternfly/react-icons';
 import { LogViewer, LogViewerSearch } from '@patternfly/react-log-viewer';
+import { Execution, RequestTraceSplitTable } from '@src/Components';
+import { DarkModeContext } from '@src/Providers';
 import React from 'react';
 
 export interface ExecutionOutputTabContentProps {
@@ -26,6 +28,7 @@ export interface ExecutionOutputTabContentProps {
     executionId?: string;
     output: string[];
     errorMessage?: string;
+    exec?: Execution;
 }
 
 export const ExecutionOutputTabContent: React.FunctionComponent<ExecutionOutputTabContentProps> = (
@@ -33,6 +36,7 @@ export const ExecutionOutputTabContent: React.FunctionComponent<ExecutionOutputT
 ) => {
     const { darkMode } = React.useContext(DarkModeContext);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const logViewerRef = React.useRef<React.Ref<any>>();
     const [isOutputTextWrapped, setIsOutputTextWrapped] = React.useState(false);
     const [isOutputFullScreen] = React.useState(false);
@@ -122,10 +126,30 @@ export const ExecutionOutputTabContent: React.FunctionComponent<ExecutionOutputT
                     </FlexItem>
                     <FlexItem hidden={props.errorMessage === undefined}>
                         <Title headingLevel="h3">Error Message</Title>
-                        <ClipboardCopy isReadOnly hoverTip="Copy" clickTip="Copied">
+                        <ClipboardCopy
+                            isReadOnly
+                            isExpanded
+                            hoverTip="Copy"
+                            clickTip="Copied"
+                            variant={ClipboardCopyVariant.expansion}
+                        >
                             {props.errorMessage}
                         </ClipboardCopy>
                     </FlexItem>
+                    {props.exec !== undefined && props.exec.requestTraces.length > 0 && (
+                        <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                            <FlexItem>
+                                <Title headingLevel="h3">Request Trace</Title>
+                            </FlexItem>
+                            <FlexItem>
+                                <RequestTraceSplitTable
+                                    traces={props.exec.requestTraces}
+                                    messageId={props.exec.messageId || ''}
+                                    receivedReplyAt={props.exec.receivedReplyAt}
+                                />
+                            </FlexItem>
+                        </Flex>
+                    )}
                 </Flex>
             </CardBody>
         </Card>

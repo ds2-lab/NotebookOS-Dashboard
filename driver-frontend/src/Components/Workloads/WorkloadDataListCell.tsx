@@ -1,0 +1,148 @@
+import { Button, Flex, FlexItem, Text, TextVariants, Tooltip } from '@patternfly/react-core';
+import { CopyIcon, PauseIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
+import WorkloadDescriptiveIcons from '@src/Components/Workloads/WorkloadDescriptiveIcons';
+import { WorkloadRuntimeMetrics } from '@src/Components/Workloads/WorkloadRuntimeMetrics';
+import { IsActivelyRunning, IsInProgress, IsPaused, IsPausing, IsReadyAndWaiting, Workload } from '@src/Data';
+import { WorkloadContext } from '@src/Providers';
+import React from 'react';
+
+interface IWorkloadDataListCellProps {
+    workload: Workload;
+    hideNavButton?: boolean;
+}
+
+export const WorkloadDataListCell: React.FunctionComponent<IWorkloadDataListCellProps> = (
+    props: IWorkloadDataListCellProps,
+) => {
+    const { pauseWorkload, startWorkload, stopWorkload } = React.useContext(WorkloadContext);
+
+    const [showCopySuccessContent, setShowCopySuccessContent] = React.useState<boolean>(false);
+
+    return (
+        <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsNone' }}>
+            <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsNone' }}>
+                <FlexItem>
+                    <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsNone' }}>
+                        <FlexItem>
+                            <Text component={TextVariants.h2}>
+                                <strong>{props.workload.name}</strong>
+                            </Text>
+                        </FlexItem>
+                        <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                            <FlexItem>
+                                <Text component={TextVariants.small}>
+                                    <strong>ID: </strong>
+                                </Text>
+                                <Text component={TextVariants.small}>{props.workload.id}</Text>
+                            </FlexItem>
+                            <FlexItem>
+                                <Tooltip
+                                    content={
+                                        showCopySuccessContent
+                                            ? 'Copied successfully workload ID'
+                                            : 'Copy workload ID to clipboard'
+                                    }
+                                    position={'right'}
+                                    entryDelay={75}
+                                    exitDelay={200}
+                                    onTooltipHidden={() => setShowCopySuccessContent(false)}
+                                >
+                                    <Button
+                                        variant={'link'}
+                                        isInline
+                                        icon={<CopyIcon />}
+                                        onClick={async (event) => {
+                                            event.preventDefault();
+                                            await navigator.clipboard.writeText(props.workload?.id);
+
+                                            setShowCopySuccessContent(true);
+                                        }}
+                                    />
+                                </Tooltip>
+                            </FlexItem>
+                        </Flex>
+                    </Flex>
+                </FlexItem>
+                <FlexItem align={{ default: 'alignRight' }}>
+                    <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                        <FlexItem>
+                            <Flex
+                                direction={{ default: 'row' }}
+                                spaceItems={{
+                                    default: 'spaceItemsXs',
+                                }}
+                            >
+                                <FlexItem>
+                                    <Tooltip content={'Start the props.workload'}>
+                                        <Button
+                                            id={`start-props.workload-${props.workload.id}-button`}
+                                            isDisabled={!IsReadyAndWaiting(props.workload)}
+                                            variant="link"
+                                            icon={<PlayIcon />}
+                                            onClick={(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+                                                startWorkload(props.workload);
+
+                                                event.stopPropagation();
+                                            }}
+                                        >
+                                            Start
+                                        </Button>
+                                    </Tooltip>
+                                </FlexItem>
+                                <FlexItem>
+                                    <Tooltip content={'Pause the props.workload.'}>
+                                        <Button
+                                            isDisabled={
+                                                !IsInProgress(props.workload) &&
+                                                !IsPausing(props.workload) &&
+                                                !IsPaused(props.workload)
+                                            }
+                                            id={`pause-props.workload-${props.workload.id}-button`}
+                                            variant="link"
+                                            isDanger={IsActivelyRunning(props.workload)}
+                                            icon={
+                                                IsPaused(props.workload) || IsPausing(props.workload) ? (
+                                                    <PlayIcon />
+                                                ) : (
+                                                    <PauseIcon />
+                                                )
+                                            }
+                                            onClick={(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+                                                event.stopPropagation();
+                                                pauseWorkload(props.workload);
+                                            }}
+                                        >
+                                            {IsPaused(props.workload) || IsPausing(props.workload) ? 'Resume' : 'Pause'}
+                                        </Button>
+                                    </Tooltip>
+                                </FlexItem>
+                                <FlexItem>
+                                    <Tooltip content={'Stop the props.workload.'}>
+                                        <Button
+                                            isDisabled={!IsInProgress(props.workload)}
+                                            id={`stop-props.workload-${props.workload.id}-button`}
+                                            variant="link"
+                                            isDanger
+                                            icon={<StopIcon />}
+                                            onClick={(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+                                                stopWorkload(props.workload);
+
+                                                event.stopPropagation();
+                                            }}
+                                        >
+                                            Stop
+                                        </Button>
+                                    </Tooltip>
+                                </FlexItem>
+                            </Flex>
+                        </FlexItem>
+                    </Flex>
+                </FlexItem>
+            </Flex>
+            <WorkloadDescriptiveIcons workload={props.workload} />
+            <WorkloadRuntimeMetrics workload={props.workload} hideNavButton={props.hideNavButton} />
+        </Flex>
+    );
+};
+
+export default WorkloadDataListCell;

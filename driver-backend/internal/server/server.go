@@ -2,8 +2,10 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +20,7 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/domain"
-	gateway "github.com/scusemua/workload-driver-react/m/v2/internal/server/api/proto"
+	"github.com/scusemua/workload-driver-react/m/v2/internal/server/api/proto"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/auth"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/concurrent_websocket"
 	"github.com/scusemua/workload-driver-react/m/v2/internal/server/handlers"
@@ -29,13 +31,24 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"path"
 	"strings"
 	"sync"
 	"time"
+)
+
+func init() {
+	gob.Register(workload.ClusterStatistics{})
+	gob.Register(workload.ClusterEvent{})
+	gob.Register(map[string]interface{}{})
+	gob.Register(time.Duration(0))
+	gob.Register(time.Time{})
+}
+
+var (
+	ErrInvalidWorkloadExportFormat = errors.New("invalid workload export format specified")
 )
 
 var upgrader = websocket.Upgrader{
@@ -61,7 +74,9 @@ type serverImpl struct {
 	prometheusHandler http.Handler
 
 	// workloadManager is responsible for managing workloads submitted to the server for execution/orchestration.
-	workloadManager domain.WorkloadManager
+	workloadManager *workload.BasicWorkloadManager
+
+	workloadNetworkHandler *workload.NetworkHandler
 
 	// nodeHandler is responsible for handling HTTP GET and HTTP PATCH requests for the nodes within the cluster.
 	//
@@ -110,7 +125,6 @@ func NewServer(opts *domain.Configuration) domain.Server {
 		engine:                  gin.New(),
 		generalWebsockets:       make(map[string]domain.ConcurrentWebSocket),
 		getLogsResponseBodies:   make(map[string]io.ReadCloser),
-		workloadManager:         workload.NewWorkloadManager(opts, &atom),
 		prometheusHandler:       promhttp.Handler(),
 		adminUsername:           opts.AdminUser,
 		adminPassword:           opts.AdminPassword,
@@ -121,6 +135,10 @@ func NewServer(opts *domain.Configuration) domain.Server {
 		baseUrl:                 opts.BaseUrl,
 		prometheusEndpoint:      opts.PrometheusEndpoint,
 	}
+
+	s.workloadNetworkHandler = workload.NewNetworkHandler(&atom)
+	s.workloadManager = workload.NewWorkloadManager(opts, &atom, s, s.workloadNetworkHandler)
+	s.workloadNetworkHandler.Initialize(s.workloadManager, s.workloadManager.WorkloadStartedChan())
 
 	// Default to "/"
 	if s.baseUrl == "" {
@@ -155,6 +173,9 @@ func NewServer(opts *domain.Configuration) domain.Server {
 		s.expectedOriginAddresses = append(s.expectedOriginAddresses, expectedOrigin)
 	}
 
+	// TODO: Getting nil pointer exception because the callback occurs in the constructor, so s.gatewayRpcClient is still nil.
+	s.gatewayRpcClient = handlers.NewClusterDashboardHandler(s.opts, true, true, s.SendNotification, s.handleRpcRegistrationComplete)
+
 	if err := s.setupRoutes(); err != nil {
 		panic(err)
 	}
@@ -164,6 +185,125 @@ func NewServer(opts *domain.Configuration) domain.Server {
 	}
 
 	return s
+}
+
+func (s *serverImpl) clearClusterStatistics() (*workload.ClusterStatistics, error) {
+	requestId := uuid.NewString()
+	s.logger.Debug("Clearing cluster statistics.",
+		zap.String("request_id", requestId),
+		zap.Bool("update", true))
+
+	if s.gatewayRpcClient == nil {
+		return nil, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
+	}
+
+	resp, err := s.gatewayRpcClient.ClearClusterStatistics(context.Background(), &proto.Void{})
+	if err != nil {
+		s.logger.Error("Failed to clear Cluster Statistics.", zap.Error(err))
+		return nil, err
+	}
+
+	var clusterStatistics *workload.SerializableClusterStatistics
+
+	buffer := bytes.NewBuffer(resp.SerializedClusterStatistics)
+	decoder := gob.NewDecoder(buffer)
+
+	err = decoder.Decode(&clusterStatistics)
+	if err != nil {
+		s.logger.Error("Failed to decode Cluster Statistics after clearing them.", zap.Error(err))
+		return nil, err
+	}
+
+	return clusterStatistics.ToClusterStatistics(), nil
+}
+
+func (s *serverImpl) GetJupyterMessage(kernelId string, messageId string, messageType string) (*proto.GetJupyterMessageResponse, error) {
+	if s.gatewayRpcClient == nil {
+		return nil, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	arg := &proto.GetJupyterMessageRequest{
+		KernelId:         kernelId,
+		MessageType:      messageType,
+		JupyterMessageId: messageId,
+	}
+
+	resp, err := s.gatewayRpcClient.GetJupyterMessage(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// IsKernelTrainingOrMigratingCallback is used to query whether the Cluster Gateway believes that a particular kernel
+// is actively training or not
+func (s *serverImpl) IsKernelTrainingOrMigratingCallback(kernelId string) (*proto.IsKernelTrainingOrMigratingReply, error) {
+	if s.gatewayRpcClient == nil {
+		return nil, fmt.Errorf("gRPC connection to Cluster Gateway is nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	arg := &proto.KernelId{
+		Id: kernelId,
+	}
+
+	resp, err := s.gatewayRpcClient.IsKernelActivelyTrainingOrMigrating(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// GetSchedulingPolicy returns the configured scheduling policy along with a flag indicating whether the returned
+// policy name is valid.
+func (s *serverImpl) GetSchedulingPolicy() (string, bool) {
+	if s.gatewayRpcClient == nil {
+		return "", false
+	}
+
+	policy := s.gatewayRpcClient.SchedulingPolicy()
+	if policy == "" {
+		return "", false
+	}
+
+	return policy, true
+}
+
+func (s *serverImpl) RefreshAndClearClusterStatistics(update bool, clear bool) (*workload.ClusterStatistics, error) {
+	if clear {
+		return s.clearClusterStatistics()
+	}
+
+	requestId := uuid.NewString()
+
+	resp, err := s.gatewayRpcClient.ClusterStatistics(context.Background(), &proto.ClusterStatisticsRequest{
+		RequestId:   requestId,
+		UpdateFirst: update,
+	})
+	if err != nil {
+		s.logger.Error("Failed to retrieve Cluster Statistics.", zap.Error(err))
+		return nil, err
+	}
+
+	var serializableClusterStatistics *workload.SerializableClusterStatistics
+
+	buffer := bytes.NewBuffer(resp.SerializedClusterStatistics)
+	decoder := gob.NewDecoder(buffer)
+
+	err = decoder.Decode(&serializableClusterStatistics)
+	if err != nil {
+		s.logger.Error("Failed to decode Cluster Statistics.", zap.Error(err))
+		return nil, err
+	}
+
+	return serializableClusterStatistics.ToClusterStatistics(), nil
 }
 
 // templateStaticFiles rewrites the __BASE_PATH__ string in the ./dist/index.html and ./dist/200.html files with
@@ -238,10 +378,11 @@ func (s *serverImpl) handleRpcRegistrationComplete(nodeType domain.NodeType, rpc
 // ErrorHandlerMiddleware is gin middleware to handle errors that occur while the request handlers
 // are processing/handling a request.
 func (s *serverImpl) ErrorHandlerMiddleware(c *gin.Context) {
-	c.Next() // Execute all the handlers.
-
-	s.logger.Debug("Serving request.", zap.String("origin", c.Request.Header.Get("Origin")),
+	s.logger.Debug("Serving request.",
+		zap.String("origin", c.Request.Header.Get("Origin")),
 		zap.String("url", c.Request.URL.String()))
+
+	c.Next() // Execute all the handlers.
 
 	errorsEncountered := make([]error, 0)
 	for _, err := range c.Errors {
@@ -258,7 +399,7 @@ func (s *serverImpl) ErrorHandlerMiddleware(c *gin.Context) {
 
 func (s *serverImpl) jwtPayloadFunc() func(data interface{}) jwt.MapClaims {
 	return func(data interface{}) jwt.MapClaims {
-		s.logger.Debug("Executing jwtPayloadFunc", zap.Any("data", data))
+		//s.logger.Debug("Executing jwtPayloadFunc", zap.Any("data", data))
 		if v, ok := data.(*auth.AuthorizedUser); ok {
 			return jwt.MapClaims{
 				jwtIdentityKey: v.Username,
@@ -286,13 +427,12 @@ func (s *serverImpl) jwtAuthenticator() func(c *gin.Context) (interface{}, error
 	return func(c *gin.Context) (interface{}, error) {
 		var login *auth.LoginRequest
 		if err := c.ShouldBind(&login); err != nil {
-			s.logger.Warn("Received login request with missing login values.")
+			s.logger.Warn("Received login request with missing login values.",
+				zap.Error(err))
 			return "", jwt.ErrMissingLoginValues
 		}
 		userID := login.Username
 		password := login.Password
-
-		s.logger.Debug("Received authentication request.", zap.String("username", userID), zap.String("password", password))
 
 		if userID == s.adminUsername && password == s.adminPassword {
 			return &auth.AuthorizedUser{Username: userID}, nil
@@ -303,7 +443,7 @@ func (s *serverImpl) jwtAuthenticator() func(c *gin.Context) (interface{}, error
 
 func (s *serverImpl) jwtAuthorizer() func(data interface{}, c *gin.Context) bool {
 	return func(data interface{}, c *gin.Context) bool {
-		s.logger.Debug("Executing jwtAuthorizer", zap.Any("data", data))
+		//s.logger.Debug("Executing jwtAuthorizer", zap.Any("data", data))
 
 		var (
 			user *auth.AuthorizedUser
@@ -312,10 +452,10 @@ func (s *serverImpl) jwtAuthorizer() func(data interface{}, c *gin.Context) bool
 		user, ok = data.(*auth.AuthorizedUser)
 
 		if ok {
-			s.logger.Debug("Inspecting request for authorization.", zap.String("username", user.Username))
+			//s.logger.Debug("Inspecting request for authorization.", zap.String("username", user.Username))
 
 			if user.Username == s.adminUsername {
-				s.logger.Debug("Authorizing request from admin user.", zap.String("username", user.Username))
+				//s.logger.Debug("Authorizing request from admin user.", zap.String("username", user.Username))
 				return true
 			} else {
 				log.Fatalf("Found non-admin authorized user with username=\"%s\"\n", user.Username)
@@ -399,7 +539,9 @@ func (s *serverImpl) getPath(relativePath string) string {
 func (s *serverImpl) setupRoutes() error {
 	s.app = proxy.NewJupyterProxyRouter(s.engine, s.opts, s.atom)
 
-	s.nodeHandler = handlers.NewNodeHttpHandler(s.opts)
+	atom := zap.NewAtomicLevelAt(zap.DebugLevel)
+
+	s.nodeHandler = handlers.NewNodeHttpHandler(s.opts, &atom)
 
 	s.app.ForwardedByClientIP = true
 	if err := s.app.SetTrustedProxies([]string{"127.0.0.1"}); err != nil {
@@ -442,32 +584,35 @@ func (s *serverImpl) setupRoutes() error {
 		webSocketGroup.GET(domain.GeneralWebsocketEndpoint, s.serveGeneralWebsocket)
 	}
 
-	// TODO: Getting nil pointer exception because the callback occurs in the constructor, so s.gatewayRpcClient is still nil.
-	s.gatewayRpcClient = handlers.NewClusterDashboardHandler(s.opts, true, s.notifyFrontend, s.handleRpcRegistrationComplete)
-
 	s.sugaredLogger.Debugf("Creating route groups now. (gatewayRpcClient == nil: %v)", s.gatewayRpcClient == nil)
 
-	pprof.Register(s.app, s.getPath("dev/pprof"))
+	debugPath := s.getPath("dev/pprof")
+	pprof.Register(s.app, debugPath)
+	s.logger.Debug("Registered Golang pprof path.", zap.String("path", debugPath))
+
+	secondaryDebugPath := s.getPath("debug/pprof")
+	pprof.Register(s.app, secondaryDebugPath)
+	s.logger.Debug("Registered Golang pprof path.", zap.String("path", secondaryDebugPath))
 
 	// authMiddleware.MiddlewareFunc()
 	s.app.NoRoute(func(c *gin.Context) {
-		s.logger.Warn("Received NoRoute request.", zap.String("url", c.Request.URL.String()))
+		//s.logger.Warn("Received NoRoute request.", zap.String("url", c.Request.URL.String()))
 		c.JSON(404, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
 	})
 
 	// Used by frontend to authenticate and get access to the dashboard.
 	s.app.POST(s.getPath(domain.AuthenticateRequest), func(c *gin.Context) {
-		request, err := httputil.DumpRequest(c.Request, true)
-		if err != nil {
-			s.logger.Error("Failed to dump JWT login request.", zap.Error(err))
-		}
+		//request, err := httputil.DumpRequest(c.Request, true)
+		//if err != nil {
+		//	s.logger.Error("Failed to dump JWT login request.", zap.Error(err))
+		//}
 
-		s.sugaredLogger.Debugf("JWT login handler called: \"%s\": %s", s.getPath(domain.AuthenticateRequest), request)
+		//s.sugaredLogger.Debugf("JWT login handler called: \"%s\": %s", s.getPath(domain.AuthenticateRequest), request)
 		authMiddleware.LoginHandler(c)
 	})
 
 	s.app.POST(s.getPath(domain.RefreshToken), func(c *gin.Context) {
-		s.sugaredLogger.Debugf("JWT token refresh handler called: \"%s\"", s.getPath(domain.RefreshToken))
+		//s.sugaredLogger.Debugf("JWT token refresh handler called: \"%s\"", s.getPath(domain.RefreshToken))
 		authMiddleware.RefreshHandler(c)
 	})
 
@@ -483,59 +628,131 @@ func (s *serverImpl) setupRoutes() error {
 		apiGroup.PATCH(domain.NodesEndpoint, s.nodeHandler.HandlePatchRequest)
 
 		// Adjust vGPUs available on a particular Kubernetes node.
-		apiGroup.PATCH(domain.AdjustVgpusEndpoint, handlers.NewAdjustVirtualGpusHandler(s.opts, s.gatewayRpcClient).HandlePatchRequest)
+		apiGroup.PATCH(domain.AdjustVgpusEndpoint, handlers.NewAdjustVirtualGpusHandler(s.opts, s.gatewayRpcClient, &atom).HandlePatchRequest)
 
 		// Used internally (by the frontend) to get the system config from the backend  (i.e., the backend).
-		apiGroup.GET(domain.SystemConfigEndpoint, handlers.NewConfigHttpHandler(s.opts).HandleRequest)
+		apiGroup.GET(domain.SystemConfigEndpoint, handlers.NewConfigHttpHandler(s.opts, &atom).HandleRequest)
 
 		// Used internally (by the frontend) to get the current set of Jupyter kernels from us (i.e., the backend).
-		apiGroup.GET(domain.GetKernelsEndpoint, handlers.NewKernelHttpHandler(s.opts, s.gatewayRpcClient).HandleRequest)
+		apiGroup.GET(domain.GetKernelsEndpoint, handlers.NewKernelHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
 
 		// Used by the frontend to query the status of particular ZMQ messages.
-		apiGroup.POST(domain.QueryMessageEndpoint, handlers.NewMessageQueryHttpHandler(s.opts, s.gatewayRpcClient).HandleRequest)
+		apiGroup.POST(domain.QueryMessageEndpoint, handlers.NewMessageQueryHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
 
 		// Used internally (by the frontend) to get the list of available workload presets from the backend.
-		apiGroup.GET(domain.WorkloadPresetEndpoint, handlers.NewWorkloadPresetHttpHandler(s.opts).HandleRequest)
+		apiGroup.GET(domain.WorkloadPresetEndpoint, handlers.NewWorkloadPresetHttpHandler(s.opts, &atom).HandleRequest)
+
+		// Used internally (by the frontend) to get the list of available preloaded workload templates from the backend.
+		apiGroup.GET(domain.WorkloadTemplatesEndpoint, handlers.NewWorkloadTemplateHttpHandler(s.opts, &atom).HandleRequest)
 
 		// Used internally (by the frontend) to trigger kernel replica migrations.
-		apiGroup.POST(domain.MigrationEndpoint, handlers.NewMigrationHttpHandler(s.opts, s.gatewayRpcClient).HandleRequest)
+		apiGroup.POST(domain.MigrationEndpoint, handlers.NewMigrationHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
 
 		// Used to stream logs from Kubernetes.
-		apiGroup.GET(fmt.Sprintf("%s/pods/:pod", domain.LogsEndpoint), handlers.NewLogHttpHandler(s.opts).HandleRequest)
+		apiGroup.GET(fmt.Sprintf("%s/pods/:pod", domain.LogsEndpoint), handlers.NewLogHttpHandler(s.opts, &atom).HandleRequest)
 
 		// Queried by Grafana to query for values used to create Grafana variables that are then used to
 		// dynamically create a Grafana Dashboard.
-		apiGroup.GET(path.Join(domain.VariablesEndpoint, ":variable_name"), handlers.NewVariablesHttpHandler(s.opts, s.gatewayRpcClient).HandleRequest)
+		apiGroup.GET(path.Join(domain.VariablesEndpoint, ":variable_name"), handlers.NewVariablesHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
 
 		// Used by the frontend to tell a kernel to stop training.
 		apiGroup.POST(domain.StopTrainingEndpoint, handlers.NewStopTrainingHandler(s.opts, s.atom).HandleRequest)
 
+		clusterStatisticsHttpHandler := handlers.NewClusterStatisticsHttpHandler(s.opts, s.gatewayRpcClient, s.atom)
+		apiGroup.DELETE(domain.ClusterStatisticsEndpoint, clusterStatisticsHttpHandler.HandleDeleteRequest)
+
+		apiGroup.GET(domain.WorkloadStatisticsEndpoint, s.handleWorkloadStatisticsRequest)
+
+		apiGroup.GET(domain.ClusterStatisticsEndpoint, clusterStatisticsHttpHandler.HandleRequest)
+
 		// Used by the frontend to upload/share Prometheus metrics.
-		apiGroup.PATCH(domain.MetricsEndpoint, handlers.NewMetricsHttpHandler(s.opts).HandlePatchRequest)
+		apiGroup.PATCH(domain.MetricsEndpoint, handlers.NewMetricsHttpHandler(s.opts, &atom).HandlePatchRequest)
 
 		// Used by the frontend to retrieve the UnixMillisecond timestamp at which the Cluster was created.
-		apiGroup.GET(domain.ClusterAgeEndpoint, handlers.NewClusterAgeHttpHandler(s.opts, s.gatewayRpcClient).HandleRequest)
+		apiGroup.GET(domain.ClusterAgeEndpoint, handlers.NewClusterAgeHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
+
+		// Used by the frontend to get the configured scheduling policy.
+		apiGroup.GET(domain.SchedulingPolicyEndpoint, handlers.NewSchedulingPolicyHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
+
+		// Used by the frontend to get the configured deployment mode.
+		apiGroup.GET(domain.DeploymentModeEndpoint, handlers.NewDeploymentModeHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
 
 		// Used to tell the frontend what the address of Jupyter is.
-		apiGroup.GET(domain.JupyterAddressEndpoint, handlers.NewJupyterAddressHttpHandler(s.opts).HandleRequest)
+		apiGroup.GET(domain.JupyterAddressEndpoint, handlers.NewJupyterAddressHttpHandler(s.opts, &atom).HandleRequest)
 
 		// Used by the frontend to instruct a Local Daemon to reconnect to the Cluster Gateway.
-		apiGroup.GET(domain.InstructLocalDaemonReconnect, handlers.NewForceLocalDaemonToReconnectHttpHandler(s.opts, s.gatewayRpcClient).HandleRequest)
+		apiGroup.POST(domain.InstructLocalDaemonReconnect, handlers.NewForceLocalDaemonToReconnectHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
+	}
+
+	///////////////////////
+	// Workload HTTP API //
+	///////////////////////
+	workloadHttpGroup := s.app.Group(s.getPath(domain.WorkloadsEndpoint), authMiddleware.MiddlewareFunc())
+	{
+		// Meant to refer to one of the functions of the NetworkHandler struct of the server.
+		type singleWorkloadRequest func(msgId string, workloadId string) (*domain.WorkloadResponse, error)
+
+		// Handle a request targeting a specific workload.
+		handleRequest := func(c *gin.Context, handler singleWorkloadRequest) {
+			workloadId := c.Param("workload_id")
+
+			resp, requestErr := handler("", workloadId)
+			if requestErr != nil {
+				_ = c.Error(requestErr)
+				return
+			}
+
+			c.JSON(http.StatusOK, resp)
+		}
+
+		workloadHttpGroup.POST("/:workload_id/start", func(c *gin.Context) {
+			handleRequest(c, s.workloadNetworkHandler.StartWorkload)
+		})
+
+		workloadHttpGroup.POST("/:workload_id/stop", func(c *gin.Context) {
+			handleRequest(c, s.workloadNetworkHandler.StopWorkload)
+		})
+
+		workloadHttpGroup.POST("/:workload_id/pause", func(c *gin.Context) {
+			handleRequest(c, s.workloadNetworkHandler.PauseWorkload)
+		})
+
+		workloadHttpGroup.POST("/:workload_id/unpause", func(c *gin.Context) {
+			handleRequest(c, s.workloadNetworkHandler.UnpauseWorkload)
+		})
+
+		workloadHttpGroup.POST("/:workload_id/export", func(c *gin.Context) {
+			format := c.DefaultQuery("format", "json")
+
+			if format != "json" && format != "csv" {
+				_ = c.Error(fmt.Errorf("%w: \"%s\"", ErrInvalidWorkloadExportFormat, format))
+				return
+			}
+
+			if format == "json" {
+				handleRequest(c, s.workloadNetworkHandler.GetWorkload)
+				return
+			}
+
+			// CSV
+			workloadId := c.Param("workload_id")
+			s.handleWorkloadStatisticsRequestWithArg(c, workloadId)
+		})
 	}
 
 	///////////////////////////
 	// Debugging and Testing //
 	///////////////////////////
 	{
-		apiGroup.POST(domain.YieldNextRequestEndpoint, handlers.NewYieldNextExecuteHandler(s.opts, s.gatewayRpcClient).HandleRequest)
+		apiGroup.POST(domain.YieldNextRequestEndpoint, handlers.NewYieldNextExecuteHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
 
-		apiGroup.POST(domain.PanicEndpoint, handlers.NewPanicHttpHandler(s.opts, s.gatewayRpcClient).HandleRequest)
+		apiGroup.POST(domain.PanicEndpoint, handlers.NewPanicHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
 
 		apiGroup.POST(domain.SpoofNotificationsEndpoint, s.handleSpoofedNotifications)
 
 		apiGroup.POST(domain.SpoofErrorEndpoint, s.handleSpoofedError)
 
-		apiGroup.POST(domain.PingKernelEndpoint, handlers.NewPingKernelHttpHandler(s.opts, s.gatewayRpcClient).HandleRequest)
+		apiGroup.POST(domain.PingKernelEndpoint, handlers.NewPingKernelHttpHandler(s.opts, s.gatewayRpcClient, &atom).HandleRequest)
 	}
 
 	/////////////////////
@@ -544,7 +761,7 @@ func (s *serverImpl) setupRoutes() error {
 	//if s.opts.SpoofKernelSpecs {
 	//jupyterGroup := s.app.Group(s.getPath(domain.JupyterGroupEndpoint))
 	//{
-	//	jupyterGroup.GET(domain.BaseApiGroupEndpoint+domain.KernelSpecEndpoint, handlers.NewJupyterAPIHandler(s.opts).HandleGetKernelSpecRequest)
+	//	jupyterGroup.GET(domain.BaseApiGroupEndpoint+domain.KernelSpecEndpoint, handlers.NewJupyterAPIHandler(s.otps, &atom).HandleGetKernelSpecRequest)
 	//}
 	//}
 
@@ -553,23 +770,83 @@ func (s *serverImpl) setupRoutes() error {
 	return nil
 }
 
-func (s *serverImpl) HandleAuthenticateRequest(c *gin.Context) {
-	var login *auth.LoginRequest
-	err := c.BindJSON(&login)
-	if err != nil {
-		_ = c.AbortWithError(http.StatusBadRequest, err)
+func (s *serverImpl) handleWorkloadStatisticsRequestWithArg(c *gin.Context, workloadId string) {
+	if workloadId == "" {
+		s.logger.Error("'api/workload-statistics' request did not have required \"workload_id\" query parameter.")
+		c.Status(http.StatusBadRequest)
+		_ = c.Error(fmt.Errorf("empty workload id"))
 		return
 	}
 
-	if login.Username == s.adminUsername && login.Password == s.adminPassword {
-		s.logger.Debug("Authenticated.")
-		c.Status(http.StatusOK)
-		return
-	} else {
-		s.logger.Warn("Received invalid authentication attempt.")
+	driver := s.workloadManager.GetWorkloadDriver(workloadId)
+	if driver == nil {
+		s.logger.Error("Unknown workload specified.",
+			zap.Any("workload_id", workloadId))
 		c.Status(http.StatusBadRequest)
+		_ = c.Error(fmt.Errorf("invalid workload id \"%s\"", workloadId))
 		return
 	}
+
+	outputFileContents, err := driver.GetOutputFileContents()
+
+	if len(outputFileContents) == 0 {
+		s.logger.Warn("Exported CSV for workload, but data is empty.",
+			zap.String("workload_id", workloadId))
+	}
+
+	if err != nil {
+		_ = c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="workload_%s_stats.csv"`, workloadId))
+
+	// Write the CSV data to the response
+	c.String(http.StatusOK, string(outputFileContents))
+}
+
+func (s *serverImpl) handleWorkloadStatisticsRequest(c *gin.Context) {
+	workloadId := c.Query("workload_id")
+	s.handleWorkloadStatisticsRequestWithArg(c, workloadId)
+}
+
+func (s *serverImpl) HandleWorkloadError(workloadId string, err error) {
+	if err == nil {
+		s.logger.Warn("Workload non-critical error handler called with nil error...",
+			zap.String("workload_id", workloadId))
+		err = fmt.Errorf("unspecified")
+	}
+
+	s.logger.Warn("Notifying front-end of non-critical workload error.",
+		zap.String("workload_id", workloadId),
+		zap.Error(err))
+
+	s.SendNotification(&proto.Notification{
+		Title:            fmt.Sprintf("Non-Critical Error Occurred in Workload \"%s\"", workloadId),
+		Message:          err.Error(),
+		NotificationType: int32(domain.WarningNotification),
+		Panicked:         false,
+	})
+}
+
+func (s *serverImpl) HandleCriticalWorkloadError(workloadId string, err error) {
+	if err == nil {
+		s.logger.Warn("Workload critical error handler called with nil error...",
+			zap.String("workload_id", workloadId))
+		err = fmt.Errorf("unspecified")
+	}
+
+	s.logger.Error("Notifying front-end of critical workload error.",
+		zap.String("workload_id", workloadId),
+		zap.Error(err))
+
+	s.SendNotification(&proto.Notification{
+		Title:            fmt.Sprintf("Critical Error Occurred in Workload \"%s\"", workloadId),
+		Message:          err.Error(),
+		NotificationType: int32(domain.ErrorNotification),
+		Panicked:         false,
+	})
 }
 
 // HandlePrometheusRequest passes the request directly to the http.Handler returned by promhttp.Handler.
@@ -577,7 +854,7 @@ func (s *serverImpl) HandlePrometheusRequest(c *gin.Context) {
 	s.prometheusHandler.ServeHTTP(c.Writer, c.Request)
 }
 
-func (s *serverImpl) notifyFrontend(notification *gateway.Notification) {
+func (s *serverImpl) SendNotification(notification *proto.Notification) {
 	message := &domain.GeneralWebSocketResponse{
 		Op:      "notification",
 		Payload: notification,
@@ -615,19 +892,19 @@ func (s *serverImpl) notifyFrontend(notification *gateway.Notification) {
 }
 
 func (s *serverImpl) handleSpoofedNotifications(ctx *gin.Context) {
-	_, err := s.gatewayRpcClient.SpoofNotifications(context.Background(), &gateway.Void{})
+	_, err := s.gatewayRpcClient.SpoofNotifications(context.Background(), &proto.Void{})
 
 	if err != nil {
 		s.logger.Error("Failed to issue `SpoofNotifications` RPC to Cluster Gateway.", zap.Error(err))
 
-		notification := &gateway.Notification{
+		notification := &proto.Notification{
 			Title:            "SpoofedError",
 			Message:          fmt.Sprintf("This is a spoofed/fake error message with UUID=%s.", uuid.NewString()),
 			NotificationType: int32(domain.ErrorNotification),
 			Panicked:         false,
 		}
 
-		s.notifyFrontend(notification) // Might be redundant given we're responding with an erroneous status code.
+		s.SendNotification(notification) // Might be redundant given we're responding with an erroneous status code.
 		_ = ctx.AbortWithError(http.StatusInternalServerError, err)
 	}
 
@@ -635,7 +912,7 @@ func (s *serverImpl) handleSpoofedNotifications(ctx *gin.Context) {
 }
 
 func (s *serverImpl) handleSpoofedError(ctx *gin.Context) {
-	errorMessage := &gateway.Notification{
+	errorMessage := &proto.Notification{
 		Title:            "SpoofedError",
 		Message:          fmt.Sprintf("This is a spoofed/fake error message with UUID=%s.", uuid.NewString()),
 		NotificationType: int32(domain.ErrorNotification),
@@ -643,15 +920,15 @@ func (s *serverImpl) handleSpoofedError(ctx *gin.Context) {
 	}
 
 	s.logger.Debug("Broadcasting spoofed error message.", zap.Int("num-recipients", len(s.generalWebsockets)))
-	s.notifyFrontend(errorMessage)
+	s.SendNotification(errorMessage)
 
 	ctx.Status(http.StatusOK)
 }
 
 func (s *serverImpl) serveGeneralWebsocket(c *gin.Context) {
-	s.logger.Debug("Inspecting origin of incoming non-specific WebSocket connection.",
-		zap.String("request-origin", c.Request.Header.Get("Origin")),
-		zap.String("request-host", c.Request.Host), zap.String("request-uri", c.Request.RequestURI))
+	//s.logger.Debug("Inspecting origin of incoming non-specific WebSocket connection.",
+	//	zap.String("request-origin", c.Request.Header.Get("Origin")),
+	//	zap.String("request-host", c.Request.Host), zap.String("request-uri", c.Request.RequestURI))
 
 	upgrader.CheckOrigin = func(r *http.Request) bool {
 		incomingOrigin := r.Header.Get("Origin")
@@ -687,7 +964,10 @@ func (s *serverImpl) serveGeneralWebsocket(c *gin.Context) {
 	for {
 		_, message, err := concurrentConn.ReadMessage()
 		if err != nil {
-			s.logger.Error("Error while reading message from general websocket.", zap.Error(err))
+			if !errors.Is(err, websocket.ErrCloseSent) && !websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
+				s.logger.Error("Error while reading message from general websocket.", zap.Error(err))
+			}
+
 			delete(s.generalWebsockets, remoteIp)
 			break
 		}
@@ -948,8 +1228,8 @@ func (s *serverImpl) serveHttp(wg *sync.WaitGroup) {
 }
 
 func (s *serverImpl) serveJupyterWebSocketProxy(wg *sync.WaitGroup) {
-	// wsUrlString := fmt.Sprintf("ws://%s", s.opts.FrontendJupyterServerAddress)
-	wsUrlString := path.Join("ws://", s.opts.InternalJupyterServerAddress)
+	jupyterAddress := path.Join(s.opts.InternalJupyterServerAddress, s.opts.JupyterServerBasePath)
+	wsUrlString := path.Join("ws://", s.opts.InternalJupyterServerAddress, jupyterAddress)
 	wsUrl, err := url.Parse(wsUrlString)
 	if err != nil {
 		s.logger.Error("Failed to parse URL for websocket proxy.", zap.String("url", wsUrlString), zap.Error(err))

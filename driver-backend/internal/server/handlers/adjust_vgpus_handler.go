@@ -17,13 +17,13 @@ type AdjustVirtualGpusHandler struct {
 	grpcClient *ClusterDashboardHandler
 }
 
-func NewAdjustVirtualGpusHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler) domain.BackendHttpGetPatchHandler {
+func NewAdjustVirtualGpusHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler, atom *zap.AtomicLevel) domain.BackendHttpGetPatchHandler {
 	if grpcClient == nil {
 		panic("gRPC Client cannot be nil.")
 	}
 
 	handler := &AdjustVirtualGpusHandler{
-		BaseHandler: newBaseHandler(opts),
+		BaseHandler: newBaseHandler(opts, atom),
 		grpcClient:  grpcClient,
 	}
 	handler.BackendHttpGetHandler = handler
@@ -46,6 +46,9 @@ func (h *AdjustVirtualGpusHandler) HandlePatchRequest(c *gin.Context) {
 	if !h.grpcClient.ConnectedToGateway() {
 		h.logger.Warn("Connection with Cluster Gateway has not been established. Aborting.")
 		_ = c.AbortWithError(http.StatusServiceUnavailable, fmt.Errorf("connection with Cluster Gateway is inactive"))
+
+		h.grpcClient.HandleConnectionError()
+
 		return
 	}
 

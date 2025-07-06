@@ -15,9 +15,10 @@
                 {
                     "start_tick": 2,
                     "duration_in_ticks": 2,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 2,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 2,
+                    "vram": 2,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -28,23 +29,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 6,
                     "duration_in_ticks": 2,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 2,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 2,
+                    "vram": 2,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -55,23 +45,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 10,
                     "duration_in_ticks": 2,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 2,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 2,
+                    "vram": 2,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -82,23 +61,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 14,
                     "duration_in_ticks": 2,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 2,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 2,
+                    "vram": 2,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -117,18 +85,6 @@
             "selected_training_event": "2",
             "trainings": [
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "duration_in_ticks": 3,
                     "gpu_utilizations": [
                         {
@@ -139,28 +95,18 @@
                         }
                     ],
                     "start_tick": 2,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 2
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "vram": 2,
+                    "gpus": 2
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 7,
                     "duration_in_ticks": 3,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 2,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 2,
+                    "vram": 2,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -171,23 +117,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 12,
                     "duration_in_ticks": 3,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 2,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 2,
+                    "vram": 2,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -210,9 +145,10 @@
                 {
                     "start_tick": 2,
                     "duration_in_ticks": 15,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 2,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 2,
+                    "vram": 2,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -234,9 +170,10 @@
                 {
                     "start_tick": 2,
                     "duration_in_ticks": 1,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 1,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 1,
+                    "vram": 1,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -244,23 +181,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 5,
                     "duration_in_ticks": 1,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 1,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 1,
+                    "vram": 1,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -268,23 +194,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 8,
                     "duration_in_ticks": 1,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 1,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 1,
+                    "vram": 1,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -292,23 +207,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 11,
                     "duration_in_ticks": 1,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 1,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 1,
+                    "vram": 1,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -316,23 +220,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 13,
                     "duration_in_ticks": 1,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 1,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 1,
+                    "vram": 1,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -340,23 +233,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 15,
                     "duration_in_ticks": 1,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 1,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 1,
+                    "vram": 1,
                     "gpu_utilizations": [
                         {
                             "utilization": 50
@@ -364,23 +246,12 @@
                     ]
                 },
                 {
-                    "DefaultTrainingEventField": {
-                        "start_tick": 2,
-                        "duration_in_ticks": 2,
-                        "millicpus": 100,
-                        "mem_usage_mb": 0.25,
-                        "num_gpus": 1,
-                        "gpu_utilizations": [
-                            {
-                                "utilization": 50
-                            }
-                        ]
-                    },
                     "start_tick": 17,
                     "duration_in_ticks": 1,
-                    "millicpus": 100,
-                    "mem_usage_mb": 0.25,
-                    "num_gpus": 1,
+                    "cpus": 100,
+                    "memory": 0.25,
+                    "gpus": 1,
+                    "vram": 1,
                     "gpu_utilizations": [
                         {
                             "utilization": 50

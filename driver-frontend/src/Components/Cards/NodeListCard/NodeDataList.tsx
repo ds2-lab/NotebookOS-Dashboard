@@ -1,5 +1,4 @@
 import { HeightFactorContext, NodeHeightFactorContext } from '@App/Dashboard';
-import { RoundToTwoDecimalPlaces } from '@Components/Modals';
 import {
     ClusterNode,
     GetNodeAllocatedResource,
@@ -46,6 +45,7 @@ import { useNodes } from '@Providers/NodeProvider';
 import { GpuIcon, GpuIconAlt2 } from '@src/Assets/Icons';
 import { GetPathForFetch } from '@src/Utils/path_utils';
 import { GetToastContentWithHeaderAndBody } from '@src/Utils/toast_utils';
+import { UnixDurationToString } from '@src/Utils/utils';
 import React, { useReducer } from 'react';
 import { toast } from 'react-hot-toast';
 
@@ -361,7 +361,7 @@ export const NodeDataList: React.FunctionComponent<NodeDataListProps> = (props: 
                                 </React.Fragment>
                             }
                             aria-label="node-scheduling-switch"
-                            isChecked={true}
+                            isChecked={clusterNode.Enabled}
                             ouiaId="node-scheduling-switch"
                             onChange={(_event: React.FormEvent<HTMLInputElement>, checked: boolean) => {
                                 enableOrDisableNode(clusterNode, checked);
@@ -375,30 +375,15 @@ export const NodeDataList: React.FunctionComponent<NodeDataListProps> = (props: 
 
     // The general info of the node (name, IP, and age).
     const nodeDescriptionList = (clusterNode: ClusterNode) => {
-        const nodeCreatedAt: number = clusterNode.CreatedAt * 1e3;
-        const ageMilliseconds: number = Date.now() - nodeCreatedAt;
-        let runningAge: number = ageMilliseconds;
+        let formattedTime: string = clusterNode.Age;
 
-        const hours: number = Math.floor(ageMilliseconds / 3.6e6);
-
-        let formattedTime: string = '';
-        if (hours > 0) {
-            formattedTime += hours + 'hr ';
-            runningAge -= hours * 3.6e6;
+        // If we don't have an already-formatted age for whatever reason, then
+        // we will construct the age string ourselves using the CreatedAt field.
+        if (formattedTime === '') {
+            const nodeCreatedAt: number = clusterNode.CreatedAt * 1e3;
+            const ageMilliseconds: number = Date.now() - nodeCreatedAt;
+            formattedTime = UnixDurationToString(ageMilliseconds);
         }
-
-        const minutes: number = Math.floor(runningAge / 6e4);
-        if (minutes > 0) {
-            formattedTime += minutes + 'min ';
-            runningAge -= minutes * 6e4;
-        }
-
-        const seconds: number = RoundToTwoDecimalPlaces(runningAge / 1e3);
-        if (seconds > 0) {
-            formattedTime += seconds + 'sec';
-        }
-
-        formattedTime = formattedTime.trimEnd();
 
         return (
             <Flex direction={{ default: 'row' }} className={'node-list-description-list'}>

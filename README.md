@@ -4,13 +4,15 @@ This repository contains a "Workload Driver" for the Distributed Jupyter Noteboo
 
 The Workload Driver provides a web interface containing a dashboard for monitoring the Notebook Cluster. The Workload Driver will also allow users to execute large-scale workloads on the Jupyter Notebook cluster.
 
-![demo image](docs/demo_images/dashboard_combined.jpg?raw=true)
-
 The repository for NotebookOS, the system with which this dashboard is designed to work, is available [here](https://github.com/ds2-lab/NotebookOS/).
 
-## Repository Overview 
+![demo image](demo.png?raw=true)
 
-The backend is contained within the `internal/` directory. The frontend is contained within the `web/` directory. The entrypoint for the backend is in the `cmd/server/` directory. 
+## Repository Overview
+
+The backend is contained within the `driver-backend/` directory. The frontend is contained within the `dashboard-frontend/` directory. 
+
+The entrypoint for the backend is the `driver-backend/cmd/server/main.go` file.
 
 ## Quick-start
 
@@ -20,12 +22,12 @@ git clone https://github.com/Scusemua/workload-driver-react
 cd workload-driver-react
 ```
 
-To run the `frontend`, execute the following:
+To run the `frontend`, execute the following (from within the `dashboard-frontend/` directory):
 ```bash
 npm install && npm run start:dev
 ```
 
-Next, to run the `backend`, execute the following in a separate terminal:
+Next, to run the `backend`, execute the following in a separate terminal session (from the `driver-backend/` directory):
 ```bash
 make run-server
 ```
@@ -66,11 +68,48 @@ npm run storybook
 npm run build:storybook
 ```
 
+## Dependency Versions
+The following software versions were used during development and testing:
+- Golang: `go version go1.22.9 windows/amd64`
+- NodeJS: `Node.js v20.11.1`
+- nvm: `1.1.9` 
+- Protoc Compiler: `libprotoc 27.2`
+``` shell
+$ npm version
+{
+  npm: '10.8.1',
+  node: '20.11.1',
+  acorn: '8.11.2',
+  ada: '2.7.4',
+  ares: '1.20.1',
+  base64: '0.5.1',
+  brotli: '1.0.9',
+  cjs_module_lexer: '1.2.2',
+  cldr: '43.1',
+  icu: '73.2',
+  llhttp: '8.1.1',
+  modules: '115',
+  napi: '9',
+  nghttp2: '1.58.0',
+  nghttp3: '0.7.0',
+  ngtcp2: '0.8.1',
+  openssl: '3.0.13+quic',
+  simdutf: '4.0.4',
+  tz: '2023c',
+  undici: '5.28.3',
+  unicode: '15.0',
+  uv: '1.46.0',
+  uvwasi: '0.0.19',
+  v8: '11.3.244.8-node.17',
+  zlib: '1.2.13.1-motley-5daffc7'
+}
+```
+
 ## Configurations
-* [TypeScript Config](./tsconfig.json)
-* [Webpack Config](./webpack.common.js)
-* [Jest Config](./jest.config.js)
-* [Editor Config](./.editorconfig)
+* [TypeScript Config](./driver-frontend/tsconfig.json)
+* [Webpack Config](./driver-frontend/webpack.common.js)
+* [Jest Config](./driver-frontend/jest.config.js)
+* [Editor Config](./.driver-frontend/editorconfig)
 
 ## Code quality tools
 * For accessibility compliance, we use [react-axe](https://github.com/dequelabs/react-axe)
@@ -90,8 +129,3 @@ ENV_2=http://2.myendpoint.com
 ```
 
 With that in place, you can use the values in your code like `console.log(process.env.ENV_1);`
-
-# Demo Images
-![Demo image showing various cards within the Dashboard.](docs/demo_images/dashboard1.png?raw=true)
-![Demo image showing various cards within the Dashboard, including a Kubernetes Nodes card.](docs/demo_images/dashboard2.png?raw=true)
-![Combined version of the previous two demo images.](docs/demo_images/dashboard_combined.jpg?raw=true)

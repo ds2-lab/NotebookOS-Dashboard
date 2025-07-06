@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"google.golang.org/protobuf/encoding/protojson"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -15,13 +17,13 @@ type PingKernelHttpHandler struct {
 	grpcClient *ClusterDashboardHandler
 }
 
-func NewPingKernelHttpHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler) domain.BackendHttpGetHandler {
+func NewPingKernelHttpHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler, atom *zap.AtomicLevel) *PingKernelHttpHandler {
 	if grpcClient == nil {
 		panic("gRPC Client cannot be nil.")
 	}
 
 	handler := &PingKernelHttpHandler{
-		BaseHandler: newBaseHandler(opts),
+		BaseHandler: newBaseHandler(opts, atom),
 		grpcClient:  grpcClient,
 	}
 	handler.BackendHttpGetHandler = handler
@@ -32,15 +34,25 @@ func NewPingKernelHttpHandler(opts *domain.Configuration, grpcClient *ClusterDas
 }
 
 func (h *PingKernelHttpHandler) HandleRequest(c *gin.Context) {
-	var req *proto.PingInstruction
-	err := c.BindJSON(&req)
+
+	jsonData, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		h.logger.Error("Failed to bind request to data type.", zap.Error(err))
+		h.logger.Error("Failed to read request body.", zap.Error(err))
 		_ = c.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 
-	resp, err := h.grpcClient.PingKernel(context.Background(), req)
+	var req proto.PingInstruction
+	err = protojson.Unmarshal(jsonData, &req)
+	if err != nil {
+		h.logger.Error("Failed to unmarshal request body to PingInstruction.",
+			zap.ByteString("body", jsonData),
+			zap.Error(err))
+		_ = c.AbortWithError(http.StatusBadRequest, err)
+		return
+	}
+
+	resp, err := h.grpcClient.PingKernel(context.Background(), &req)
 	if err != nil {
 		h.logger.Error("Error while pinging kernel", zap.String("kernel_id", req.KernelId), zap.Error(err))
 		_ = c.AbortWithError(http.StatusInternalServerError, err)

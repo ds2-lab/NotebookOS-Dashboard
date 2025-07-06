@@ -22,13 +22,13 @@ type KernelHttpHandler struct {
 	//spoofedKernels *cmap.ConcurrentMap[string, *gateway.DistributedJupyterKernel] // Latest spoofedKernels.
 }
 
-func NewKernelHttpHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler) domain.BackendHttpGetHandler {
+func NewKernelHttpHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler, atom *zap.AtomicLevel) *KernelHttpHandler {
 	if grpcClient == nil {
 		panic("gRPC Client cannot be nil.")
 	}
 
 	handler := &KernelHttpHandler{
-		BaseHandler: newBaseHandler(opts),
+		BaseHandler: newBaseHandler(opts, atom),
 		//spoofKernels: opts.SpoofKernels,
 		grpcClient: grpcClient,
 	}
@@ -47,6 +47,9 @@ func NewKernelHttpHandler(opts *domain.Configuration, grpcClient *ClusterDashboa
 func (h *KernelHttpHandler) HandleRequest(c *gin.Context) {
 	if !h.grpcClient.ConnectedToGateway() {
 		h.logger.Warn("Connection with Cluster Gateway has not been established. Aborting.")
+
+		h.grpcClient.HandleConnectionError()
+
 		_ = c.AbortWithError(http.StatusServiceUnavailable, fmt.Errorf("connection with Cluster Gateway is inactive"))
 		return
 	}

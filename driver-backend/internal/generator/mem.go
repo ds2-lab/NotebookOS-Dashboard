@@ -46,18 +46,18 @@ const (
 // MemoryUtil is used as a buffer to track overall memory utilizations.
 // After updated memory readings of the same timestamp, buffered summary are committed to the "LastUtil".
 type MemoryUtil struct {
-	Timestamp time.Time
-	Pod       string
-	Value     float64
-	Max       float64
+	Timestamp time.Time `json:"timestamp"`
+	Pod       string    `json:"pod"`
+	Value     float64   `json:"value"`
+	Max       float64   `json:"max"`
 
 	// Status shows the current status of the memory.
-	Status MemoryStatus
+	Status MemoryStatus `json:"status"`
 
 	// LastUtil stores last committed memory utilization.
-	LastUtil *MemoryUtil
+	LastUtil *MemoryUtil `json:"lastUtil"`
 
-	NextUtil *MemoryUtil
+	NextUtil *MemoryUtil `json:"nextUtil"`
 
 	MaxSessionMemory float64
 	MaxTaskMemory    float64
@@ -125,7 +125,7 @@ func (ed *MemoryUtilBuffer) Lookup(ts time.Time) (util *MemoryUtil) {
 	return
 }
 
-func (ed *MemoryUtilBuffer) Debug_Init(rec *Memory) *MemoryUtil {
+func (ed *MemoryUtilBuffer) DebugInit(rec *Memory) *MemoryUtil {
 	return ed.init(rec)
 }
 
@@ -155,7 +155,7 @@ func (ed *MemoryUtilBuffer) init(rec *Memory) *MemoryUtil {
 	return &nextUtil
 }
 
-func (ed *MemoryUtilBuffer) Debug_Commit(rec *MemoryUtil) *MemoryUtil {
+func (ed *MemoryUtilBuffer) DebugCommit(rec *MemoryUtil) *MemoryUtil {
 	return ed.commit(rec)
 }
 
@@ -171,10 +171,10 @@ func (ed *MemoryUtilBuffer) commit(rec *MemoryUtil) *MemoryUtil {
 	if ed.prototype != nil {
 		ed.prototype.NextUtil = rec
 		// Because only the status of current reading is touched by transit(),
-		// we move the Repeat intialization from init() to here.
+		// we move the Repeat initialization from init() to here.
 		ed.prototype.Repeat = 0
 		if ed.current != nil {
-			// Set field "Repeat", MemoryIdleDelay is equivalent to GPUIdel
+			// Set field "Repeat", MemoryIdleDelay is equivalent to GPUIdle.
 			eqStatus := ed.current.Status
 			if eqStatus == MemoryIdleDelay {
 				eqStatus = MemoryIdle
@@ -435,13 +435,13 @@ func (d *MemoryDriver) HandleRecord(ctx context.Context, r Record) {
 		down := d.IsDown()
 		if d.validateTick(rec.Timestamp.Time(), interval) {
 			if down {
-				sugarLog.Warnf("Detected memory trace server resumed since %v, resume gc...", rec.Timestamp.Time())
+				sugarLog.Warnf("Detected memory trace server resumed since %v, resume garbageCollect...", rec.Timestamp.Time())
 			}
 			d.gc(ctx, ts, false)
 			// Current implementation looks ahead of one interval and only generates events with timestamp of lastRead.Timestamp - interval.
 			d.FlushEvents(ctx, ts.Add(-interval))
 		} else if !down {
-			sugarLog.Warnf("Detected memory trace server down since %v, start to skip gc...", rec.Timestamp.Time())
+			sugarLog.Warnf("Detected memory trace server down since %v, start to skip garbageCollect...", rec.Timestamp.Time())
 		}
 	}
 	d.lastRead = rec.Timestamp.Time().Unix()
@@ -616,7 +616,7 @@ func (d *MemoryDriver) gc(ctx context.Context, ts time.Time, force bool) error {
 
 		events, err = pod.transit(events, force)
 		if err != nil {
-			sugarLog.Warnf("Error on commiting last readings in gc: %v, %v", err, committed)
+			sugarLog.Warnf("Error on commiting last readings in garbageCollect: %v, %v", err, committed)
 		}
 		if err := d.triggerMulti(ctx, events, pod); err != nil {
 			return err

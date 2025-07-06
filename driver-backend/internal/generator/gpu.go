@@ -52,25 +52,26 @@ type GPUUtil struct {
 	// prototype keeps track of the original object provisioned by the workload_generator.
 	prototype *GPUUtil
 
-	Timestamp time.Time // Time of the event triggered
-	Pod       string
-	GPUs      int
-	Value     float64
-	Max       float64
-	Status    GPUStatus
-	GPUName   string // TODO(Ben): Right now, we always use 'AnyGPU' for this. Eventually need a way to support a variety of different GPUs. Could do so randomly for now.
+	Timestamp time.Time `json:"timestamp"` // Time of the event triggered
+	Pod       string    `json:"pod"`
+	GPUs      int       `json:"num_gpus"`
+	Value     float64   `json:"gpu_utilization"`
+	Max       float64   `json:"max_gpu_utilization"`
+	Status    GPUStatus `json:"status"`
+	GPUName   string    `json:"GPUName"` // TODO(Ben): Right now, we always use 'AnyGPU' for this. Eventually need a way to support a variety of different GPUs. Could do so randomly for now.
+	VRamGB    float64   `json:"vram"`
 
 	// Repeat shows how many iterations the status holds.
-	Repeat       int
-	RawTimestamp time.Time // Time traced back to the start of the event (Repeat == 0) for delayed event.
+	Repeat       int       `json:"repeat"`
+	RawTimestamp time.Time `json:"rawTimestamp"` // Time traced back to the start of the event (Repeat == 0) for delayed event.
 
 	// LastUtil stores last committed GPU utilization.
-	LastUtil *GPUUtil
+	LastUtil *GPUUtil `json:"-"`
 }
 
 func (ed *GPUUtil) String() string {
-	return fmt.Sprintf("GPUUtil[Pod: %s. GPUs: %d. Util: %.2f%%. Status: %v. Timestamp: %v. RawTS: %v.]", ed.Pod, ed.GPUs, ed.Value, ed.Status, ed.Timestamp, ed.RawTimestamp)
-	// return fmt.Sprintf("Pod: %s, %d cores, %.2f%%%%", ed.Pod, ed.GPUs, ed.Value)
+	return fmt.Sprintf("GPUUtil[Pod: %s. GPUs: %d. Util: %.2f%%. VRAM: %.2f GB. Status: %v. Timestamp: %v. RawTS: %v.]",
+		ed.Pod, ed.GPUs, ed.Value, ed.VRamGB, ed.Status, ed.Timestamp, ed.RawTimestamp)
 }
 
 func (ed *GPUUtil) GetTS() time.Time {
@@ -95,6 +96,7 @@ func (ed *GPUUtil) init(rec *GPURecord) *GPUUtil {
 	ed.Timestamp = rec.Timestamp.Time()
 	ed.GPUs = 1
 	ed.Value = rec.Value
+	ed.VRamGB = rec.VramGb
 	if ed.Value > GPUActivationThreshold {
 		ed.Status = GPUBusy
 	} else {
@@ -114,6 +116,12 @@ func (ed *GPUUtil) update(rec *GPURecord) *GPUUtil {
 
 	ed.GPUs++
 	ed.Value += rec.Value
+
+	// Just take the largest of the two for now.
+	if rec.VramGb > ed.VRamGB {
+		ed.VRamGB = rec.VramGb
+	}
+
 	// Status will be promoted to GPUBusy only, and keep GPUIdle intact.
 	if ed.Value > 0 {
 		ed.Status = GPUBusy
@@ -177,6 +185,7 @@ func (ed *GPUUtil) reset(time time.Time) *GPUUtil {
 		ed.GPUs = ed.LastUtil.GPUs
 	}
 	ed.Value = 0
+	ed.VRamGB = 0
 	ed.Status = GPUStopped
 	ed.Repeat = 0
 	ed.RawTimestamp = time
@@ -279,12 +288,12 @@ func (ed *GPUUtil) transit(evtBuff []GPUEvent, force bool) ([]GPUEvent, error) {
 }
 
 type GPURecord struct {
-	Timestamp UnixTime `csv:"timestamp"`
-	PodIdx    int      `csv:"exported_pod"`
-	GPUIdx    string   `csv:"gpu"`
-	// Instance string `csv:"instance"`
-	Value float64 `csv:"value"`
-	Pod   string
+	Timestamp UnixTime `csv:"timestamp" json:"timestamp"`
+	PodIdx    int      `csv:"exported_pod" json:"exported_pod"`
+	GPUIdx    string   `csv:"gpu" json:"gpu"`
+	Value     float64  `csv:"value" json:"value"` // Instance string `csv:"instance"`
+	VramGb    float64  `csv:"vram,omitempty" json:"vram"`
+	Pod       string   `json:"pod"`
 }
 
 func (r *GPURecord) GetTS() time.Time {
@@ -292,7 +301,7 @@ func (r *GPURecord) GetTS() time.Time {
 }
 
 func (r *GPURecord) String() string {
-	return fmt.Sprintf("GPURecord[Timestamp=%v, PodIdx=%d, GpuIdx=%s, Value=%.2f, Pod=%s]", r.Timestamp, r.PodIdx, r.GPUIdx, r.Value, r.Pod)
+	return fmt.Sprintf("GPURecord[Timestamp=%v, PodIdx=%d, GpuIdx=%s, Value=%.2f, Vram=%.2f, Pod=%s]", r.Timestamp, r.PodIdx, r.GPUIdx, r.Value, r.VramGb, r.Pod)
 }
 
 type GPURecordMapper struct {
@@ -637,7 +646,7 @@ func (d *GPUDriver) gc(ctx context.Context, ts time.Time, force bool) error {
 	var err error
 	for _, pod := range d.pods {
 		// if pod != nil && pod.Pod == "trainman-k8s-job-ccdd6414-980b-4a76-8b91-0937740e2b3b-24lx7" {
-		// 	log.Debug("check gc %v %v %v", pod.Timestamp, pod.Status, pod)
+		// 	log.Debug("check garbageCollect %v %v %v", pod.Timestamp, pod.Status, pod)
 		// 	if pod.LastUtil != nil {
 		// 		log.Debug("history %v %v %v", pod.Timestamp, pod.Status, pod)
 		// 	}
@@ -652,7 +661,7 @@ func (d *GPUDriver) gc(ctx context.Context, ts time.Time, force bool) error {
 		committed := pod.commit()
 		events, err = committed.transit(events, force)
 		if err != nil {
-			sugarLog.Warnf("Error on commiting last readings in gc: %v, %v", err, committed)
+			sugarLog.Warnf("Error on commiting last readings in garbageCollect: %v, %v", err, committed)
 		}
 		if err := d.triggerMulti(ctx, events, committed); err != nil {
 			return err
@@ -664,7 +673,7 @@ func (d *GPUDriver) gc(ctx context.Context, ts time.Time, force bool) error {
 		committed := pod.reset(ts)
 		events, err = committed.transit(events, force)
 		if err != nil {
-			sugarLog.Warnf("Error on commiting last readings in gc: %v, %v", err, committed)
+			sugarLog.Warnf("Error on commiting last readings in garbageCollect: %v, %v", err, committed)
 		}
 		if err := d.triggerMulti(ctx, events, committed); err != nil {
 			return err

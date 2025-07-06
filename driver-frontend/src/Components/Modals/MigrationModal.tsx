@@ -1,4 +1,4 @@
-import { NodeList } from '@Cards/NodeListCard/NodeList';
+import { NodeListCard } from '@Cards/NodeListCard/NodeListCard';
 import { DistributedJupyterKernel, JupyterKernelReplica } from '@Data/Kernel';
 import { Button, Modal, ModalVariant, Text, TextContent, TextVariants } from '@patternfly/react-core';
 import { AuthorizationContext } from '@Providers/AuthProvider';
@@ -27,25 +27,33 @@ export const MigrationModal: React.FunctionComponent<MigrationModalProps> = (pro
 
     const onConfirmClicked = () => {
         if (!authenticated) {
+            console.log('Not authenticated! Cannot migrate.');
             return;
         }
+
+        console.log('OnConfirm clicked');
 
         props.onConfirm(props.targetReplica!, props.targetKernel!, targetNodeID);
     };
 
     return (
         <Modal
-            variant={ModalVariant.medium}
+            variant={ModalVariant.large}
             titleIconVariant="info"
             aria-label="migration-modal"
             title={'Migrate replica ' + props.targetReplica!.replicaId + ' of kernel ' + props.targetKernel!.kernelId}
             isOpen={props.isOpen}
             onClose={props.onClose}
             actions={[
-                <Button key="confirm" variant="primary" isDisabled={!authenticated} onClick={() => onConfirmClicked}>
+                <Button
+                    key="confirm-migrate-replica"
+                    variant="primary"
+                    isDisabled={!authenticated}
+                    onClick={() => onConfirmClicked()}
+                >
                     Confirm
                 </Button>,
-                <Button key="cancel" variant="link" onClick={props.onClose}>
+                <Button key="cancel-migrate-replica" variant="link" onClick={props.onClose}>
                     Cancel
                 </Button>,
             ]}
@@ -57,7 +65,7 @@ export const MigrationModal: React.FunctionComponent<MigrationModalProps> = (pro
                 </Text>
             </TextContent>
             <br />
-            <NodeList
+            <NodeListCard
                 isDashboardList={false}
                 hideAdjustVirtualGPUsButton={true}
                 displayNodeToggleSwitch={false}

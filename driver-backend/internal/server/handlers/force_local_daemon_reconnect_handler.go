@@ -15,13 +15,13 @@ type ForceLocalDaemonToReconnectHttpHandler struct {
 	grpcClient *ClusterDashboardHandler
 }
 
-func NewForceLocalDaemonToReconnectHttpHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler) domain.BackendHttpGetHandler {
+func NewForceLocalDaemonToReconnectHttpHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler, atom *zap.AtomicLevel) *ForceLocalDaemonToReconnectHttpHandler {
 	if grpcClient == nil {
 		panic("gRPC Client cannot be nil.")
 	}
 
 	handler := &ForceLocalDaemonToReconnectHttpHandler{
-		BaseHandler: newBaseHandler(opts),
+		BaseHandler: newBaseHandler(opts, atom),
 		grpcClient:  grpcClient,
 	}
 	handler.BackendHttpGetHandler = handler
@@ -37,6 +37,9 @@ func (h *ForceLocalDaemonToReconnectHttpHandler) HandleRequest(c *gin.Context) {
 	if !h.grpcClient.ConnectedToGateway() {
 		h.logger.Warn("Connection with Cluster Gateway has not been established. Aborting.")
 		_ = c.AbortWithError(http.StatusServiceUnavailable, fmt.Errorf("connection with Cluster Gateway is inactive"))
+
+		h.grpcClient.HandleConnectionError()
+
 		return
 	}
 

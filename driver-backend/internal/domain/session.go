@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"github.com/goccy/go-json"
 	"github.com/mattn/go-colorable"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -10,11 +11,14 @@ import (
 )
 
 const (
-	SessionAwaitingStart SessionState = "awaiting start" // The session has not yet been created.
-	SessionIdle          SessionState = "idle"           // The session is running, but is not actively training.
-	SessionTraining      SessionState = "training"       // The session is actively training.
-	SessionStopped       SessionState = "terminated"     // The session has been terminated (without an error).
-	SessionErred         SessionState = "erred"          // An error occurred, forcing the session to terminate.
+	SessionAwaitingStart     SessionState = "awaiting start"     // The session has not yet been created.
+	SessionIdle              SessionState = "idle"               // The session is running, but is not actively training.
+	SessionTrainingSubmitted SessionState = "training_submitted" // The session submitted a request to begin training.
+	SessionTraining          SessionState = "training"           // The session is actively training.
+	SessionStopped           SessionState = "terminated"         // The session has been terminated (without an error).
+	SessionErred             SessionState = "erred"              // An error occurred, forcing the session to terminate.
+	SessionDiscarded         SessionState = "discarded"          // Session was not sampled for the workload.
+	SessionClientExited      SessionState = "client-exited"      // The Session's client exited early.
 )
 
 var (
@@ -24,17 +28,50 @@ var (
 type SessionMetadata interface {
 	// GetPod returns the pod/session ID of the session.
 	GetPod() string
+
 	// GetMaxSessionCPUs returns the maximum number of CPUs that this SessionMeta will ever use.
 	// This is obtained by performing a "pre-run".
 	GetMaxSessionCPUs() float64
+
 	// GetMaxSessionMemory returns t maximum amount of memory (in GB) that this SessionMeta will ever use.
 	// This is obtained by performing a "pre-run".
 	GetMaxSessionMemory() float64
+
 	// GetMaxSessionGPUs returns the maximum number of GPUs that this SessionMeta will ever use.
 	// This is obtained by performing a "pre-run".
 	GetMaxSessionGPUs() int
+
 	// GetMaxSessionVRAM returns the maximum VRAM (i.e. GPU memory) used by the Session at any point in gigabytes (GB).
 	GetMaxSessionVRAM() float64
+
+	// GetCurrentTrainingMaxCPUs returns the maximum number of CPUs that this SessionMetadata will use during its current training task.
+	// This will only be set (i.e., have a non-zero/non-default value) when the SessionMetadata is attached as data to a 'training-started' event.
+	GetCurrentTrainingMaxCPUs() float64
+
+	// GetCurrentTrainingMaxMemory returns the maximum amount of memory (in GB) that this SessionMetadata will use during its current training task.
+	// This will only be set (i.e., have a non-zero/non-default value) when the SessionMetadata is attached as data to a 'training-started' event.
+	GetCurrentTrainingMaxMemory() float64
+
+	// GetVRAM returns the VRAM.
+	GetVRAM() float64
+	GetCpuUtilization() float64
+	GetNumGPUs() int
+	GetGpuUtilization() float64
+	GetMemoryUtilization() float64
+
+	// GetCurrentTrainingMaxGPUs returns the maximum number of GPUs that this SessionMetadata will use during its current training task.
+	// This will only be set (i.e., have a non-zero/non-default value) when the SessionMetadata is attached as data to a 'training-started' event.
+	GetCurrentTrainingMaxGPUs() int
+
+	// GetCurrentTrainingMaxVRAM returns the maximum amount of VRAM in GB that this SessionMetadata will use during its current training task.
+	// This will only be set (i.e., have a non-zero/non-default value) when the SessionMetadata is attached as data to a 'training-started' event.
+	GetCurrentTrainingMaxVRAM() float64
+
+	// GetGPUs returns the number of GPUs that this Session is configured to use.
+	GetGPUs() int
+
+	// HasGpus returns true if the GPUs are not nil.
+	HasGpus() bool
 }
 
 type SessionState string
@@ -43,53 +80,50 @@ func (s SessionState) String() string {
 	return string(s)
 }
 
-type WorkloadSession interface {
-	GetId() string
-	GetResourceRequest() *ResourceRequest
-	GetTrainingsCompleted() int
-	GetState() SessionState
-	GetCreatedAt() time.Time
-	GetTrainingStartedAt() time.Time
-	GetTrainings() []*TrainingEvent
-	GetStderrIoPubMessages() []string
-	GetStdoutIoPubMessages() []string
-	AddStderrIoPubMessage(message string)
-	AddStdoutIoPubMessage(message string)
-
-	SetState(SessionState) error
-	GetAndIncrementTrainingsCompleted() int
-}
-
-// BasicWorkloadSession corresponds to the `Session` struct defined in `web/app/Data/workloadImpl.tsx`.
+// BasicWorkloadSession corresponds to the `Session` struct defined in `web/app/Data/Workload.tsx`.
 // Used by the frontend when submitting workloads created from templates (as opposed to presets).
 type BasicWorkloadSession struct {
 	logger        *zap.Logger
 	sugaredLogger *zap.SugaredLogger
 	atom          *zap.AtomicLevel
 
-	Id                  string           `json:"id"`
-	ResourceRequest     *ResourceRequest `json:"resource_request"`
-	TrainingsCompleted  int              `json:"trainings_completed"`
-	State               SessionState     `json:"state"`
-	CreatedAt           time.Time        `json:"-"`
-	TrainingStartedAt   time.Time        `json:"-"`
-	Meta                SessionMetadata  `json:"-"`
-	TrainingEvents      []*TrainingEvent `json:"trainings"`
-	StderrIoPubMessages []string         `json:"stderr_io_pub_messages"`
-	StdoutIoPubMessages []string         `json:"stdout_io_pub_messages"`
+	Id                     string           `json:"id"`
+	CurrentResourceRequest *ResourceRequest `json:"current_resource_request"`
+	MaxResourceRequest     *ResourceRequest `json:"max_resource_request"`
+	TrainingsCompleted     int              `json:"trainings_completed"`
+	State                  SessionState     `json:"state"`
+	CreatedAt              time.Time        `json:"-"`
+	TrainingStartedAt      time.Time        `json:"-"`
+	Meta                   SessionMetadata  `json:"-"`
+	TrainingEvents         []*TrainingEvent `json:"trainings"`
+	StderrIoPubMessages    []string         `json:"stderr_io_pub_messages"`
+	StdoutIoPubMessages    []string         `json:"stdout_io_pub_messages"`
+	TotalDelayIncurred     time.Duration    `json:"total_delay"`
+	TotalDelayMilliseconds int64            `json:"total_delay_milliseconds"`
+	Discarded              bool             `json:"discarded"`
+	FailedTicks            int              `json:"failed_ticks"`
+
+	// AssignedModel is the name of the model assigned to this BasicWorkloadSession.
+	AssignedModel string `json:"assigned_model"`
+	// AssignedDataset is the name of the dataset assigned to this BasicWorkloadSession.
+	AssignedDataset string `json:"assigned_dataset"`
+	// ModelDatasetCategory is the category of the AssignedModel and AssignedDataset.
+	ModelDatasetCategory string `json:"model_dataset_category"`
 }
 
-func newWorkloadSession(id string, meta SessionMetadata, resourceRequest *ResourceRequest, createdAtTime time.Time, atom *zap.AtomicLevel) *BasicWorkloadSession {
+func NewWorkloadSession(id string, meta SessionMetadata, resourceRequest *ResourceRequest, createdAtTime time.Time, atom *zap.AtomicLevel) *BasicWorkloadSession {
 	session := &BasicWorkloadSession{
-		Id:                  id,
-		ResourceRequest:     resourceRequest,
-		TrainingsCompleted:  0,
-		State:               SessionAwaitingStart,
-		CreatedAt:           createdAtTime,
-		Meta:                meta,
-		TrainingEvents:      make([]*TrainingEvent, 0),
-		StderrIoPubMessages: make([]string, 0),
-		StdoutIoPubMessages: make([]string, 0),
+		Id:                     id,
+		MaxResourceRequest:     resourceRequest,
+		CurrentResourceRequest: NewZeroedResourceRequest("ANY_GPU"),
+		TrainingsCompleted:     0,
+		State:                  SessionAwaitingStart,
+		CreatedAt:              createdAtTime,
+		Meta:                   meta,
+		TrainingEvents:         make([]*TrainingEvent, 0),
+		StderrIoPubMessages:    make([]string, 0),
+		StdoutIoPubMessages:    make([]string, 0),
+		TotalDelayMilliseconds: 0,
 	}
 
 	zapConfig := zap.NewDevelopmentEncoderConfig()
@@ -104,10 +138,6 @@ func newWorkloadSession(id string, meta SessionMetadata, resourceRequest *Resour
 	session.sugaredLogger = logger.Sugar()
 
 	return session
-}
-
-func NewWorkloadSession(id string, meta SessionMetadata, resourceRequest *ResourceRequest, createdAtTime time.Time, atom *zap.AtomicLevel) *BasicWorkloadSession {
-	return newWorkloadSession(id, meta, resourceRequest, createdAtTime, atom)
 }
 
 // createLoggers instantiates the BasicWorkloadSession's zap.Logger and zap.SugaredLogger.
@@ -184,12 +214,38 @@ func (s *BasicWorkloadSession) AddStdoutIoPubMessage(message string) {
 	s.StdoutIoPubMessages = append(s.StdoutIoPubMessages, message)
 }
 
+// NumFailedTicks returns the number of times that this Session failed to process all of its events during a tick
+// of a workload.
+func (s *BasicWorkloadSession) NumFailedTicks() int {
+	return s.FailedTicks
+}
+
+// TickFailed records that the target Session failed to process all of its events during a tick
+// of a workload. It returns the updated value (i.e., the same value that a subsequent call to NumFailedTicks
+// would return for the target Session).
+func (s *BasicWorkloadSession) TickFailed() int {
+	s.FailedTicks += 1
+	return s.FailedTicks
+}
+
 func (s *BasicWorkloadSession) GetId() string {
 	return s.Id
 }
 
-func (s *BasicWorkloadSession) GetResourceRequest() *ResourceRequest {
-	return s.ResourceRequest
+// GetCurrentResourceRequest returns the ResourceRequest encoding the Session's current resource usage.
+func (s *BasicWorkloadSession) GetCurrentResourceRequest() *ResourceRequest {
+	return s.CurrentResourceRequest
+}
+
+// SetCurrentResourceRequest updates the ResourceRequest encoding the Session's current resource usage.
+func (s *BasicWorkloadSession) SetCurrentResourceRequest(req *ResourceRequest) {
+	s.CurrentResourceRequest = req
+}
+
+// GetMaxResourceRequest returns the ResourceRequest encoding the maximum amount of each type of resource
+// that the Session may use at some point during its lifetime.
+func (s *BasicWorkloadSession) GetMaxResourceRequest() *ResourceRequest {
+	return s.MaxResourceRequest
 }
 
 func (s *BasicWorkloadSession) GetTrainingsCompleted() int {
@@ -212,17 +268,27 @@ func (s *BasicWorkloadSession) SetState(targetState SessionState) error {
 	}
 
 	sourceState := s.State
-	s.getLogger().Debug("Transitioning session now.", zap.String("session_id", s.Id),
-		zap.String("source_state", sourceState.String()), zap.String("target_state", targetState.String()))
+	if sourceState != "" { // Don't bother printing when we're setting the Session's state for the first time.
+		s.getLogger().Debug("Transitioning session now.",
+			zap.String("session_id", s.Id),
+			zap.String("source_state", sourceState.String()),
+			zap.String("target_state", targetState.String()))
+	}
+
 	s.State = targetState
 
 	if sourceState == SessionTraining {
-		s.getLogger().Debug("Session finished training.", zap.String("session_id", s.Id),
+		s.getLogger().Debug(ColorizeText("Session finished training.", Green),
+			zap.String("session_id", s.Id),
 			zap.Duration("training_duration", time.Since(s.TrainingStartedAt)))
 	}
 
 	if targetState == SessionTraining {
 		s.TrainingStartedAt = time.Now()
+	}
+
+	if targetState == SessionDiscarded {
+		s.Discarded = true
 	}
 
 	return nil
@@ -252,42 +318,73 @@ func (s *BasicWorkloadSession) GetTrainings() []*TrainingEvent {
 type WorkloadTemplateSession struct {
 	*BasicWorkloadSession
 
-	StartTick int              `json:"start_tick"`
-	StopTick  int              `json:"stop_tick"`
-	Trainings []*TrainingEvent `json:"trainings"`
+	StartTick         int     `json:"start_tick"`
+	StopTick          int     `json:"stop_tick"`
+	NumTrainingEvents int     `json:"num_training_events"`
+	TotalExecTime     int64   `json:"total_exec_time"`
+	ExecutionTimes    []int64 `json:"-"`
+	CurrentTickNumber int64   `json:"current_tick_number"`
 }
 
-// NewWorkloadTemplateSession creates a new WorkloadTemplateSession struct and returns a pointer to it.
-func NewWorkloadTemplateSession(id string, meta SessionMetadata, resourceRequest *ResourceRequest, createdAtTime time.Time, startTick int, stopTick int, atom *zap.AtomicLevel) WorkloadTemplateSession {
-	workloadSession := newWorkloadSession(id, meta, resourceRequest, createdAtTime, atom)
-
-	return WorkloadTemplateSession{
-		BasicWorkloadSession: workloadSession,
+func NewWorkloadTemplateSession(session *BasicWorkloadSession, startTick int, stopTick int) *WorkloadTemplateSession {
+	return &WorkloadTemplateSession{
+		BasicWorkloadSession: session,
 		StartTick:            startTick,
 		StopTick:             stopTick,
-		Trainings:            make([]*TrainingEvent, 0),
+		NumTrainingEvents:    0,
+		TotalExecTime:        0,
+		ExecutionTimes:       make([]int64, 0),
 	}
 }
 
-func (t WorkloadTemplateSession) GetStartTick() int {
+func (t *WorkloadTemplateSession) String() string {
+	m, err := json.Marshal(t)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(m)
+}
+
+func (t *WorkloadTemplateSession) GetStartTick() int {
 	return t.StartTick
 }
 
-func (t WorkloadTemplateSession) GetStopTick() int {
+func (t *WorkloadTemplateSession) GetStopTick() int {
 	return t.StopTick
 }
 
-func (t WorkloadTemplateSession) GetTrainings() []*TrainingEvent {
-	return t.Trainings
+// AddTraining appends a new training event and is intended to be used only during unit tests.
+func (t *WorkloadTemplateSession) AddTraining(startTick int, durationTicks int, millicpus float64, memMb float64, vramGb float64, gpuUtils []float64) {
+	gpuUtilizations := make([]GpuUtilization, 0, len(gpuUtils))
+
+	for _, gpuUtil := range gpuUtils {
+		gpuUtilizations = append(gpuUtilizations, GpuUtilization{
+			Utilization: gpuUtil,
+		})
+	}
+
+	trainingEvent := &TrainingEvent{
+		TrainingIndex:   len(t.TrainingEvents),
+		Millicpus:       millicpus,
+		MemUsageMB:      memMb,
+		VRamUsageGB:     vramGb,
+		GpuUtil:         gpuUtilizations,
+		StartTick:       startTick,
+		DurationInTicks: durationTicks,
+	}
+
+	t.TrainingEvents = append(t.TrainingEvents, trainingEvent)
+	t.NumTrainingEvents += 1
 }
 
-// TrainingEvent corresponds to the `TrainingEvent` struct defined in `web/app/Data/workloadImpl.tsx`.
+// TrainingEvent corresponds to the `TrainingEvent` struct defined in `web/app/Data/Workload.tsx`.
 // Used by the frontend when submitting workloads created from templates (as opposed to presets).
 type TrainingEvent struct {
 	TrainingIndex   int              `json:"training_index"`
-	Millicpus       float64          `json:"millicpus"` // CPU usage in 1/1000th CPU core
-	MemUsageMB      float64          `json:"mem_usage_mb"`
-	VRamUsageGB     float64          `json:"vram_usage_gb"`
+	Millicpus       float64          `json:"cpus"` // CPU usage in 1/1000th CPU core
+	MemUsageMB      float64          `json:"memory"`
+	VRamUsageGB     float64          `json:"vram"`
 	GpuUtil         []GpuUtilization `json:"gpu_utilizations"`
 	StartTick       int              `json:"start_tick"`
 	DurationInTicks int              `json:"duration_in_ticks"`

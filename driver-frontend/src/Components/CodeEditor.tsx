@@ -1,28 +1,87 @@
 import { Monaco } from '@monaco-editor/react';
-import { CodeEditor, CodeEditorControl, Language } from '@patternfly/react-code-editor';
-import { Button, Chip, Grid, GridItem, Switch, TextInput } from '@patternfly/react-core';
-import { ClockIcon, CodeIcon, DiceIcon } from '@patternfly/react-icons';
+import { CodeEditor, Language } from '@patternfly/react-code-editor';
+import {
+    Button,
+    Chip,
+    Dropdown,
+    DropdownItem,
+    DropdownList,
+    Grid,
+    GridItem,
+    MenuToggle,
+    MenuToggleElement,
+    Switch,
+    TextInput,
+    Tooltip,
+} from '@patternfly/react-core';
+import { AsleepIcon, DiceIcon, RunningIcon } from '@patternfly/react-icons';
+import { GpuIcon, TemplateIcon } from '@src/Assets/Icons';
 import { DarkModeContext } from '@src/Providers';
 import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
-import React from 'react';
-import { CodeContext } from './Modals';
+import React, { ReactElement } from 'react';
 
 export interface CodeEditorComponentProps {
     children?: React.ReactNode;
     showCodeTemplates: boolean;
     height: number;
     language: Language;
+    targetContext: React.Context<{ code: string; setCode: (_: string) => void }>;
 
     // Do not include the file extension. That is added automatically.
     defaultFilename: string;
 }
 
+interface CodeTemplate {
+    name: string;
+    code: string;
+    icon?: ReactElement;
+}
+
+const codeTemplates: CodeTemplate[] = [
+    {
+        name: 'Declare 1st integer',
+        code: `a = 1\nprint("a = %d" % a)`,
+        icon: <TemplateIcon />,
+    },
+    {
+        name: 'Increment 1st integer',
+        code: 'a = a + 1\nprint("a = %d" % a)',
+        icon: <TemplateIcon />,
+    },
+    {
+        name: 'Declare 2nd integer',
+        code: `b = a * 2\nprint("a = %d, b = %d" % (a, b))`,
+        icon: <TemplateIcon />,
+    },
+    {
+        name: 'Random integer',
+        code: `import random\nvar: int = random.randint(0, int(1e6))\nprint(f"Generated a random value: {var}")\nvar = var + 1\nprint(f"Incremented: {var}")`,
+        icon: <DiceIcon />,
+    },
+    {
+        name: 'Loop with sleep',
+        code: `import time\ncounter: int = 0\nend: int = 10\n\nfor i in range(0, end, 1):\n\tprint(f"i = {i}, counter = {counter}")\n\tcounter = counter + 1\n\ttime.sleep(1)\n\nprint(f"counter={counter}")`,
+        icon: <AsleepIcon />,
+    },
+    {
+        name: 'Simulate DL Training',
+        code: `# This is the code we run in a notebook cell to simulate training.\nimport socket, os\nsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n\n# Connect to the kernel's TCP socket.\nsock.connect(("127.0.0.1", 5555))\nprint(f'Connected to local TCP server. Local addr: {sock.getsockname()}')\n\n# Blocking call.\n# When training ends, the kernel will be sent a notification.\n# It will then send us a message, unblocking us here and allowing to finish the cell execution.\nsock.recv(1024)\n\nprint("Received 'stop' notification. Done training.")\n\ndel sock`,
+        icon: <RunningIcon />,
+    },
+    {
+        name: 'Actual DL Training',
+        code: 'training_duration_millis = 1500',
+        icon: <GpuIcon />,
+    },
+];
+
 export const CodeEditorComponent: React.FunctionComponent<CodeEditorComponentProps> = (
     props: CodeEditorComponentProps,
 ) => {
     const { darkMode } = React.useContext(DarkModeContext);
-    const { code, setCode } = React.useContext(CodeContext);
+    const { code, setCode } = React.useContext(props.targetContext);
 
+    const [isCodeTemplateDropdownOpen, setCodeTemplateDropdownOpen] = React.useState<boolean>(false);
     const [isEditorDarkMode, setIsEditorDarkMode] = React.useState(darkMode);
     const [filename, setFilename] = React.useState<string>('');
 
@@ -97,22 +156,28 @@ export const CodeEditorComponent: React.FunctionComponent<CodeEditorComponentPro
     };
 
     const fileNameField = (
-        <TextInput
-            key={'template-filename-text-input'}
-            // If the user hasn't specified a filename, then don't add the file extension automatically.
-            // We'll use the placeholder text instead.
-            value={filename}
-            label={'Filename'}
-            aria-label={'Filename'}
-            type="text"
-            onChange={(_event, value) => setFilename(value)}
-            placeholder={defaultFilename}
-            validated={isUserFilenameValid()}
-        />
+        <Tooltip
+            content={'Filename (for downloading the code)'}
+            position={'bottom'}
+            key={'template-filename-text-input-tooltip'}
+        >
+            <TextInput
+                key={'template-filename-text-input'}
+                // If the user hasn't specified a filename, then don't add the file extension automatically.
+                // We'll use the placeholder text instead.
+                value={filename}
+                label={'Filename'}
+                aria-label={'Filename'}
+                type="text"
+                onChange={(_event, value) => setFilename(value)}
+                placeholder={defaultFilename}
+                validated={isUserFilenameValid()}
+            />
+        </Tooltip>
     );
 
     const darkLightThemeSwitch = (
-        <div key={'dark-light-theme-switch-container'}>
+        <div id={'dark-light-theme-switch-container'} key={'dark-light-theme-switch-container'}>
             <Button
                 key={'dark-light-theme-switch-button-wrapper'}
                 variant="link"
@@ -138,112 +203,64 @@ export const CodeEditorComponent: React.FunctionComponent<CodeEditorComponentPro
         </div>
     );
 
-    const defaultCodeTemplate0 = (
-        <CodeEditorControl
-            icon={<CodeIcon />}
-            key={'default-code-template-0'}
-            aria-label="Execute code"
-            tooltipProps={{ content: 'Sample Code #1' }}
-            onClick={() => {
-                setCode(
-                    `a = 1
-print("a = %d" % a)`,
-                );
-            }}
-        />
-    );
+    const onToggleCodeTemplateDropdownClick = () => {
+        setCodeTemplateDropdownOpen(!isCodeTemplateDropdownOpen);
+    };
 
-    const defaultCodeTemplate1 = (
-        <CodeEditorControl
-            icon={<CodeIcon />}
-            key={'default-code-template-1'}
-            aria-label="Execute code"
-            tooltipProps={{ content: 'Sample Code #1' }}
-            onClick={() => {
-                setCode(
-                    `a = a + 1
-print("a = %d" % a)`,
-                );
-            }}
-        />
-    );
+    const onSelectCodeTemplate = (
+        _event: React.MouseEvent<Element, MouseEvent> | undefined,
+        value: string | number | undefined,
+    ) => {
+        if ((value as number) > codeTemplates.length) {
+            console.error(`Invalid code template selected with index=${value}`);
+            return;
+        }
 
-    const defaultCodeTemplate2 = (
-        <CodeEditorControl
-            icon={<CodeIcon />}
-            key={'default-code-template-2'}
-            aria-label="Execute code"
-            tooltipProps={{ content: 'Sample Code #2' }}
-            onClick={() => {
-                setCode(
-                    `b = a * 2
-print("a = %d, b = %d" % (a, b))`,
-                );
-            }}
-        />
-    );
+        const selectedTemplate: CodeTemplate = codeTemplates[value as number];
+        if (!selectedTemplate) {
+            console.error(`Invalid code template selected with index=${value}`);
+            return;
+        }
 
-    const defaultCodeTemplate3 = (
-        <CodeEditorControl
-            icon={<DiceIcon />}
-            key={'default-code-template-3'}
-            aria-label="Execute code"
-            tooltipProps={{ content: 'Sample Code #3' }}
-            onClick={() => {
-                setCode(`import random
-var: int = random.randint(0, int(1e6))
-print(f"Generated a random value: {var}")
-var = var + 1
-print(f"Incremented: {var}")
-`);
-            }}
-        />
-    );
+        console.log(`Selected code template #${value}: "${selectedTemplate.name}"`);
+        setCodeTemplateDropdownOpen(false);
+        setCode(selectedTemplate.code);
+    };
 
-    const defaultCodeTemplate4 = (
-        <CodeEditorControl
-            icon={<ClockIcon />}
-            key={'default-code-template-4'}
-            aria-label="Execute code"
-            tooltipProps={{ content: 'Sample Code #4' }}
-            onClick={() => {
-                setCode(`import time
-counter: int = 0
-end: int = 10
-
-for i in range(0, end, 1):
-  print(f"i = {i}, counter = {counter}")
-  counter = counter + 1
-  time.sleep(1)
-
-print(f"counter={counter}")`);
-                //         setCode(`a = 1
-                // b = a + 2
-                // c = (b * 3) - a
-                // d = (2 * a) - (4 * b) + (3 + c)
-                // e = (d ^ 2) + c + b + a
-                // f = e + d + c + b + a
-                // g = f + e + d + c + b + a
-                // h = g + f + e + d + c + b + a
-                // i = h + g + f + e + d + c + b + a
-                // j = i + h + g + f + e + d + c + b + a
-                // print(f"i = {i}")
-                // `);
-            }}
-        />
+    const codeTemplateDropdown = (
+        <Dropdown
+            key={'code-template-dropdown-menu'}
+            id={'code-template-dropdown-menu'}
+            isOpen={isCodeTemplateDropdownOpen}
+            onSelect={onSelectCodeTemplate}
+            onOpenChange={(isOpen: boolean) => setCodeTemplateDropdownOpen(isOpen)}
+            toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
+                <MenuToggle
+                    ref={toggleRef}
+                    onClick={onToggleCodeTemplateDropdownClick}
+                    isExpanded={isCodeTemplateDropdownOpen}
+                >
+                    Load Template
+                </MenuToggle>
+            )}
+            ouiaId="BasicDropdown"
+            shouldFocusToggleOnSelect
+        >
+            <DropdownList>
+                {codeTemplates.map((template: CodeTemplate, idx: number) => {
+                    return (
+                        <DropdownItem value={idx} key={`code-template-${idx}}`} icon={template.icon}>
+                            {template.name}
+                        </DropdownItem>
+                    );
+                })}
+            </DropdownList>
+        </Dropdown>
     );
 
     const getCustomControls = () => {
         if (props.showCodeTemplates) {
-            return [
-                defaultCodeTemplate0,
-                defaultCodeTemplate1,
-                defaultCodeTemplate2,
-                defaultCodeTemplate3,
-                defaultCodeTemplate4,
-                fileNameField,
-                darkLightThemeSwitch,
-            ];
+            return [fileNameField, codeTemplateDropdown, darkLightThemeSwitch];
         } else {
             return [fileNameField, darkLightThemeSwitch];
         }
@@ -285,6 +302,7 @@ print(f"counter={counter}")`);
             language={props.language}
             onEditorDidMount={onEditorDidMount}
             height={`${props.height}px`}
+            width={'100%'}
         />
     );
 };

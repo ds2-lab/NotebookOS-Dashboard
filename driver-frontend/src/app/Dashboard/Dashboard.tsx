@@ -1,17 +1,12 @@
 import '@patternfly/react-core/dist/styles/base.css';
 
-import { KernelListCard, KernelSpecList, NodeList, UtilizationCard, WorkloadCard } from '@Components/Cards/';
+import { KernelListCard, KernelSpecList, NodeListCard, UtilizationCard, WorkloadCard } from '@Components/Cards/';
 import { MigrationModal } from '@Components/Modals';
-import { GetPathForFetch } from '@src/Utils/path_utils';
-import { DistributedJupyterKernel, JupyterKernelReplica } from 'src/Data';
-import { DockerLogViewCard } from '@Cards/LogViewCard/DockerLogViewCard';
-import { Grid, GridItem, PageSection, gridSpans } from '@patternfly/react-core';
+import { Grid, GridItem, gridSpans, PageSection } from '@patternfly/react-core';
+import { MigrateKernelReplica } from '@src/Components';
 
 import React, { createContext } from 'react';
-
-import toast from 'react-hot-toast';
-
-export interface DashboardProps {}
+import { DistributedJupyterKernel, JupyterKernelReplica } from 'src/Data';
 
 export type HeightFactorContext = {
     heightFactor: number;
@@ -31,7 +26,7 @@ export const WorkloadsHeightFactorContext = createContext<HeightFactorContext>({
     setHeightFactor: () => {},
 });
 
-const Dashboard: React.FunctionComponent<DashboardProps> = () => {
+const Dashboard: React.FunctionComponent = () => {
     const [isMigrateModalOpen, setIsMigrateModalOpen] = React.useState(false);
     const [migrateKernel, setMigrateKernel] = React.useState<DistributedJupyterKernel | null>(null);
     const [migrateReplica, setMigrateReplica] = React.useState<JupyterKernelReplica | null>(null);
@@ -40,53 +35,21 @@ const Dashboard: React.FunctionComponent<DashboardProps> = () => {
     const [kernelHeightFactor, setKernelHeightFactor] = React.useState(3);
     const [kubeNodeHeightFactor, setKubeNodeHeightFactor] = React.useState(3);
 
-    const onConfirmMigrateReplica = (
+    const onConfirmMigrateReplica = async (
         targetReplica: JupyterKernelReplica,
         targetKernel: DistributedJupyterKernel,
         targetNodeId: string,
     ) => {
-        const requestOptions = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                 Authorization: 'Bearer ' + localStorage.getItem("token"),
-                // 'Cache-Control': 'no-cache, no-transform, no-store',
-            },
-            body: JSON.stringify({
-                targetReplica: {
-                    replicaId: targetReplica.replicaId,
-                    kernelId: targetKernel.kernelId,
-                },
-                targetNodeId: targetNodeId,
-            }),
-        };
-
-        targetReplica.isMigrating = true;
-
-        console.log(
-            `Migrating replica ${targetReplica.replicaId} of kernel ${targetKernel.kernelId} to node ${targetNodeId}`,
-        );
-        toast(
-            `Migrating replica ${targetReplica.replicaId} of kernel ${targetKernel.kernelId} to node ${targetNodeId}`,
-            {
-                duration: 7500,
-                style: { maxWidth: 850 },
-            },
-        );
-
-        fetch(GetPathForFetch('/api/migrate'), requestOptions).then((response) => {
-            console.log(
-                'Received response for migration operation of replica %d of kernel %s: %s',
-                targetReplica.replicaId,
-                targetKernel.kernelId,
-                JSON.stringify(response),
-            );
-        });
-
         // Close the migration modal and reset its state.
         setIsMigrateModalOpen(false);
         setMigrateReplica(null);
         setMigrateKernel(null);
+
+        console.log(
+            `Migrating replica ${targetReplica.replicaId} of kernel ${targetKernel.kernelId} to node ${targetNodeId}`,
+        );
+
+        await MigrateKernelReplica(targetReplica, targetKernel, targetNodeId);
     };
 
     const closeMigrateReplicaModal = () => {
@@ -136,7 +99,28 @@ const Dashboard: React.FunctionComponent<DashboardProps> = () => {
                             setHeightFactor: (newHeight: number) => setKernelHeightFactor(newHeight),
                         }}
                     >
-                        <KernelListCard kernelsPerPage={3} openMigrationModal={openMigrationModal} />
+                        <KernelListCard
+                            kernelsPerPage={3}
+                            openMigrationModal={openMigrationModal}
+                            perPageOption={[
+                                {
+                                    title: '1 kernels',
+                                    value: 1,
+                                },
+                                {
+                                    title: '2 kernels',
+                                    value: 2,
+                                },
+                                {
+                                    title: '3 kernels',
+                                    value: 3,
+                                },
+                                {
+                                    title: '5 kernels',
+                                    value: 5,
+                                },
+                            ]}
+                        />
                     </KernelHeightFactorContext.Provider>
                 </GridItem>
                 <GridItem span={6} rowSpan={getWorkloadCardRowspan()}>
@@ -146,7 +130,25 @@ const Dashboard: React.FunctionComponent<DashboardProps> = () => {
                             setHeightFactor: (value: number) => setWorkloadHeightFactor(value),
                         }}
                     >
-                        <WorkloadCard workloadsPerPage={3} />
+                        <WorkloadCard
+                            useCreationModal={true}
+                            workloadsPerPage={3}
+                            inspectInModal={true}
+                            perPageOption={[
+                                {
+                                    title: '1 workloads',
+                                    value: 1,
+                                },
+                                {
+                                    title: '2 workloads',
+                                    value: 2,
+                                },
+                                {
+                                    title: '3 workloads',
+                                    value: 3,
+                                },
+                            ]}
+                        />
                     </WorkloadsHeightFactorContext.Provider>
                 </GridItem>
                 <GridItem span={6} rowSpan={1}>
@@ -162,7 +164,7 @@ const Dashboard: React.FunctionComponent<DashboardProps> = () => {
                             setHeightFactor: (value: number) => setKubeNodeHeightFactor(value),
                         }}
                     >
-                        <NodeList
+                        <NodeListCard
                             isDashboardList={true}
                             hideAdjustVirtualGPUsButton={false}
                             hideControlPlaneNode={true}
@@ -172,9 +174,9 @@ const Dashboard: React.FunctionComponent<DashboardProps> = () => {
                         />
                     </NodeHeightFactorContext.Provider>
                 </GridItem>
-                <GridItem span={12} rowSpan={2}>
-                    <DockerLogViewCard />
-                </GridItem>
+                {/*<GridItem span={12} rowSpan={2}>*/}
+                {/*    <DockerLogViewCard />*/}
+                {/*</GridItem>*/}
             </Grid>
             {migrateKernel && migrateReplica && (
                 <MigrationModal

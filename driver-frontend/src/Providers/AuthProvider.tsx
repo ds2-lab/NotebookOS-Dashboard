@@ -1,9 +1,7 @@
-import { RoundToThreeDecimalPlaces } from '@Components/Modals';
 import { Alert, AlertActionCloseButton } from '@patternfly/react-core';
 import { SpinnerIcon } from '@patternfly/react-icons';
 import { GetPathForFetch } from '@src/Utils/path_utils';
 import { GetToastContentWithHeaderAndBody } from '@src/Utils/toast_utils';
-import { MAX_SAFE_INTEGER } from 'lib0/number';
 import React from 'react';
 import { Toast, toast } from 'react-hot-toast';
 import useSWR from 'swr';
@@ -88,10 +86,6 @@ async function tokenFetcher(
         abortController.abort(`The request timed-out after ${timeout} milliseconds.`);
     }, timeout);
 
-    if (endpoint == loginEndpoint) {
-        console.log(`Body of LOGIN request:\n${JSON.stringify(requestBody, null, 2)}`);
-    }
-
     const response: Response = await fetch(endpoint, init);
 
     return await handleResponse(response, username, password, endpoint, toastId);
@@ -165,8 +159,6 @@ async function handleJsonResponse(
         console.log(`Authenticate failed. Could not log in:\n${JSON.stringify(responseJSON, null, 2)}`);
         throw new Error(`HTTP ${response.status} ${response.statusText}: ${(responseJSON as Error).message}`);
     } else {
-        console.log(`Fetched JWT token:\n${JSON.stringify(responseJSON, null, 2)}`);
-
         const authResponse: AuthResponse = responseJSON as AuthResponse;
 
         authResponse.username = username;
@@ -202,7 +194,7 @@ const AuthProvider = (props: { children }) => {
         if (data && data.token && data.expire) {
             console.log(`Refreshed token: ${data.token}. Expires at: ${data.expire}.`);
             localStorage.setItem('token', data.token);
-            localStorage.setItem('token-expiration', (data.expire as number).toString());
+            localStorage.setItem('token-expiration', data.expire.toString());
 
             updateUsername(data.username);
             updatePassword(data.password);
@@ -251,25 +243,33 @@ const AuthProvider = (props: { children }) => {
             revalidateIfStale: false,
             onSuccess: onSuccess,
             refreshInterval: (latestData) => {
-                if (latestData && latestData.expire) {
-                    let expire: string | number = latestData.expire;
+                if ((latestData && latestData.expire) || authenticated) {
+                    let expire: string | number;
+
+                    if (latestData && latestData.expire) {
+                        expire = latestData.expire;
+                    } else {
+                        expire = localStorage.getItem('token-expiration') || '';
+                    }
 
                     if (!isNumber(expire)) {
                         expire = Date.parse(expire as string);
                     }
 
-                    console.log(`Token is set to expire at ${expire}.`);
-
                     const expireIn: number = (expire as number) - Date.now();
 
-                    console.log(
-                        `Will automatically refresh JWT token in ${RoundToThreeDecimalPlaces(expireIn / 1000.0)} seconds`,
-                    );
+                    console.log(`Token is set to expire at ${expire}, which is in ${expireIn / 1.0e3} seconds.`);
 
-                    return expireIn * 0.9;
+                    const expireInAdjusted: number = expireIn * 0.9;
+
+                    if (expireInAdjusted < 0) {
+                        return 10; // Almost immediate.
+                    }
+
+                    return expireInAdjusted;
                 }
 
-                return MAX_SAFE_INTEGER;
+                return 1000; // Refresh once a second.
             },
         },
     );
@@ -329,7 +329,7 @@ const AuthProvider = (props: { children }) => {
                                 GetToastContentWithHeaderAndBody(
                                     'Logged Out',
                                     "You've been logged-out. Please reauthenticate to continue using the Cluster Dashboard.",
-                                    'danger',
+                                    'warning',
                                     () => toast.dismiss(toastIdLoggedOut),
                                 ),
                             { id: toastIdLoggedOut },

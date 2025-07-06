@@ -1,10 +1,733 @@
 package workload
 
-type WorkloadStats struct {
-	CumulativeNumStaticTrainingReplicas int `json:"CumulativeNumStaticTrainingReplicas"`
-	TotalNumSessions                    int `json:"TotalNumSessions"`
+import (
+	"github.com/scusemua/workload-driver-react/m/v2/internal/domain"
+	"github.com/scusemua/workload-driver-react/m/v2/internal/server/api/proto"
+	"time"
+)
+
+const (
+	KernelReplicaRegistered ClusterEventName = "kernel_replica_registered"
+	KernelCreationStarted   ClusterEventName = "kernel_creation_started"
+	KernelCreationComplete  ClusterEventName = "kernel_creation_complete"
+	KernelMigrationStarted  ClusterEventName = "kernel_migration_started"
+	KernelMigrationComplete ClusterEventName = "kernel_migration_complete"
+	KernelTrainingStarted   ClusterEventName = "kernel_training_started"
+	KernelTrainingEnded     ClusterEventName = "kernel_training_ended"
+	KernelStopped           ClusterEventName = "kernel_stopped"
+	ScaleOutStarted         ClusterEventName = "scale_out_started"
+	ScaleOutEnded           ClusterEventName = "scale_out_ended"
+	ScaleInStarted          ClusterEventName = "scale_in_started"
+	ScaleInEnded            ClusterEventName = "scale_in_ended"
+)
+
+// Statistics encapsulates runtime statistics and metrics about a workload that are maintained within the
+// dashboard backend (rather than within Prometheus).
+type Statistics struct {
+	*ClusterStatistics
+
+	RegisteredTime time.Time `json:"registered_time" csv:"-"`
+	StartTime      time.Time `json:"start_time" csv:"-"`
+	EndTime        time.Time `json:"end_time" csv:"-"`
+
+	NumFailedExecutionAttempts int64 `json:"num_failed_execution_attempts" csv:"num_failed_execution_attempts"`
+
+	// CumulativeExecutionStartDelay float64 `json:"cumulative_execution_start_delay" csv:"cumulative_execution_start_delay"`
+
+	CumulativeJupyterExecRequestTimeMillis int64   `json:"cumulative_jupyter_exec_request_time_millis" csv:"cumulative_jupyter_exec_request_time_millis"`
+	JupyterExecRequestTimesMillis          []int64 `json:"jupyter_exec_request_times_millis" csv:"-"`
+
+	CumulativeJupyterSessionCreationLatencyMillis int64   `json:"cumulative_jupyter_session_creation_latency_millis" csv:"cumulative_jupyter_session_creation_latency_millis"`
+	JupyterSessionCreationLatenciesMillis         []int64 `json:"jupyter_session_creation_latencies_millis" csv:"-"`
+
+	CumulativeJupyterSessionTerminationLatencyMillis int64   `json:"cumulative_jupyter_session_termination_latency_millis" csv:"cumulative_jupyter_session_termination_latency_millis"`
+	JupyterSessionTerminationLatenciesMillis         []int64 `json:"jupyter_session_termination_latencies_millis" csv:"-"`
+
+	// JupyterTrainingStartLatencyDashboardMillis tracks the delay between when client submits "execute_request" and
+	// when kernel begins executing. This field tracks the exact same information as the JupyterTrainingStartLatencyMillis
+	// field of ClustStatistics; however, it is measured from the dashboard directly.
+	JupyterTrainingStartLatencyDashboardMillis float64 `json:"jupyter_training_start_latency_dashboard_millis" csv:"jupyter_training_start_latency_dashboard_millis"`
+	// JupyterTrainingStartLatenciesDashboardMillis tracks the exact same information as the
+	// JupyterTrainingStartLatenciesDashboardMillis field of ClustStatistics; however, it is measured from the dashboard directly.
+	JupyterTrainingStartLatenciesDashboardMillis []float64 `json:"jupyter_training_start_latencies_dashboard_millis" csv:"-"`
+
+	// TotalReplyLatencyMillis is the sum of the latencies of sending the response from the kernel to the client for
+	// all "execute_reply" messages received throughout the entire duration of the associated workload's execution.
+	TotalReplyLatencyMillis   int64   `json:"total_reply_latency_millis" csv:"total_reply_latency_millis"`
+	TotalReplyLatenciesMillis []int64 `json:"total_reply_latencies_millis" csv:"-"`
+
+	TotalExecuteRequestEndToEndLatencyMillis   int64   `json:"total_execute_request_end_to_end_latency_millis" csv:"total_execute_request_end_to_end_latency_millis"`
+	TotalExecuteRequestEndToEndLatenciesMillis []int64 `json:"total_execute_request_end_to_end_latencies_millis" csv:"-"`
+
+	// CumulativeExecutionTime is the sum of the time spent actually executing user-submitted code by kernels.
+	CumulativeExecutionTime int64 `json:"cumulative_execution_time" csv:"cumulative_execution_time"`
+	// AllExecutionTimes is each individual time spent executing user-submitted code by a kernel.
+	AllExecutionTimes []int64 `json:"all_execution_times" csv:"-"`
+
+	NumTimesSessionDelayedResourceContention int `json:"num_times_session_delayed_resource_contention" csv:"num_times_session_delayed_resource_contention"`
+
+	// CumulativeTrainingTimeTicks is the cumulative, aggregate time spent training (in ticks),
+	// including any associated overheads.
+	CumulativeTrainingTimeTicks int64 `json:"cumulative_training_time_ticks" csv:"cumulative_training_time_ticks"`
+
+	AggregateSessionDelayMillis int64                   `json:"aggregate_session_delay_ms" csv:"aggregate_session_delay_ms"`
+	NextEventExpectedTick       int64                   `json:"next_event_expected_tick"  csv:"next_event_expected_tick"`
+	NextExpectedEventName       domain.EventName        `json:"next_expected_event_name"  csv:"next_expected_event_name"`
+	NextExpectedEventTarget     string                  `json:"next_expected_event_target"  csv:"next_expected_event_target"`
+	NumActiveSessions           int64                   `json:"num_active_sessions"  csv:"num_active_sessions"`
+	TotalNumTrainingEvents      int64                   `json:"total_num_training_events"  csv:"total_num_training_events"`
+	NumActiveTrainings          int64                   `json:"num_active_trainings"  csv:"num_active_trainings"`
+	NumDiscardedSessions        int                     `json:"num_discarded_sessions"  csv:"num_discarded_sessions"`
+	NumEventsProcessed          int64                   `json:"num_events_processed"  csv:"num_events_processed"`
+	NumSampledSessions          int                     `json:"num_sampled_sessions"  csv:"num_sampled_sessions"`
+	NumSessionsCreated          int64                   `json:"num_sessions_created"  csv:"num_sessions_created"`
+	NumSubmittedTrainings       int64                   `json:"num_submitted_trainings"  csv:"num_submitted_trainings"` // NumSubmittedTrainings is the number of trainings that have been submitted but not yet started.
+	NumTasksExecuted            int64                   `json:"num_tasks_executed"  csv:"num_tasks_executed"`
+	SessionsSamplePercentage    float64                 `json:"sessions_sample_percentage"  csv:"sessions_sample_percentage"`
+	TickDurationsMillis         []int64                 `json:"tick_durations_milliseconds"  csv:"-"`
+	TimeElapsed                 time.Duration           `json:"time_elapsed"  csv:"time_elapsed"` // Computed at the time that the data is requested by the user. This is the time elapsed SO far.
+	TimeElapsedStr              string                  `json:"time_elapsed_str"  csv:"time_elapsed_str"`
+	TimeSpentPausedMillis       int64                   `json:"time_spent_paused_milliseconds"  csv:"time_spent_paused_milliseconds"`
+	TotalNumSessions            int                     `json:"total_num_sessions" csv:"total_num_sessions"  csv:"total_num_sessions"`
+	TotalNumTicks               int64                   `json:"total_num_ticks"  csv:"total_num_ticks"`
+	WorkloadDuration            time.Duration           `json:"workload_duration"  csv:"-"` // The total time that the workload executed for. This is only set once the workload has completed.
+	WorkloadState               State                   `json:"workload_state"  csv:"workload_state"`
+	NumOutstandingExecRequests  int64                   `json:"num_outstanding_requests" csv:"num_outstanding_requests"` // "execute_requests" for which an "smr_lead_task" has not yet been received
+	EventCounts                 map[string]int          `json:"event_counts" csv:"-"`
+	EventsProcessed             []*domain.WorkloadEvent `json:"events_processed"  csv:"-"`
 }
 
-func NewWorkloadStats() *WorkloadStats {
-	return &WorkloadStats{}
+func NewStatistics(sessionsSamplePercentage float64) *Statistics {
+	return &Statistics{
+		RegisteredTime:                             time.Now(),
+		NumTasksExecuted:                           0,
+		NumEventsProcessed:                         0,
+		NumSessionsCreated:                         0,
+		NumActiveSessions:                          0,
+		NumActiveTrainings:                         0,
+		NumOutstandingExecRequests:                 0,
+		EventsProcessed:                            make([]*domain.WorkloadEvent, 0),
+		TickDurationsMillis:                        make([]int64, 0),
+		JupyterSessionCreationLatenciesMillis:      make([]int64, 0),
+		JupyterSessionTerminationLatenciesMillis:   make([]int64, 0),
+		JupyterExecRequestTimesMillis:              make([]int64, 0),
+		TotalReplyLatenciesMillis:                  make([]int64, 0),
+		TotalExecuteRequestEndToEndLatenciesMillis: make([]int64, 0),
+		AllExecutionTimes:                          make([]int64, 0),
+		EventCounts:                                make(map[string]int),
+		SessionsSamplePercentage:                   sessionsSamplePercentage,
+		TimeElapsed:                                time.Duration(0),
+		WorkloadState:                              Ready,
+	}
+}
+
+// GetAverageEndToEndExecuteRequestLatencyMillis returns the average end-to-end latency, in milliseconds, observed by
+// "execute_request" messages sent throughout the entire duration of the associated workload's execution.
+func (s *Statistics) GetAverageEndToEndExecuteRequestLatencyMillis() float64 {
+	sum := float64(s.TotalExecuteRequestEndToEndLatencyMillis)
+	count := float64(len(s.TotalExecuteRequestEndToEndLatenciesMillis))
+
+	return sum / count
+}
+
+// GetAverageTotalReplyLatencyMillis returns the average latency of sending the response from the kernel to the client
+// for all "execute_reply" messages received throughout the entire duration of the associated workload's execution.
+func (s *Statistics) GetAverageTotalReplyLatencyMillis() float64 {
+	sum := float64(s.TotalReplyLatencyMillis)
+	count := float64(len(s.TotalReplyLatenciesMillis))
+
+	return sum / count
+}
+
+type ClusterEventName string
+
+func (n ClusterEventName) String() string {
+	return string(n)
+}
+
+type ClusterEvent struct {
+	Name                ClusterEventName       `json:"name" csv:"name"`
+	KernelId            string                 `json:"kernel_id" csv:"kernel_id"`
+	ReplicaId           int32                  `json:"replica_id" csv:"replica_id"`
+	Timestamp           time.Time              `json:"timestamp" csv:"timestamp"`
+	Duration            time.Duration          `json:"duration" csv:"duration"`
+	DurationMillis      int64                  `json:"duration_millis" csv:"duration_millis"`
+	TimestampUnixMillis int64                  `json:"timestamp_unix_millis" csv:"timestamp_unix_millis"`
+	Metadata            map[string]interface{} `json:"metadata" csv:"-"`
+}
+
+// SerializableClusterStatistics is a version of the ClusterStatistics struct that is serializable using
+// the encoding/gob package/module/mechanism.
+type SerializableClusterStatistics struct {
+	ClusterEvents []*ClusterEvent `json:"cluster_events" csv:"-"`
+
+	ExecuteRequestTraces []*proto.RequestTrace `json:"execute_request_traces" csv:"-"`
+
+	AggregateSessionLifetimesSec        []float64 `csv:"-" json:"AggregateSessionLifetimesSec"`
+	JupyterTrainingStartLatenciesMillis []float64 `json:"jupyter_training_start_latencies_millis" csv:"-"`
+
+	AggregateSessionLifetimeSec       float64 `csv:"AggregateSessionLifetimeSec" json:"AggregateSessionLifetimeSec"`
+	CompletedTrainings                int32   `csv:"CompletedTrainings" json:"CompletedTrainings"`
+	CumulativeSessionIdleTime         float64 `csv:"CumulativeSessionIdleTimeSec" json:"CumulativeSessionIdleTimeSec"`
+	CumulativeSessionTrainingTime     float64 `csv:"CumulativeSessionTrainingTimeSec" json:"CumulativeSessionTrainingTimeSec"`
+	IdleHostsPerClass                 int32   `csv:"IdleHosts" json:"IdleHosts"`
+	Migrated                          int32   `csv:"Migrated" json:"Migrated"`
+	JupyterTrainingStartLatencyMillis float64 `json:"jupyter_training_start_latency_millis" csv:"jupyter_training_start_latency_millis"`
+	NumFailedMigrations               int32   `json:"num_failed_migrations" csv:"num_failed_migrations"`
+	NumActiveMigrations               int32   `json:"num_active_migrations" csv:"num_active_migrations"`
+	OnDemandContainer                 int32   `csv:"OnDemandContainers" json:"OnDemandContainers"`
+	NumNonTerminatedSessions          int32   `csv:"NumNonTerminatedSessions" json:"NumNonTerminatedSessions"`
+	NumIdleSessions                   int32   `csv:"NumIdleSessions" json:"NumIdleSessions"`
+	NumTrainingSessions               int32   `csv:"NumTrainingSessions" json:"NumTrainingSessions"`
+	NumStoppedSessions                int32   `csv:"NumStoppedSessions" json:"NumStoppedSessions"`
+	NumRunningSessions                int32   `csv:"NumRunningSessions" json:"NumRunningSessions"`
+	NumSeenSessions                   int32   `csv:"NumSeenSessions" json:"NumSeenSessions"`
+
+	Hosts                                                int32   `csv:"hosts" json:"hosts"`
+	NumDisabledHosts                                     int32   `csv:"num_disabled_hosts" json:"num_disabled_hosts"`
+	NumEmptyHosts                                        int32   `csv:"NumEmptyHosts" json:"NumEmptyHosts"`
+	CumulativeHostActiveTime                             float64 `csv:"CumulativeHostActiveTimeSec" json:"CumulativeHostActiveTimeSec"`
+	CumulativeHostIdleTime                               float64 `csv:"CumulativeHostIdleTimeSec" json:"CumulativeHostIdleTimeSec"`
+	AggregateHostLifetime                                float64 `csv:"AggregateHostLifetimeSec" json:"AggregateHostLifetimeSec"`
+	AggregateHostLifetimeOfRunningHosts                  float64 `csv:"AggregateHostLifetimeOfRunningHostsSec" json:"AggregateHostLifetimeOfRunningHostsSec"`
+	CumulativeNumHostsProvisioned                        int32   `csv:"CumulativeNumHostsProvisioned" json:"CumulativeNumHostsProvisioned"`
+	CumulativeNumHostsReleased                           int32   `csv:"cumulative_num_hosts_released" json:"cumulative_num_hosts_released"`
+	CumulativeTimeProvisioningHosts                      float64 `csv:"CumulativeTimeProvisioningHostsSec" json:"CumulativeTimeProvisioningHostsSec"`
+	NumActiveScaleOutEvents                              int32   `csv:"num_active_scale_out_events" json:"num_active_scale_out_events"`
+	NumSuccessfulScaleOutEvents                          int32   `csv:"num_successful_scale_out_events" json:"num_successful_scale_out_events"`
+	NumFailedScaleOutEvents                              int32   `csv:"num_failed_scale_out_events" json:"num_failed_scale_out_events"`
+	NumActiveScaleInEvents                               int32   `csv:"num_active_scale_in_events" json:"num_active_scale_in_events"`
+	NumSuccessfulScaleInEvents                           int32   `csv:"num_successful_scale_in_events" json:"num_successful_scale_in_events"`
+	NumFailedScaleInEvents                               int32   `csv:"num_failed_scale_in_events" json:"num_failed_scale_in_events"`
+	NumJupyterMessagesReceivedByClusterGateway           int64   `csv:"num_jupyter_messages_received_by_cluster_gateway" json:"num_jupyter_messages_received_by_cluster_gateway"`
+	NumJupyterRepliesSentByClusterGateway                int64   `csv:"num_jupyter_replies_sent_by_cluster_gateway" json:"num_jupyter_replies_sent_by_cluster_gateway"`
+	CumulativeRequestProcessingTimeClusterGateway        int64   `csv:"cumulative_request_processing_time_cluster_gateway" json:"cumulative_request_processing_time_cluster_gateway"`
+	CumulativeRequestProcessingTimeLocalDaemon           int64   `csv:"cumulative_request_processing_time_local_daemon" json:"cumulative_request_processing_time_local_daemon"`
+	CumulativeRequestProcessingTimeKernel                int64   `csv:"cumulative_request_processing_time_kernel" json:"cumulative_request_processing_time_kernel"`
+	CumulativeResponseProcessingTimeClusterGateway       int64   `csv:"cumulative_response_processing_time_cluster_gateway" json:"cumulative_response_processing_time_cluster_gateway"`
+	CumulativeResponseProcessingTimeLocalDaemon          int64   `csv:"cumulative_response_processing_time_local_daemon" json:"cumulative_response_processing_time_local_daemon"`
+	CumulativeCudaInitMicroseconds                       float64 `csv:"cumulative_cuda_init_microseconds" json:"cumulative_cuda_init_microseconds"`
+	NumCudaRuntimesInitialized                           float64 `csv:"num_cuda_runtimes_initialized" json:"num_cuda_runtimes_initialized"`
+	CumulativeTimeDownloadTrainingDataMicroseconds       float64 `csv:"cumulative_time_download_training_data_microseconds" json:"cumulative_time_download_training_data_microseconds"`
+	NumTimesDownloadTrainingDataMicroseconds             float64 `csv:"num_times_download_training_data_microseconds" json:"num_times_download_training_data_microseconds"`
+	CumulativeTokenizeDatasetMicroseconds                float64 `csv:"cumulative_tokenize_dataset_microseconds" json:"cumulative_tokenize_dataset_microseconds"`
+	NumTimesTokenizeDatasetMicroseconds                  float64 `csv:"num_times_tokenize_dataset_microseconds" json:"num_times_tokenize_dataset_microseconds"`
+	CumulativeTimeDownloadModelMicroseconds              float64 `csv:"cumulative_time_download_model_microseconds" json:"cumulative_time_download_model_microseconds"`
+	NumTimesDownloadModelMicroseconds                    float64 `csv:"num_times_download_model_microseconds" json:"num_times_download_model_microseconds"`
+	CumulativeTimeUploadModelAndTrainingDataMicroseconds float64 `csv:"cumulative_time_upload_model_and_training_data_microseconds" json:"cumulative_time_upload_model_and_training_data_microseconds"`
+	NumTimesUploadModelAndTrainingDataMicroseconds       float64 `csv:"num_times_upload_model_and_training_data_microseconds" json:"num_times_upload_model_and_training_data_microseconds"`
+	CumulativeTimeCopyDataHostToDeviceMicroseconds       float64 `csv:"cumulative_time_copy_data_host_to_device_microseconds" json:"cumulative_time_copy_data_host_to_device_microseconds"`
+	NumTimesCopyDataHostToDeviceMicroseconds             float64 `csv:"num_times_copy_data_host_to_device_microseconds" json:"num_times_copy_data_host_to_device_microseconds"`
+	CumulativeTimeCopyDataDeviceToHostMicroseconds       float64 `csv:"cumulative_time_copy_data_device_to_host_microseconds" json:"cumulative_time_copy_data_device_to_host_microseconds"`
+	NumTimesCopyDataDeviceToHostMicroseconds             float64 `csv:"num_times_copy_data_device_to_host_microseconds" json:"num_times_copy_data_device_to_host_microseconds"`
+	CumulativeExecutionTimeMicroseconds                  float64 `csv:"cumulative_execution_time_microseconds" json:"cumulative_execution_time_microseconds"`
+	CumulativeLeaderElectionTimeMicroseconds             float64 `csv:"cumulative_leader_election_time_microseconds" json:"cumulative_leader_election_time_microseconds"`
+	CumulativeKernelPreprocessRequestMillis              float64 `csv:"cumulative_kernel_preprocess_request_millis" json:"cumulative_kernel_preprocess_request_millis"`
+	CumulativeKernelCreateElectionMillis                 float64 `csv:"cumulative_kernel_create_election_millis" json:"cumulative_kernel_create_election_millis"`
+	CumulativeKernelProposalVotePhaseMillis              float64 `csv:"cumulative_kernel_proposal_vote_phase_millis" json:"cumulative_kernel_proposal_vote_phase_millis"`
+	CumulativeKernelPostprocessMillis                    float64 `csv:"cumulative_kernel_postprocess_millis" json:"cumulative_kernel_postprocess_millis"`
+	CumulativeReplayTimeMicroseconds                     float64 `csv:"cumulative_replay_time_microseconds" json:"cumulative_replay_time_microseconds"`
+
+	// Spec is the amount that is available/allocatable.
+	// It only changes when adding or removing hosts to/from the cluster.
+
+	SpecCPUs   float64 `csv:"SpecCPUs" json:"SpecCPUs"`
+	SpecGPUs   float64 `csv:"SpecGPUs" json:"SpecGPUs"`
+	SpecMemory float64 `csv:"SpecMemory" json:"SpecMemory"`
+	SpecVRAM   float64 `csv:"SpecVRAM" json:"SpecVRAM"`
+
+	// Idle means that they're not bound exclusively to a kernel replica.
+
+	IdleCPUs   float64 `csv:"IdleCPUs" json:"IdleCPUs"`
+	IdleGPUs   float64 `csv:"IdleGPUs" json:"IdleGPUs"`
+	IdleMemory float64 `csv:"IdleMemory" json:"IdleMemory"`
+	IdleVRAM   float64 `csv:"IdleVRAM" json:"IdleVRAM"`
+
+	// Pending is the sum of the resources requested by all kernel replicas scheduled on a host
+	// if they were to begin training at the same time.
+
+	PendingCPUs   float64 `csv:"PendingCPUs" json:"PendingCPUs"`
+	PendingGPUs   float64 `csv:"PendingGPUs" json:"PendingGPUs"`
+	PendingMemory float64 `csv:"PendingMemory" json:"PendingMemory"`
+	PendingVRAM   float64 `csv:"PendingVRAM" json:"PendingVRAM"`
+
+	// Commited means that they're bound exclusively to a kernel replica.
+
+	CommittedCPUs   float64 `csv:"CommittedCPUs" json:"CommittedCPUs"`
+	CommittedGPUs   float64 `csv:"CommittedGPUs" json:"CommittedGPUs"`
+	CommittedMemory float64 `csv:"CommittedMemory" json:"CommittedMemory"`
+	CommittedVRAM   float64 `csv:"CommittedVRAM" json:"CommittedVRAM"`
+
+	// Demand is the sum of the resources requested by all active sessions/kernels.
+
+	DemandCPUs   float64 `csv:"DemandCPUs" json:"DemandCPUs"`
+	DemandMemMb  float64 `csv:"DemandMemMb" json:"DemandMemMb"`
+	DemandGPUs   float64 `csv:"DemandGPUs" json:"DemandGPUs"`
+	DemandVRAMGb float64 `csv:"DemandVRAMGb" json:"DemandVRAMGb"`
+
+	// Busy are what are actively being used by training kernels.
+	// Only committed resources can be considered busy.
+	// Committed resources are not considered to be busy until the associated kernel replica begins training.
+
+	BusyCPUs   float64 `csv:"BusyCPUs" json:"BusyCPUs"`
+	BusyGPUs   float64 `csv:"BusyGPUs" json:"BusyGPUs"`
+	BusyMemory float64 `csv:"BusyMemory" json:"BusyMemory"`
+	BusyVRAM   float64 `csv:"BusyVRAM" json:"BusyVRAM"`
+
+	TotalNumReplays       int64 `json:"total_num_replays" csv:"total_num_replays"`
+	TotalNumCellsReplayed int64 `json:"total_num_cells_replayed" csv:"total_num_cells_replayed"`
+
+	SubscriptionRatio float64 `csv:"SubscriptionRatio" json:"SubscriptionRatio"`
+
+	NumTimesKernelReplicaAvailableImmediately float64 `csv:"NumTimesKernelReplicaAvailableImmediately" json:"NumTimesKernelReplicaAvailableImmediately"`
+
+	NumTimesKernelReplicaNotAvailableImmediately float64 `csv:"NumTimesKernelReplicaNotAvailableImmediately" json:"NumTimesKernelReplicaNotAvailableImmediately"`
+
+	NumTimesPreviousPrimaryReplicaSelectedConsecutively int64 `csv:"NumTimesPreviousPrimaryReplicaSelectedConsecutively" json:"NumTimesPreviousPrimaryReplicaSelectedConsecutively"`
+
+	NumTimesPreviousPrimaryReplicaUnavailable int64 `csv:"num_times_previous_primary_replica_unavailable" json:"num_times_previous_primary_replica_unavailable"`
+
+	NumSuccessfulMigrations int32 `json:"num_successful_migrations" csv:"num_successful_migrations"`
+
+	CumulativeCommitExecutionCompleteNotificationMilliseconds float64 `json:"cumulative_commit_execution_complete_notification_milliseconds" csv:"cumulative_commit_execution_complete_notification_milliseconds"`
+	CumulativeSynchronizeUpdatedStateMilliseconds             float64 `json:"cumulative_synchronize_updated_state_milliseconds" csv:"cumulative_synchronize_updated_state_milliseconds"`
+
+	LargeObjectWriteLatenciesMillis []float64 `json:"large_object_write_latencies_millis" csv:"-"`
+	LargeObjectReadLatenciesMillis  []float64 `json:"large_object_read_latencies_millis" csv:"-"`
+	SynchronizationTimes            []float64 `json:"synchronization_times" csv:"-"`
+
+	////////////////////////
+	// Dynamic Scheduling //
+	////////////////////////
+
+	Rescheduled   int32 `csv:"Rescheduled" json:"Rescheduled"`
+	Resched2Ready int32 `csv:"Resched2Ready" json:"Resched2Ready"`
+	Preempted     int32 `csv:"Preempted" json:"Preempted"`
+}
+
+func (stats *SerializableClusterStatistics) ToClusterStatistics() *ClusterStatistics {
+	return &ClusterStatistics{
+		AggregateHostLifetime:                                stats.AggregateHostLifetime,
+		AggregateHostLifetimeOfRunningHosts:                  stats.AggregateHostLifetimeOfRunningHosts,
+		AggregateSessionLifetimeSec:                          stats.AggregateSessionLifetimeSec,
+		AggregateSessionLifetimesSec:                         stats.AggregateSessionLifetimesSec,
+		ClusterEvents:                                        stats.ClusterEvents,
+		CommittedCPUs:                                        stats.CommittedCPUs,
+		CommittedGPUs:                                        stats.CommittedGPUs,
+		CommittedMemory:                                      stats.CommittedMemory,
+		CommittedVRAM:                                        stats.CommittedVRAM,
+		CompletedTrainings:                                   stats.CompletedTrainings,
+		CumulativeCudaInitMicroseconds:                       stats.CumulativeCudaInitMicroseconds,
+		CumulativeExecutionTimeMicroseconds:                  stats.CumulativeExecutionTimeMicroseconds,
+		CumulativeHostActiveTime:                             stats.CumulativeHostActiveTime,
+		CumulativeHostIdleTime:                               stats.CumulativeHostIdleTime,
+		CumulativeKernelCreateElectionMillis:                 stats.CumulativeKernelCreateElectionMillis,
+		CumulativeKernelPostprocessMillis:                    stats.CumulativeKernelPostprocessMillis,
+		CumulativeKernelPreprocessRequestMillis:              stats.CumulativeKernelPreprocessRequestMillis,
+		CumulativeKernelProposalVotePhaseMillis:              stats.CumulativeKernelProposalVotePhaseMillis,
+		CumulativeLeaderElectionTimeMicroseconds:             stats.CumulativeLeaderElectionTimeMicroseconds,
+		CumulativeNumHostsProvisioned:                        stats.CumulativeNumHostsProvisioned,
+		CumulativeNumHostsReleased:                           stats.CumulativeNumHostsReleased,
+		CumulativeReplayTimeMicroseconds:                     stats.CumulativeReplayTimeMicroseconds,
+		CumulativeRequestProcessingTimeClusterGateway:        stats.CumulativeRequestProcessingTimeClusterGateway,
+		CumulativeRequestProcessingTimeKernel:                stats.CumulativeRequestProcessingTimeKernel,
+		CumulativeRequestProcessingTimeLocalDaemon:           stats.CumulativeRequestProcessingTimeLocalDaemon,
+		CumulativeResponseProcessingTimeClusterGateway:       stats.CumulativeResponseProcessingTimeClusterGateway,
+		CumulativeResponseProcessingTimeLocalDaemon:          stats.CumulativeResponseProcessingTimeLocalDaemon,
+		CumulativeSessionIdleTime:                            stats.CumulativeSessionIdleTime,
+		CumulativeSessionTrainingTime:                        stats.CumulativeSessionTrainingTime,
+		CumulativeTimeCopyDataDeviceToHostMicroseconds:       stats.CumulativeTimeCopyDataDeviceToHostMicroseconds,
+		CumulativeTimeCopyDataHostToDeviceMicroseconds:       stats.CumulativeTimeCopyDataHostToDeviceMicroseconds,
+		CumulativeTimeDownloadModelMicroseconds:              stats.CumulativeTimeDownloadModelMicroseconds,
+		CumulativeTimeDownloadTrainingDataMicroseconds:       stats.CumulativeTimeDownloadTrainingDataMicroseconds,
+		CumulativeTimeProvisioningHosts:                      stats.CumulativeTimeProvisioningHosts,
+		CumulativeTimeUploadModelAndTrainingDataMicroseconds: stats.CumulativeTimeUploadModelAndTrainingDataMicroseconds,
+		CumulativeTokenizeDatasetMicroseconds:                stats.CumulativeTokenizeDatasetMicroseconds,
+		DemandCPUs:                                           stats.DemandCPUs,
+		DemandGPUs:                                           stats.DemandGPUs,
+		DemandMemMb:                                          stats.DemandMemMb,
+		DemandVRAMGb:                                         stats.DemandVRAMGb,
+		BusyCPUs:                                             stats.BusyCPUs,
+		BusyGPUs:                                             stats.BusyGPUs,
+		BusyMemory:                                           stats.BusyMemory,
+		BusyVRAM:                                             stats.BusyVRAM,
+		ExecuteRequestTraces:                                 stats.ExecuteRequestTraces,
+		Hosts:                                                stats.Hosts,
+		IdleCPUs:                                             stats.IdleCPUs,
+		IdleGPUs:                                             stats.IdleGPUs,
+		IdleHostsPerClass:                                    stats.IdleHostsPerClass,
+		IdleMemory:                                           stats.IdleMemory,
+		IdleVRAM:                                             stats.IdleVRAM,
+		JupyterTrainingStartLatenciesMillis:                  stats.JupyterTrainingStartLatenciesMillis,
+		JupyterTrainingStartLatencyMillis:                    stats.JupyterTrainingStartLatencyMillis,
+		Migrated:                                             stats.Migrated,
+		NumActiveScaleInEvents:                               stats.NumActiveScaleInEvents,
+		NumActiveScaleOutEvents:                              stats.NumActiveScaleOutEvents,
+		NumCudaRuntimesInitialized:                           stats.NumCudaRuntimesInitialized,
+		NumDisabledHosts:                                     stats.NumDisabledHosts,
+		NumFailedMigrations:                                  stats.NumFailedMigrations,
+		NumFailedScaleInEvents:                               stats.NumFailedScaleInEvents,
+		NumActiveMigrations:                                  stats.NumActiveMigrations,
+		NumFailedScaleOutEvents:                              stats.NumFailedScaleOutEvents,
+		NumIdleSessions:                                      stats.NumIdleSessions,
+		NumJupyterMessagesReceivedByClusterGateway:           stats.NumJupyterMessagesReceivedByClusterGateway,
+		NumJupyterRepliesSentByClusterGateway:                stats.NumJupyterRepliesSentByClusterGateway,
+		NumNonTerminatedSessions:                             stats.NumNonTerminatedSessions,
+		NumRunningSessions:                                   stats.NumRunningSessions,
+		NumSeenSessions:                                      stats.NumSeenSessions,
+		NumStoppedSessions:                                   stats.NumStoppedSessions,
+		NumSuccessfulMigrations:                              stats.NumSuccessfulMigrations,
+		NumSuccessfulScaleInEvents:                           stats.NumSuccessfulScaleInEvents,
+		NumSuccessfulScaleOutEvents:                          stats.NumSuccessfulScaleOutEvents,
+		NumTimesCopyDataDeviceToHostMicroseconds:             stats.NumTimesCopyDataDeviceToHostMicroseconds,
+		NumTimesCopyDataHostToDeviceMicroseconds:             stats.NumTimesCopyDataHostToDeviceMicroseconds,
+		NumTimesDownloadModelMicroseconds:                    stats.NumTimesDownloadModelMicroseconds,
+		NumTimesDownloadTrainingDataMicroseconds:             stats.NumTimesDownloadTrainingDataMicroseconds,
+		NumTimesKernelReplicaAvailableImmediately:            stats.NumTimesKernelReplicaAvailableImmediately,
+		NumTimesKernelReplicaNotAvailableImmediately:         stats.NumTimesKernelReplicaNotAvailableImmediately,
+		NumTimesPreviousPrimaryReplicaSelectedConsecutively:  stats.NumTimesPreviousPrimaryReplicaSelectedConsecutively,
+		NumTimesPreviousPrimaryReplicaUnavailable:            stats.NumTimesPreviousPrimaryReplicaUnavailable,
+		NumTimesTokenizeDatasetMicroseconds:                  stats.NumTimesTokenizeDatasetMicroseconds,
+		NumTimesUploadModelAndTrainingDataMicroseconds:       stats.NumTimesUploadModelAndTrainingDataMicroseconds,
+		NumTrainingSessions:                                  stats.NumTrainingSessions,
+		OnDemandContainer:                                    stats.OnDemandContainer,
+		PendingCPUs:                                          stats.PendingCPUs,
+		PendingGPUs:                                          stats.PendingGPUs,
+		PendingMemory:                                        stats.PendingMemory,
+		PendingVRAM:                                          stats.PendingVRAM,
+		Preempted:                                            stats.Preempted,
+		Resched2Ready:                                        stats.Resched2Ready,
+		Rescheduled:                                          stats.Rescheduled,
+		SpecCPUs:                                             stats.SpecCPUs,
+		SpecGPUs:                                             stats.SpecGPUs,
+		SpecMemory:                                           stats.SpecMemory,
+		SpecVRAM:                                             stats.SpecVRAM,
+		SubscriptionRatio:                                    stats.SubscriptionRatio,
+		TotalNumCellsReplayed:                                stats.TotalNumCellsReplayed,
+		TotalNumReplays:                                      stats.TotalNumReplays,
+		CumulativeCommitExecutionCompleteNotificationMilliseconds: stats.CumulativeCommitExecutionCompleteNotificationMilliseconds,
+		CumulativeSynchronizeUpdatedStateMilliseconds:             stats.CumulativeSynchronizeUpdatedStateMilliseconds,
+		LargeObjectWriteLatenciesMillis:                           stats.LargeObjectWriteLatenciesMillis,
+		LargeObjectReadLatenciesMillis:                            stats.LargeObjectReadLatenciesMillis,
+		SynchronizationTimes:                                      stats.SynchronizationTimes,
+	}
+}
+
+type ClusterStatistics struct {
+	LargeObjectWriteLatenciesMillis []float64 `json:"large_object_write_latencies_millis" csv:"-"`
+	LargeObjectReadLatenciesMillis  []float64 `json:"large_object_read_latencies_millis" csv:"-"`
+	SynchronizationTimes            []float64 `json:"synchronization_times" csv:"-"`
+
+	///////////
+	// Hosts //
+	///////////
+
+	ClusterEvents []*ClusterEvent `json:"cluster_events" csv:"-"`
+
+	ExecuteRequestTraces []*proto.RequestTrace `json:"execute_request_traces" csv:"-"`
+
+	AggregateSessionLifetimesSec        []float64 `csv:"-" json:"AggregateSessionLifetimesSec"`
+	JupyterTrainingStartLatenciesMillis []float64 `json:"jupyter_training_start_latencies_millis" csv:"-"`
+
+	Hosts            int32 `json:"hosts" csv:"hosts"`
+	NumDisabledHosts int32 `json:"num_disabled_hosts" csv:"num_disabled_hosts"`
+	NumEmptyHosts    int32 `csv:"NumEmptyHosts" json:"NumEmptyHosts"` // The number of Hosts with 0 sessions/containers scheduled on them.
+
+	// The amount of time hosts have spent not idling throughout the entire simulation
+	CumulativeHostActiveTime float64 `csv:"CumulativeHostActiveTimeSec" json:"CumulativeHostActiveTimeSec"`
+	// The amount of time hosts have spent idling throughout the entire simulation.
+	CumulativeHostIdleTime float64 `csv:"CumulativeHostIdleTimeSec" json:"CumulativeHostIdleTimeSec"`
+	// The aggregate, cumulative lifetime of ALL hosts provisioned at some point during the simulation.
+	AggregateHostLifetime float64 `csv:"AggregateHostLifetimeSec" json:"AggregateHostLifetimeSec"`
+	// The aggregate, cumulative lifetime of the hosts that are currently running.
+	AggregateHostLifetimeOfRunningHosts float64 `csv:"AggregateHostLifetimeOfRunningHostsSec" json:"AggregateHostLifetimeOfRunningHostsSec"`
+
+	// The total (cumulative) number of hosts provisioned during.
+	CumulativeNumHostsProvisioned int32 `csv:"CumulativeNumHostsProvisioned" json:"CumulativeNumHostsProvisioned"`
+	// The total (cumulative) number of hosts released during.
+	CumulativeNumHostsReleased int32 `json:"cumulative_num_hosts_released" csv:"cumulative_num_hosts_released"`
+	// The total amount of time spent provisioning hosts.
+	CumulativeTimeProvisioningHosts float64 `csv:"CumulativeTimeProvisioningHostsSec" json:"CumulativeTimeProvisioningHostsSec"`
+
+	NumActiveScaleOutEvents     int32 `json:"num_active_scale_out_events" csv:"num_active_scale_out_events"`
+	NumSuccessfulScaleOutEvents int32 `json:"num_successful_scale_out_events" csv:"num_successful_scale_out_events"`
+	NumFailedScaleOutEvents     int32 `json:"num_failed_scale_out_events" csv:"num_failed_scale_out_events"`
+
+	NumActiveScaleInEvents     int32 `json:"num_active_scale_in_events" csv:"num_active_scale_in_events"`
+	NumSuccessfulScaleInEvents int32 `json:"num_successful_scale_in_events" csv:"num_successful_scale_in_events"`
+	NumFailedScaleInEvents     int32 `json:"num_failed_scale_in_events" csv:"num_failed_scale_in_events"`
+
+	///////////////
+	// Messaging //
+	///////////////
+
+	NumJupyterMessagesReceivedByClusterGateway int64 `json:"num_jupyter_messages_received_by_cluster_gateway" csv:"num_jupyter_messages_received_by_cluster_gateway"`
+	NumJupyterRepliesSentByClusterGateway      int64 `json:"num_jupyter_replies_sent_by_cluster_gateway" csv:"num_jupyter_replies_sent_by_cluster_gateway"`
+
+	// CumulativeRequestProcessingTimeClusterGateway is calculated using the RequestTrace proto message.
+	CumulativeRequestProcessingTimeClusterGateway int64 `json:"cumulative_request_processing_time_cluster_gateway" csv:"cumulative_request_processing_time_cluster_gateway"`
+	// CumulativeRequestProcessingTimeLocalDaemon is calculated using the RequestTrace proto message.
+	CumulativeRequestProcessingTimeLocalDaemon int64 `json:"cumulative_request_processing_time_local_daemon" csv:"cumulative_request_processing_time_local_daemon"`
+
+	// CumulativeRequestProcessingTimeKernel is calculated using the RequestTrace proto message.
+	CumulativeRequestProcessingTimeKernel int64 `json:"cumulative_request_processing_time_kernel" csv:"cumulative_request_processing_time_kernel"`
+
+	// CumulativeRequestProcessingTimeClusterGateway is calculated using the RequestTrace proto message.
+	CumulativeResponseProcessingTimeClusterGateway int64 `json:"cumulative_response_processing_time_cluster_gateway" csv:"cumulative_response_processing_time_cluster_gateway"`
+	// CumulativeRequestProcessingTimeLocalDaemon is calculated using the RequestTrace proto message.
+	CumulativeResponseProcessingTimeLocalDaemon int64 `json:"cumulative_response_processing_time_local_daemon" csv:"cumulative_response_processing_time_local_daemon"`
+	// CumulativeRequestProcessingTimeKernel is calculated using the RequestTrace proto message.
+
+	////////////////////////////////////////
+	// Execution/kernel-Related Overheads //
+	////////////////////////////////////////
+
+	// CumulativeCudaInitMicroseconds is the cumulative, aggregate time spent initializing CUDA runtimes by all kernels.
+	CumulativeCudaInitMicroseconds float64 `json:"cumulative_cuda_init_microseconds" csv:"cumulative_cuda_init_microseconds"`
+	// NumCudaRuntimesInitialized is the number of times a CUDA runtime was initialized.
+	NumCudaRuntimesInitialized float64 `json:"num_cuda_runtimes_initialized" csv:"num_cuda_runtimes_initialized"`
+
+	// CumulativeTimeDownloadingDependenciesMicroseconds is the cumulative, aggregate time spent downloading
+	// runtime/library/module dependencies by all kernels.
+	// CumulativeTimeDownloadingDependenciesMicroseconds float64 `json:"cumulative_time_downloading_dependencies_microseconds" csv:"cumulative_time_downloading_dependencies_microseconds"`
+	// NumTimesDownloadedDependencies is the total number of times that a kernel downloaded dependencies.
+	// NumTimesDownloadedDependencies float64 `json:"num_times_downloaded_dependencies" csv:"num_times_downloaded_dependencies"`
+
+	// CumulativeTimeDownloadTrainingDataMicroseconds is the cumulative, aggregate time spent downloading the
+	// training data by all kernels.
+	CumulativeTimeDownloadTrainingDataMicroseconds float64 `json:"cumulative_time_download_training_data_microseconds" csv:"cumulative_time_download_training_data_microseconds"`
+	// NumTimesDownloadTrainingDataMicroseconds is the total number of times that a kernel downloaded the training data.
+	NumTimesDownloadTrainingDataMicroseconds float64 `json:"num_times_download_training_data_microseconds" csv:"num_times_download_training_data_microseconds"`
+
+	CumulativeTokenizeDatasetMicroseconds float64 `json:"cumulative_tokenize_dataset_microseconds" csv:"cumulative_tokenize_dataset_microseconds"`
+	NumTimesTokenizeDatasetMicroseconds   float64 `json:"num_times_tokenize_dataset_microseconds" csv:"num_times_tokenize_dataset_microseconds"`
+
+	// CumulativeTimeDownloadModelMicroseconds is the cumulative, aggregate time spent downloading the model by all kernels.
+	CumulativeTimeDownloadModelMicroseconds float64 `json:"cumulative_time_download_model_microseconds" csv:"cumulative_time_download_model_microseconds"`
+	// NumTimesDownloadModelMicroseconds is the total number of times that a kernel downloaded the model.
+	NumTimesDownloadModelMicroseconds float64 `json:"num_times_download_model_microseconds" csv:"num_times_download_model_microseconds"`
+
+	// CumulativeTimeDownloadingDependenciesMicroseconds is the cumulative, aggregate time spent uploading the model
+	// and training data by all kernels.
+	CumulativeTimeUploadModelAndTrainingDataMicroseconds float64 `json:"cumulative_time_upload_model_and_training_data_microseconds" csv:"cumulative_time_upload_model_and_training_data_microseconds"`
+	// NumTimesDownloadedDependencies is the total number of times that a kernel uploaded the model and training data.
+	NumTimesUploadModelAndTrainingDataMicroseconds float64 `json:"num_times_upload_model_and_training_data_microseconds" csv:"num_times_upload_model_and_training_data_microseconds"`
+
+	// CumulativeTimeCopyDataHostToDeviceMicroseconds is the cumulative, aggregate time spent copying data from main
+	// memory (i.e., host memory) to the GPU (i.e., device memory) by all kernels.
+	CumulativeTimeCopyDataHostToDeviceMicroseconds float64 `json:"cumulative_time_copy_data_host_to_device_microseconds" csv:"cumulative_time_copy_data_host_to_device_microseconds"`
+	// NumTimesCopyDataHostToDeviceMicroseconds is the total number of times that a kernel copied data from main
+	// memory (i.e., host memory) to the GPU (i.e., device memory).
+	NumTimesCopyDataHostToDeviceMicroseconds float64 `json:"num_times_copy_data_host_to_device_microseconds" csv:"num_times_copy_data_host_to_device_microseconds"`
+
+	// CumulativeTimeCopyDataHostToDeviceMicroseconds is the cumulative, aggregate time spent copying data from the GPU
+	// (i.e., device memory) to main memory (i.e., host memory).
+	CumulativeTimeCopyDataDeviceToHostMicroseconds float64 `json:"cumulative_time_copy_data_device_to_host_microseconds" csv:"cumulative_time_copy_data_device_to_host_microseconds"`
+	// NumTimesCopyDataHostToDeviceMicroseconds is the total number of times that a kernel copied data from the GPU
+	// (i.e., device memory) to main memory (i.e., device memory).
+	NumTimesCopyDataDeviceToHostMicroseconds float64 `json:"num_times_copy_data_device_to_host_microseconds" csv:"num_times_copy_data_device_to_host_microseconds"`
+
+	// CumulativeExecutionTimeMicroseconds is the cumulative, aggregate time spent executing user code, excluding any
+	// related overheads, by all kernels.
+	CumulativeExecutionTimeMicroseconds float64 `json:"cumulative_execution_time_microseconds" csv:"cumulative_execution_time_microseconds"`
+
+	// CumulativeLeaderElectionTimeMicroseconds is the cumulative, aggregate time spent handling leader elections.
+	CumulativeLeaderElectionTimeMicroseconds float64 `json:"cumulative_leader_election_time_microseconds" csv:"cumulative_leader_election_time_microseconds"`
+
+	// CumulativeKernelPreprocessRequestMillis is the time between when a kernel receives a request and when it begins handling the leader election.
+	CumulativeKernelPreprocessRequestMillis float64 `json:"cumulative_kernel_preprocess_request_millis" csv:"cumulative_kernel_preprocess_request_millis"`
+	// CumulativeKernelCreateElectionMillis is the time the kernels spent creating an election.
+	CumulativeKernelCreateElectionMillis float64 `json:"cumulative_kernel_create_election_millis" csv:"cumulative_kernel_create_election_millis"`
+	// CumulativeKernelProposalVotePhaseMillis is the cumulative duration of the proposal + voting phase of elections.
+	CumulativeKernelProposalVotePhaseMillis float64 `json:"cumulative_kernel_proposal_vote_phase_millis" csv:"cumulative_kernel_proposal_vote_phase_millis"`
+	// CumulativeKernelPostprocessMillis is the cumulative time after the kernels finish executing code before they send their response to their Local Scheduler.
+	CumulativeKernelPostprocessMillis float64 `json:"cumulative_kernel_postprocess_millis" csv:"cumulative_kernel_postprocess_millis"`
+
+	// CumulativeReplayTimeMicroseconds is the cumulative, aggregate time spent replaying cells, excluding any
+	// related overheads, by all kernels.
+	CumulativeReplayTimeMicroseconds float64 `json:"cumulative_replay_time_microseconds" csv:"cumulative_replay_time_microseconds"`
+	// TotalNumReplays is the total number of times that one or more cells had to be replayed by a kernel.
+	TotalNumReplays int64 `json:"total_num_replays" csv:"total_num_replays"`
+	// TotalNumCellsReplayed is the total number of cells that were replayed by all kernels.
+	TotalNumCellsReplayed int64 `json:"total_num_cells_replayed" csv:"total_num_cells_replayed"`
+
+	///////////////
+	// Resources //
+	///////////////
+
+	// Spec is the amount that is available/allocatable.
+	// It only changes when adding or removing hosts to/from the cluster.
+
+	SpecCPUs   float64 `csv:"SpecCPUs" json:"SpecCPUs"`
+	SpecGPUs   float64 `csv:"SpecGPUs" json:"SpecGPUs"`
+	SpecMemory float64 `csv:"SpecMemory" json:"SpecMemory"`
+	SpecVRAM   float64 `csv:"SpecVRAM" json:"SpecVRAM"`
+
+	// Idle means that they're not bound exclusively to a kernel replica.
+
+	IdleCPUs   float64 `csv:"IdleCPUs" json:"IdleCPUs"`
+	IdleGPUs   float64 `csv:"IdleGPUs" json:"IdleGPUs"`
+	IdleMemory float64 `csv:"IdleMemory" json:"IdleMemory"`
+	IdleVRAM   float64 `csv:"IdleVRAM" json:"IdleVRAM"`
+
+	// Pending is the sum of the resources requested by all kernel replicas scheduled on a host
+	// if they were to begin training at the same time.
+
+	PendingCPUs   float64 `csv:"PendingCPUs" json:"PendingCPUs"`
+	PendingGPUs   float64 `csv:"PendingGPUs" json:"PendingGPUs"`
+	PendingMemory float64 `csv:"PendingMemory" json:"PendingMemory"`
+	PendingVRAM   float64 `csv:"PendingVRAM" json:"PendingVRAM"`
+
+	// Commited means that they're bound exclusively to a kernel replica.
+
+	CommittedCPUs   float64 `csv:"CommittedCPUs" json:"CommittedCPUs"`
+	CommittedGPUs   float64 `csv:"CommittedGPUs" json:"CommittedGPUs"`
+	CommittedMemory float64 `csv:"CommittedMemory" json:"CommittedMemory"`
+	CommittedVRAM   float64 `csv:"CommittedVRAM" json:"CommittedVRAM"`
+
+	// Demand is the sum of the resources requested by all active sessions/kernels.
+
+	DemandCPUs   float64 `csv:"DemandCPUs" json:"DemandCPUs"`
+	DemandMemMb  float64 `csv:"DemandMemMb" json:"DemandMemMb"`
+	DemandGPUs   float64 `csv:"DemandGPUs" json:"DemandGPUs"`
+	DemandVRAMGb float64 `csv:"DemandVRAMGb" json:"DemandVRAMGb"`
+
+	// Busy are what are actively being used by training kernels.
+	// Only committed resources can be considered busy.
+	// Committed resources are not considered to be busy until the associated kernel replica begins training.
+
+	BusyCPUs   float64 `csv:"BusyCPUs" json:"BusyCPUs"`
+	BusyGPUs   float64 `csv:"BusyGPUs" json:"BusyGPUs"`
+	BusyMemory float64 `csv:"BusyMemory" json:"BusyMemory"`
+	BusyVRAM   float64 `csv:"BusyVRAM" json:"BusyVRAM"`
+
+	/////////////////////////////////
+	// Static & Dynamic Scheduling //
+	/////////////////////////////////
+
+	SubscriptionRatio float64 `csv:"SubscriptionRatio" json:"SubscriptionRatio"`
+
+	// NumTimesKernelReplicaAvailableImmediately is the number of times that a kernel replica was available
+	// immediately when an "execute_request" message was received by the cluster (as opposed to having to
+	// migrate some replicas around in order to serve the "execute_request").
+	NumTimesKernelReplicaAvailableImmediately float64 `csv:"NumTimesKernelReplicaAvailableImmediately" json:"NumTimesKernelReplicaAvailableImmediately"`
+
+	// NumTimesKernelReplicaNotAvailableImmediately is the number of times that a kernel replica was NOT available
+	// immediately when an "execute_request" message was received by the cluster, and we had to migrate some replicas
+	// around in order to serve the "execute_request" (as opposed to there being a replica available and able to
+	// serve the "execute_request" immediately, with no migrations required).
+	NumTimesKernelReplicaNotAvailableImmediately float64 `csv:"NumTimesKernelReplicaNotAvailableImmediately" json:"NumTimesKernelReplicaNotAvailableImmediately"`
+
+	// NumTimesPreviousPrimaryReplicaSelectedConsecutively refers to the number of times that the previous primary replica is
+	// selected again for the next consecutive user-submitted code execution.
+	NumTimesPreviousPrimaryReplicaSelectedConsecutively int64 `csv:"NumTimesPreviousPrimaryReplicaSelectedConsecutively" json:"NumTimesPreviousPrimaryReplicaSelectedConsecutively"`
+
+	// NumTimesPreviousPrimaryReplicaUnavailable refers to the number of times that the previous primary replica is
+	// NOT selected again for the next consecutive user-submitted code execution, due to it being unavailable (i.e.,
+	// insufficient resources available on that replica's host).
+	NumTimesPreviousPrimaryReplicaUnavailable int64 `csv:"" json:""`
+
+	OnDemandContainer int32 `csv:"OnDemandContainers" json:"OnDemandContainers"`
+	// The Len of Cluster::Sessions (which is of type *SessionManager).
+	// This includes all Sessions that have not been permanently stopped.
+	NumNonTerminatedSessions int32 `csv:"NumNonTerminatedSessions" json:"NumNonTerminatedSessions"`
+	// The number of Sessions that are presently idle, not training.
+	NumIdleSessions int32 `csv:"NumIdleSessions" json:"NumIdleSessions"`
+	// The number of Sessions that are presently actively-training.
+	NumTrainingSessions int32 `csv:"NumTrainingSessions" json:"NumTrainingSessions"`
+	// The number of Sessions in the STOPPED state.
+	NumStoppedSessions int32 `csv:"NumStoppedSessions" json:"NumStoppedSessions"`
+	// The number of Sessions that are actively running (but not necessarily training), so includes idle sessions.
+	// Does not include evicted, init, or stopped sessions.
+	NumRunningSessions int32 `csv:"NumRunningSessions" json:"NumRunningSessions"`
+	// NumSeenSessions is the total number of sessions seen/ever created.
+	NumSeenSessions int32 `csv:"NumSeenSessions" json:"NumSeenSessions"`
+
+	NumSuccessfulMigrations int32 `json:"num_successful_migrations" csv:"num_successful_migrations"`
+	NumFailedMigrations     int32 `json:"num_failed_migrations" csv:"num_failed_migrations"`
+	NumActiveMigrations     int32 `json:"num_active_migrations" csv:"num_active_migrations"`
+
+	// The amount of time that Sessions have spent idling throughout the entire simulation.
+	CumulativeSessionIdleTime float64 `csv:"CumulativeSessionIdleTimeSec" json:"CumulativeSessionIdleTimeSec"`
+	// The amount of time that Sessions have spent training throughout the entire simulation. This does NOT include replaying events.
+	CumulativeSessionTrainingTime float64 `csv:"CumulativeSessionTrainingTimeSec" json:"CumulativeSessionTrainingTimeSec"`
+	// The aggregate lifetime of all sessions created during the simulation (before being suspended).
+	AggregateSessionLifetimeSec float64 `csv:"AggregateSessionLifetimeSec" json:"AggregateSessionLifetimeSec"`
+	// Delay between when client submits "execute_request" and when kernel begins executing.
+	JupyterTrainingStartLatencyMillis float64 `json:"jupyter_training_start_latency_millis" csv:"jupyter_training_start_latency_millis"`
+
+	////////////////////////
+	// Dynamic Scheduling //
+	////////////////////////
+
+	Rescheduled       int32 `csv:"Rescheduled" json:"Rescheduled"`
+	Resched2Ready     int32 `csv:"Resched2Ready" json:"Resched2Ready"`
+	Migrated          int32 `csv:"Migrated" json:"Migrated"`
+	Preempted         int32 `csv:"Preempted" json:"Preempted"`
+	IdleHostsPerClass int32 `csv:"IdleHosts" json:"IdleHosts"`
+
+	//////////////
+	// Sessions //
+	//////////////
+
+	CompletedTrainings int32 `csv:"CompletedTrainings" json:"CompletedTrainings"`
+
+	CumulativeCommitExecutionCompleteNotificationMilliseconds float64 `json:"cumulative_commit_execution_complete_notification_milliseconds" csv:"cumulative_commit_execution_complete_notification_milliseconds"`
+	CumulativeSynchronizeUpdatedStateMilliseconds             float64 `json:"cumulative_synchronize_updated_state_milliseconds" csv:"cumulative_synchronize_updated_state_milliseconds"`
+}
+
+func NewClusterStatistics() *ClusterStatistics {
+	return &ClusterStatistics{
+		JupyterTrainingStartLatenciesMillis: make([]float64, 0),
+		AggregateSessionLifetimesSec:        make([]float64, 0),
+		ClusterEvents:                       make([]*ClusterEvent, 0),
+		ExecuteRequestTraces:                make([]*proto.RequestTrace, 0),
+		LargeObjectReadLatenciesMillis:      make([]float64, 0),
+		LargeObjectWriteLatenciesMillis:     make([]float64, 0),
+		SynchronizationTimes:                make([]float64, 0),
+	}
+}
+
+func (stats *ClusterStatistics) ConvertToSerializable() *SerializableClusterStatistics {
+	return &SerializableClusterStatistics{
+		Hosts:                                                     stats.Hosts,
+		NumDisabledHosts:                                          stats.NumDisabledHosts,
+		NumEmptyHosts:                                             stats.NumEmptyHosts,
+		CumulativeHostActiveTime:                                  stats.CumulativeHostActiveTime,
+		CumulativeHostIdleTime:                                    stats.CumulativeHostIdleTime,
+		AggregateHostLifetime:                                     stats.AggregateHostLifetime,
+		AggregateHostLifetimeOfRunningHosts:                       stats.AggregateHostLifetimeOfRunningHosts,
+		CumulativeNumHostsProvisioned:                             stats.CumulativeNumHostsProvisioned,
+		CumulativeNumHostsReleased:                                stats.CumulativeNumHostsReleased,
+		CumulativeTimeProvisioningHosts:                           stats.CumulativeTimeProvisioningHosts,
+		NumActiveScaleOutEvents:                                   stats.NumActiveScaleOutEvents,
+		NumSuccessfulScaleOutEvents:                               stats.NumSuccessfulScaleOutEvents,
+		NumFailedScaleOutEvents:                                   stats.NumFailedScaleOutEvents,
+		NumActiveScaleInEvents:                                    stats.NumActiveScaleInEvents,
+		NumSuccessfulScaleInEvents:                                stats.NumSuccessfulScaleInEvents,
+		NumFailedScaleInEvents:                                    stats.NumFailedScaleInEvents,
+		NumActiveMigrations:                                       stats.NumActiveMigrations,
+		NumJupyterMessagesReceivedByClusterGateway:                stats.NumJupyterMessagesReceivedByClusterGateway,
+		NumJupyterRepliesSentByClusterGateway:                     stats.NumJupyterRepliesSentByClusterGateway,
+		CumulativeRequestProcessingTimeClusterGateway:             stats.CumulativeRequestProcessingTimeClusterGateway,
+		CumulativeRequestProcessingTimeLocalDaemon:                stats.CumulativeRequestProcessingTimeLocalDaemon,
+		CumulativeRequestProcessingTimeKernel:                     stats.CumulativeRequestProcessingTimeKernel,
+		CumulativeResponseProcessingTimeClusterGateway:            stats.CumulativeResponseProcessingTimeClusterGateway,
+		CumulativeResponseProcessingTimeLocalDaemon:               stats.CumulativeResponseProcessingTimeLocalDaemon,
+		CumulativeCudaInitMicroseconds:                            stats.CumulativeCudaInitMicroseconds,
+		NumCudaRuntimesInitialized:                                stats.NumCudaRuntimesInitialized,
+		CumulativeTimeDownloadTrainingDataMicroseconds:            stats.CumulativeTimeDownloadTrainingDataMicroseconds,
+		NumTimesDownloadTrainingDataMicroseconds:                  stats.NumTimesDownloadTrainingDataMicroseconds,
+		CumulativeTokenizeDatasetMicroseconds:                     stats.CumulativeTokenizeDatasetMicroseconds,
+		NumTimesTokenizeDatasetMicroseconds:                       stats.NumTimesTokenizeDatasetMicroseconds,
+		ClusterEvents:                                             stats.ClusterEvents,
+		ExecuteRequestTraces:                                      stats.ExecuteRequestTraces,
+		AggregateSessionLifetimesSec:                              stats.AggregateSessionLifetimesSec,
+		JupyterTrainingStartLatenciesMillis:                       stats.JupyterTrainingStartLatenciesMillis,
+		CumulativeCommitExecutionCompleteNotificationMilliseconds: stats.CumulativeCommitExecutionCompleteNotificationMilliseconds,
+		CumulativeSynchronizeUpdatedStateMilliseconds:             stats.CumulativeSynchronizeUpdatedStateMilliseconds,
+		LargeObjectWriteLatenciesMillis:                           stats.LargeObjectWriteLatenciesMillis,
+		LargeObjectReadLatenciesMillis:                            stats.LargeObjectReadLatenciesMillis,
+		SynchronizationTimes:                                      stats.SynchronizationTimes,
+	}
 }

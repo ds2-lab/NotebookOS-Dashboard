@@ -9,14 +9,15 @@ import {
     MastheadBrand,
     MastheadContent,
     MastheadMain,
-    NotificationBadge,
-    NotificationBadgeVariant,
+    MastheadToggle,
     ToggleGroup,
     ToggleGroupItem,
     ToolbarItem,
     Tooltip,
 } from '@patternfly/react-core';
 import {
+    AttentionBellIcon,
+    BarsIcon,
     CheckCircleIcon,
     ClockIcon,
     ErrorCircleOIcon,
@@ -28,9 +29,11 @@ import {
 import { AuthorizationContext } from '@Providers/AuthProvider';
 import { useClusterAge } from '@Providers/ClusterAgeProvider';
 import { DarkModeContext } from '@Providers/DarkModeProvider';
+import { useClusterDeploymentMode } from '@Providers/DeploymentModeProvider';
 import { useKernels } from '@Providers/KernelProvider';
 import { useNodes } from '@Providers/NodeProvider';
 import { NotificationContext } from '@Providers/NotificationProvider';
+import { useClusterSchedulingPolicy } from '@Providers/SchedulingPolicyProvider';
 import logo from '@src/app/bgimages/WorkloadDriver-Logo.svg';
 import { GetPathForFetch, JoinPaths } from '@src/Utils/path_utils';
 import * as React from 'react';
@@ -89,6 +92,7 @@ const connectionStatusColors: statusColor = {
 
 interface AppHeaderProps {
     isLoggedIn: boolean;
+    onMastheadToggleClicked: () => void;
 }
 
 const toastIdFailedToConnect: string = '__TOAST_ERROR_FAILED_TO_CONNECT__';
@@ -104,6 +108,8 @@ export const AppHeader: React.FunctionComponent<AppHeaderProps> = (props: AppHea
     const [queryMessageModalOpen, setQueryMessageModalOpen] = React.useState<boolean>(false);
 
     const { clusterAge } = useClusterAge();
+    const { schedulingPolicy } = useClusterSchedulingPolicy();
+    const { deploymentMode } = useClusterDeploymentMode();
     const { refreshNodes } = useNodes();
     const { refreshKernels } = useKernels(false);
 
@@ -249,37 +255,80 @@ export const AppHeader: React.FunctionComponent<AppHeaderProps> = (props: AppHea
     const getUnreadNotificationsNumber = () =>
         notifications.filter((notification) => !notification.isNotificationRead).length;
 
-    const containsUnreadAlertNotification = () =>
-        notifications.filter(
-            (notification) =>
-                !notification.isNotificationRead &&
-                (notification.variant === 'danger' || notification.variant === 'warning'),
-        ).length > 0;
+    const containsUnreadErrorNotifications = () =>
+        notifications.filter((notification) => !notification.isNotificationRead && notification.variant === 'danger')
+            .length > 0;
 
-    const getNotificationBadgeVariant = () => {
+    const containsUnreadWarningNotifications = () =>
+        notifications.filter((notification) => !notification.isNotificationRead && notification.variant === 'warning')
+            .length > 0;
+
+    const getNotificationBadgeIconClassName = (): string => {
         if (getUnreadNotificationsNumber() === 0) {
-            return NotificationBadgeVariant.read;
+            return 'notification-badge-icon-no-notifications';
         }
-        if (containsUnreadAlertNotification()) {
-            return NotificationBadgeVariant.attention;
-        }
-        return NotificationBadgeVariant.unread;
+
+        return '';
     };
+
+    const getNotificationBadgeClassName = (): string => {
+        if (getUnreadNotificationsNumber() === 0) {
+            return 'notification-badge-no-notifications';
+        }
+
+        if (containsUnreadWarningNotifications()) {
+            return 'pf-m-warning';
+        }
+
+        if (containsUnreadErrorNotifications()) {
+            return 'pf-m-danger';
+        }
+
+        return 'pf-m-info';
+    };
+
+    // const getNotificationBadgeButtonOptions = ():BadgeCountObject => {
+    //   const numUnreadNotifications: number = getUnreadNotificationsNumber();
+    //
+    //   return {
+    //     isRead: numUnreadNotifications === 0,
+    //     count: numUnreadNotifications,
+    //     className: (numUnreadNotifications === 0) ? "custom-badge-read" : "custom-badge-unread"
+    //   }
+    // }
 
     const notificationBadge = (
         <ToolbarItem>
-            <NotificationBadge
-                variant={getNotificationBadgeVariant()}
+            <Button
+                id={'notification-badge-button'}
                 onClick={onNotificationBadgeClick}
+                variant={'primary'}
                 aria-label="Notifications"
-                count={getUnreadNotificationsNumber()}
-            ></NotificationBadge>
+                icon={
+                    <AttentionBellIcon
+                        id={'notification-badge-button-icon'}
+                        className={getNotificationBadgeIconClassName()}
+                    />
+                }
+                className={getNotificationBadgeClassName()}
+            >
+                {getUnreadNotificationsNumber()}
+            </Button>
         </ToolbarItem>
     );
 
     return (
         <Masthead>
             <MastheadMain>
+                <MastheadToggle>
+                    <Button
+                        variant="plain"
+                        onClick={() => props.onMastheadToggleClicked()}
+                        aria-label="Global navigation"
+                    >
+                        <BarsIcon />
+                    </Button>
+                </MastheadToggle>
                 <MastheadBrand>
                     <Brand src={logo} alt="Workload Driver Logo" heights={{ default: '36px' }} />
                 </MastheadBrand>
@@ -308,54 +357,61 @@ export const AppHeader: React.FunctionComponent<AppHeaderProps> = (props: AppHea
                             </div>
                         </FlexItem>
 
-                        <FlexItem hidden={!props.isLoggedIn}>
-                            <Tooltip content="Open the notification drawer." position="bottom">
-                                {notificationBadge}
-                            </Tooltip>
-                        </FlexItem>
+                        {props.isLoggedIn && (
+                            <FlexItem>
+                                <Tooltip content="Open the notification drawer." position="bottom">
+                                    {notificationBadge}
+                                </Tooltip>
+                            </FlexItem>
+                        )}
 
-                        <FlexItem hidden={!props.isLoggedIn}>
-                            <Tooltip content="Cause the Cluster Gateway to panic." position="bottom">
-                                <Button
-                                    isDanger
-                                    key={'cause-gateway-panic-button'}
-                                    variant="secondary"
-                                    icon={<WarningTriangleIcon />}
-                                    onClick={() => {
-                                        const requestOptions = {
-                                            method: 'POST',
-                                            Headers: {
-                                                Authorization: 'Bearer ' + localStorage.getItem('token'),
-                                            },
-                                        };
+                        {props.isLoggedIn && (
+                            <FlexItem>
+                                <Tooltip content="Cause the Cluster Gateway to panic." position="bottom">
+                                    <Button
+                                        isDanger
+                                        key={'cause-gateway-panic-button'}
+                                        variant="secondary"
+                                        icon={<WarningTriangleIcon />}
+                                        onClick={() => {
+                                            const requestOptions = {
+                                                method: 'POST',
+                                                Headers: {
+                                                    Authorization: 'Bearer ' + localStorage.getItem('token'),
+                                                },
+                                            };
 
-                                        fetch(GetPathForFetch('api/panic'), requestOptions).then(() => {});
-                                    }}
+                                            fetch(GetPathForFetch('api/panic'), requestOptions).then(() => {});
+                                        }}
+                                    >
+                                        Panic
+                                    </Button>
+                                </Tooltip>
+                            </FlexItem>
+                        )}
+
+                        {props.isLoggedIn && (
+                            <FlexItem>
+                                <Tooltip
+                                    content={'Query the status of a particular Jupyter ZMQ message.'}
+                                    position={'bottom'}
                                 >
-                                    Induce a Panic
-                                </Button>
-                            </Tooltip>
-                        </FlexItem>
-
-                        <FlexItem hidden={!props.isLoggedIn}>
-                            <Tooltip
-                                content={'Query the status of a particular Jupyter ZMQ message.'}
-                                position={'bottom'}
-                            >
-                                <Button
-                                    key={'open-query-message-modal-button'}
-                                    variant={'secondary'}
-                                    icon={<InfoAltIcon />}
-                                    onClick={() => setQueryMessageModalOpen(true)}
-                                >
-                                    Query Message Status
-                                </Button>
-                            </Tooltip>
-                        </FlexItem>
+                                    <Button
+                                        key={'open-query-message-modal-button'}
+                                        variant={'secondary'}
+                                        icon={<InfoAltIcon />}
+                                        onClick={() => setQueryMessageModalOpen(true)}
+                                    >
+                                        Query Message
+                                    </Button>
+                                </Tooltip>
+                            </FlexItem>
+                        )}
 
                         <FlexItem>
                             <Tooltip content="Indicates whether we're presently authenticated." position="bottom">
                                 <Label
+                                    isCompact
                                     color={authenticated ? 'green' : 'orange'}
                                     icon={authenticated ? <CheckCircleIcon /> : <WarningTriangleIcon />}
                                 >
@@ -364,34 +420,58 @@ export const AppHeader: React.FunctionComponent<AppHeaderProps> = (props: AppHea
                             </Tooltip>
                         </FlexItem>
 
-                        <FlexItem hidden={!props.isLoggedIn}>
-                            <Tooltip
-                                content="Indicates the current connection status with the backend of the Cluster Dashboard."
-                                position="bottom"
-                            >
-                                <Label color={connectionStatusColor} icon={connectionStatusIcon}>
-                                    {connectionStatus}
-                                </Label>
-                            </Tooltip>
-                        </FlexItem>
+                        {props.isLoggedIn && (
+                            <FlexItem>
+                                <Tooltip
+                                    content="Indicates the current connection status with the backend of the Cluster Dashboard."
+                                    position="bottom"
+                                >
+                                    <Label color={connectionStatusColor} icon={connectionStatusIcon} isCompact>
+                                        {connectionStatus}
+                                    </Label>
+                                </Tooltip>
+                            </FlexItem>
+                        )}
 
-                        <FlexItem hidden={!props.isLoggedIn}>
-                            <Tooltip content={'Age of the cluster'} position="bottom">
-                                <Label color={'purple'} icon={<ClockIcon />}>
-                                    {currentClusterAge}
-                                </Label>
-                            </Tooltip>
-                        </FlexItem>
+                        {props.isLoggedIn && (
+                            <FlexItem>
+                                <Tooltip content={'Age of the cluster'} position="bottom">
+                                    <Label isCompact color={'purple'} icon={<ClockIcon />}>
+                                        <b>Cluster Age:</b> {currentClusterAge}
+                                    </Label>
+                                </Tooltip>
+                            </FlexItem>
+                        )}
 
-                        <FlexItem hidden={!props.isLoggedIn}>
-                            <QueryMessageModal
-                                isOpen={queryMessageModalOpen}
-                                onClose={() => setQueryMessageModalOpen(false)}
-                            />
-                        </FlexItem>
+                        {props.isLoggedIn && (
+                            <FlexItem>
+                                <Tooltip
+                                    content={'Configured scheduling policy employed by the cluster'}
+                                    position="bottom"
+                                >
+                                    <Label isCompact color={'cyan'} icon={<ClockIcon />}>
+                                        <b>Scheduling Policy:</b> {schedulingPolicy}
+                                    </Label>
+                                </Tooltip>
+                            </FlexItem>
+                        )}
+
+                        {props.isLoggedIn && (
+                            <FlexItem>
+                                <Tooltip content={'Configured deployment mode of the cluster'} position="bottom">
+                                    <Label isCompact color={'gold'} icon={<ClockIcon />}>
+                                        <b>Deployment Mode:</b> {deploymentMode}
+                                    </Label>
+                                </Tooltip>
+                            </FlexItem>
+                        )}
                     </Flex>
                 </MastheadContent>
             </MastheadMain>
+
+            {props.isLoggedIn && (
+                <QueryMessageModal isOpen={queryMessageModalOpen} onClose={() => setQueryMessageModalOpen(false)} />
+            )}
         </Masthead>
     );
 };

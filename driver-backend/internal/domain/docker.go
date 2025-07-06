@@ -95,7 +95,7 @@ type VirtualDockerNode struct {
 
 	// CreatedAt is the unix milliseconds at which the corresponding VirtualDockerNode was created.
 	// (Not when the struct was created, but the actual cluster node represented by the VirtualDockerNode struct.)
-	CreatedAt int64 `json:"createdAt"`
+	CreatedAt int64 `json:"CreatedAt"`
 
 	age time.Duration
 
@@ -184,7 +184,7 @@ func VirtualDockerNodeFromProtoVirtualDockerNode(protoNode *proto.VirtualDockerN
 		CreatedAt:          protoNode.CreatedAt.Seconds,
 		Age:                fmt.Sprintf("%v", timex.Round(time.Now().Sub(protoNode.CreatedAt.AsTime()), 3)),
 		age:                time.Now().Sub(protoNode.CreatedAt.AsTime()),
-		Enabled:            true,
+		Enabled:            protoNode.Enabled,
 		Containers:         containers,
 		AllocatedResources: allocatedResources,
 		CapacityResources:  capacityResources,

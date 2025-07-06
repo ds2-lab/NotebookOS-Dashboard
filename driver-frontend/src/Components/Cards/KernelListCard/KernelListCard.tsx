@@ -4,28 +4,20 @@ import {
     ExecuteCodeOnKernelModal,
     InformationModal,
     PingKernelModal,
-    RoundToNDecimalPlaces,
-    RoundToThreeDecimalPlaces,
 } from '@Components/Modals';
-import { RequestTraceSplitTable } from '@Components/Tables';
 import { DistributedJupyterKernel, JupyterKernelReplica, ResourceSpec } from '@Data/Kernel';
-import { PongResponse } from '@Data/Message';
-
-import { KernelManager, ServerConnection, SessionManager } from '@jupyterlab/services';
 import { IKernelConnection } from '@jupyterlab/services/lib/kernel/kernel';
 import { IModel as ISessionModel, ISessionConnection } from '@jupyterlab/services/lib/session/session';
 import {
-    Alert,
-    AlertActionCloseButton,
     Button,
     Card,
     CardBody,
     CardHeader,
     CardTitle,
     Flex,
-    FlexItem,
     InputGroup,
     InputGroupItem,
+    PerPageOptions,
     SearchInput,
     Text,
     TextVariants,
@@ -37,21 +29,30 @@ import {
 } from '@patternfly/react-core';
 
 import { FilterIcon, PlusIcon, SpinnerIcon, SyncIcon, TrashIcon } from '@patternfly/react-icons';
+import { AuthorizationContext } from '@Providers/AuthProvider';
 import { ExecutionOutputTabsDataProvider } from '@Providers/ExecutionOutputTabsDataProvider';
-import { useJupyterAddress } from '@Providers/JupyterAddressProvider';
+import { useKernelAndSessionManagers } from '@Providers/KernelAndSessionManagerProvider';
 import { useKernels } from '@Providers/KernelProvider';
-import { KernelDataList } from '@src/Components';
+import {
+    DeleteKernel,
+    InstructKernelToStopTraining,
+    InterruptKernel,
+    KernelDataList,
+    PingKernel,
+} from '@src/Components';
 import { useNodes } from '@src/Providers';
-import { GetPathForFetch, JoinPaths } from '@src/Utils/path_utils';
+import { GetPathForFetch } from '@src/Utils/path_utils';
 import { DefaultDismiss, GetToastContentWithHeaderAndBody, ToastPromise, ToastRefresh } from '@src/Utils/toast_utils';
-import { numberArrayFromRange } from '@src/Utils/utils';
-import React, { useCallback, useEffect, useReducer, useRef } from 'react';
+import { numberArrayFromRange, RoundToThreeDecimalPlaces } from '@src/Utils/utils';
+import React, { useEffect, useReducer, useRef } from 'react';
 
 import toast, { Toast } from 'react-hot-toast';
 
 export interface KernelListProps {
     openMigrationModal: (kernel: DistributedJupyterKernel, replica: JupyterKernelReplica) => void;
     kernelsPerPage: number;
+    perPageOption: PerPageOptions[];
+    kernelsNotClickable?: boolean;
 }
 
 export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: KernelListProps) => {
@@ -72,93 +73,37 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
     const [kernelToDelete, setKernelToDelete] = React.useState<string>('');
     const { kernels, kernelsAreLoading, refreshKernels } = useKernels(false);
     const { refreshNodes } = useNodes();
-    const { jupyterAddress } = useJupyterAddress();
+
+    const { authenticated } = React.useContext(AuthorizationContext);
 
     const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
     const kernelIdSet = useRef<Set<string>>(new Set()); // Keep track of kernels we've seen before.
     const numKernelsCreating = useRef(0); // Used to display "pending" entries in the kernel list.
-    const kernelManager = useRef<KernelManager | null>(null);
-    const sessionManager = useRef<SessionManager | null>(null);
+
+    const { kernelManager, sessionManager, kernelManagerIsInitializing, sessionManagerIsInitializing } =
+        useKernelAndSessionManagers();
 
     // If there are any new kernels, decrement `numKernelsCreating`.
-    kernels.forEach((kernel: DistributedJupyterKernel) => {
-        if (kernel === null || kernel === undefined) {
-            return;
-        }
-
-        if (!kernelIdSet.current.has(kernel.kernelId)) {
-            kernelIdSet.current.add(kernel.kernelId);
-            numKernelsCreating.current -= 1;
-
-            if (numKernelsCreating.current < 0) {
-                // TODO: Need to keep track of how many kernels we're actually waiting on.
-                // If we're not waiting on any kernels, then we shouldn't try to decrement 'numKernelsCreating'.
-                console.warn(`Tried to decrement 'numKernelsCreating' below 0 (kernelID: ${kernel.kernelId})...`);
-                numKernelsCreating.current = 0;
+    React.useEffect(() => {
+        kernels.forEach((kernel: DistributedJupyterKernel) => {
+            if (kernel === null || kernel === undefined) {
+                return;
             }
-        }
-    });
 
-    const initializeKernelManagers = useCallback(async () => {
-        if (kernelManager.current === null) {
-            const wsUrl: string = `ws://${jupyterAddress}`;
-            const jupyterBaseUrl: string = JoinPaths(process.env.PUBLIC_PATH || '/', 'jupyter');
+            if (!kernelIdSet.current.has(kernel.kernelId)) {
+                kernelIdSet.current.add(kernel.kernelId);
+                numKernelsCreating.current -= 1;
 
-            const kernelSpecManagerOptions: KernelManager.IOptions = {
-                serverSettings: ServerConnection.makeSettings({
-                    token: '',
-                    appendToken: false,
-                    baseUrl: jupyterBaseUrl,
-                    wsUrl: wsUrl,
-                    fetch: fetch,
-                }),
-            };
-            kernelManager.current = new KernelManager(kernelSpecManagerOptions);
-
-            console.log('Waiting for Kernel Manager to be ready.');
-
-            kernelManager.current.connectionFailure.connect((_sender: KernelManager, err: Error) => {
-                console.error(
-                    'An error has occurred while preparing the Kernel Manager. ' + err.name + ': ' + err.message,
-                );
-
-                toast.error(`An error has occurred while preparing the Kernel Manager. ${err.name}: ${err.message}.`);
-            });
-
-            await kernelManager.current.ready.then(() => {
-                console.log('Kernel Manager is ready!');
-            });
-        }
-
-        if (sessionManager.current === null) {
-            const wsUrl: string = `ws://${jupyterAddress}`;
-            const jupyterBaseUrl: string = JoinPaths(process.env.PUBLIC_PATH || '/', 'jupyter');
-
-            sessionManager.current = new SessionManager({
-                kernelManager: kernelManager.current,
-                serverSettings: ServerConnection.makeSettings({
-                    token: '',
-                    appendToken: false,
-                    baseUrl: jupyterBaseUrl,
-                    wsUrl: wsUrl,
-                    fetch: fetch,
-                }),
-            });
-
-            await sessionManager.current.ready.then(() => {
-                console.log('Session Manager is ready!');
-            });
-        }
-    }, [jupyterAddress]);
-
-    useEffect(() => {
-        if (jupyterAddress === undefined) {
-            return;
-        }
-
-        initializeKernelManagers().then(() => {});
-    }, [initializeKernelManagers, jupyterAddress]);
+                if (numKernelsCreating.current < 0) {
+                    // TODO: Need to keep track of how many kernels we're actually waiting on.
+                    // If we're not waiting on any kernels, then we shouldn't try to decrement 'numKernelsCreating'.
+                    console.warn(`Tried to decrement 'numKernelsCreating' below 0 (kernelID: ${kernel.kernelId})...`);
+                    numKernelsCreating.current = 0;
+                }
+            }
+        });
+    }, [kernels]);
 
     const onSearchChange = (value: string) => {
         setSearchValue(value);
@@ -190,119 +135,12 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
     const onConfirmPingKernelClicked = (kernelId: string, socketType: 'control' | 'shell') => {
         setIsPingKernelModalOpen(false);
         setTargetIdPingKernel('');
-        console.log('User is pinging kernel ' + kernelId);
 
-        const req: RequestInit = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: 'Bearer ' + localStorage.getItem('token'),
-            },
-            body: JSON.stringify({
-                socketType: socketType,
-                kernelId: kernelId,
-            }),
-        };
-
-        const toastId: string = toast.custom(
-            (t) => {
-                return (
-                    <Alert
-                        title={<b>Pinging kernel {kernelId} now...</b>}
-                        variant={'custom'}
-                        customIcon={<SpinnerIcon className={'loading-icon-spin-pulse'} />}
-                        timeout={false}
-                        actionClose={<AlertActionCloseButton onClose={() => toast.dismiss(t.id)} />}
-                    />
-                );
-            },
-            {
-                style: {
-                    maxWidth: 750,
-                },
-                icon: <SpinnerIcon className={'loading-icon-spin-pulse'} />,
-            },
-        );
-
-        const startTime: number = performance.now();
-        const initialRequestTimestamp: number = Date.now();
-        fetch(GetPathForFetch('api/ping-kernel'), req)
-            .catch((err: Error) => {
-                toast.custom(
-                    () =>
-                        GetToastContentWithHeaderAndBody(
-                            `Failed to ping one or more replicas of kernel ${kernelId}.`,
-                            err.message,
-                            'danger',
-                            () => {
-                                toast.dismiss(toastId);
-                            },
-                        ),
-                    { id: toastId, style: { maxWidth: 750 } },
-                );
-            })
-            .then(async (resp: Response | void) => {
-                if (!resp) {
-                    console.error('No response from ping-kernel.');
-                    return;
-                }
-
-                if (resp.status != 200 || !resp.ok) {
-                    const response = await resp.json();
-                    toast.custom(
-                        () =>
-                            GetToastContentWithHeaderAndBody(
-                                `Failed to ping one or more replicas of kernel ${kernelId}.`,
-                                `${JSON.stringify(response)}`,
-                                'danger',
-                                () => {
-                                    toast.dismiss(toastId);
-                                },
-                            ),
-                        { id: toastId, style: { maxWidth: 750 } },
-                    );
-                } else {
-                    const response: PongResponse = await resp.json();
-                    const receivedReplyAt: number = Date.now();
-                    const latencyMilliseconds: number = RoundToNDecimalPlaces(performance.now() - startTime, 6);
-
-                    console.log('All Request Traces:');
-                    console.log(JSON.stringify(response.requestTraces, null, 2));
-
-                    toast.custom(
-                        <Alert
-                            isExpandable
-                            variant={'success'}
-                            title={`Pinged kernel ${response.id} via its ${socketType} channel (${latencyMilliseconds} ms)`}
-                            timeoutAnimation={30000}
-                            timeout={15000}
-                            onTimeout={() => toast.dismiss(toastId)}
-                            actionClose={<AlertActionCloseButton onClose={() => toast.dismiss(toastId)} />}
-                        >
-                            {response.requestTraces.length > 0 && (
-                                <Flex direction={{ default: 'column' }}>
-                                    <FlexItem>
-                                        <Title headingLevel={'h3'}>Request Trace(s)</Title>
-                                    </FlexItem>
-                                    <FlexItem>
-                                        <RequestTraceSplitTable
-                                            receivedReplyAt={receivedReplyAt}
-                                            initialRequestSentAt={initialRequestTimestamp}
-                                            messageId={response.msg}
-                                            traces={response.requestTraces}
-                                        />
-                                    </FlexItem>
-                                </Flex>
-                            )}
-                        </Alert>,
-                        { id: toastId },
-                    );
-                }
-            });
+        PingKernel(kernelId, socketType);
     };
 
-    const onExecuteCodeClicked = (kernel: DistributedJupyterKernel | null, replicaIdx?: number | undefined) => {
-        if (kernel == null) {
+    const onExecuteCodeClicked = (kernel?: DistributedJupyterKernel, replicaIdx?: number | undefined) => {
+        if (!kernel) {
             return;
         }
 
@@ -328,85 +166,24 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
         setTargetIdPingKernel(kernel.kernelId);
     }
 
-    const onInterruptKernelClicked = (kernel: DistributedJupyterKernel) => {
-        async function interrupt_kernel(kernelId: string) {
-            if (!kernelManager.current || !kernelManager.current.isReady) {
-                console.error(
-                    `KernelManager is NOT ready... will try to initialize the KernelManager before proceeding.`,
-                );
-                await initializeKernelManagers();
-
-                if (!kernelManager.current || !kernelManager.current.isReady) {
-                    toast.error('Cannot establish connection with Jupyter Server.');
-
-                    return;
-                }
-            }
-
-            console.log(`Connecting to kernel ${kernelId} (so we can interrupt it) now...`);
-
-            const kernelConnection: IKernelConnection = kernelManager.current!.connectTo({
-                model: { id: kernelId, name: kernelId },
-            });
-
-            console.log(`Connected to kernel ${kernelId}. Attempting to interrupt kernel now...`);
-
-            await kernelConnection.interrupt();
-
-            console.log(`Interrupted kernel ${kernelId}.`);
-        }
-
-        const kernelId: string | undefined = kernel.kernelId;
-        interrupt_kernel(kernelId).then(() => {});
-    };
-
-    const onStopTrainingClicked = (kernel: DistributedJupyterKernel) => {
-        const kernelId: string | undefined = kernel.kernelId;
-
-        if (kernelId === undefined) {
-            console.error('Undefined kernel specified for interrupt target...');
+    const onInterruptKernelClicked = async (kernel: DistributedJupyterKernel) => {
+        if (!kernelManager || kernelManagerIsInitializing) {
+            toast.custom(() =>
+                GetToastContentWithHeaderAndBody(
+                    `Cannot Interrupt Kernel ${kernel.kernelId}`,
+                    'Kernel Manager is initializing. Please try again in a few seconds.',
+                    'warning',
+                    DefaultDismiss,
+                ),
+            );
             return;
         }
 
-        console.log('User is interrupting kernel ' + kernelId);
+        await InterruptKernel(kernel.kernelId, kernelManager);
+    };
 
-        const req: RequestInit = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: 'Bearer ' + localStorage.getItem('token'),
-                // 'Cache-Control': 'no-cache, no-transform, no-store',
-            },
-            body: JSON.stringify({
-                session_id: '',
-                kernel_id: kernelId,
-            }),
-        };
-
-        toast
-            .promise(fetch(GetPathForFetch('api/stop-training'), req), {
-                loading: <b>Interrupting kernel {kernelId} now...</b>,
-                success: (resp: Response) => {
-                    if (!resp.ok || resp.status != 200) {
-                        console.error(`Failed to interrupt kernel ${kernelId}.`);
-                        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-                    }
-                    console.log(`Successfully interrupted kernel ${kernelId}.`);
-                    return (
-                        <b>
-                            Successfully interrupted kernel {kernelId} (HTTP {resp.status}: {resp.statusText}).
-                        </b>
-                    );
-                },
-                error: (reason: Error) =>
-                    GetToastContentWithHeaderAndBody(
-                        `Failed to interrupt kernel ${kernelId}.`,
-                        `<b>Reason:</b> ${reason.message}`,
-                        'danger',
-                        () => {},
-                    ),
-            })
-            .then(() => {});
+    const onStopTrainingClicked = (kernel: DistributedJupyterKernel) => {
+        InstructKernelToStopTraining(kernel.kernelId);
     };
 
     async function startKernel(kernelId: string, sessionId: string, resourceSpec: ResourceSpec) {
@@ -418,24 +195,20 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
             `Starting kernel ${kernelId} (sessionId=${sessionId}) now. ResourceSpec: ${JSON.stringify(resourceSpec)}`,
         );
 
-        console.log(`Starting new 'distributed' kernel for user ${sessionId} with clientID=${sessionId}.`);
-        console.log(`Creating new Jupyter Session ${sessionId} now...`);
-
-        if (!sessionManager.current || !sessionManager.current.isReady) {
-            console.error(
-                `SessionManager is NOT ready... will try to initialize the SessionManager before proceeding.`,
+        if (!sessionManager || sessionManagerIsInitializing) {
+            toast.custom(() =>
+                GetToastContentWithHeaderAndBody(
+                    `Cannot Start Kernel ${kernelId}`,
+                    `Session Manager is initializing. Please try again in a few seconds.`,
+                    'warning',
+                    DefaultDismiss,
+                ),
             );
-            await initializeKernelManagers();
-            console.warn(`Trying again...`);
-
-            if (!sessionManager.current || !sessionManager.current.isReady) {
-                toast.error('Cannot establish connection with Jupyter Server.');
-                numKernelsCreating.current -= 1;
-                return;
-            }
+            return;
         }
 
-        console.log(`sessionManager.current.isReady: ${sessionManager.current.isReady}`);
+        console.log(`Starting new 'distributed' kernel for user ${sessionId} with clientID=${sessionId}.`);
+        console.log(`Creating new Jupyter Session ${sessionId} now...`);
 
         const req: RequestInit = {
             method: 'POST',
@@ -458,6 +231,7 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
 
         async function start_session(): Promise<ISessionModel> {
             const response: Response = await fetch(GetPathForFetch('jupyter/api/sessions'), req);
+            console.log(`response.headers.get("content-type"): ${response.headers.get('content-type')}`);
 
             if (response.status != 201) {
                 numKernelsCreating.current -= 1;
@@ -522,33 +296,13 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
                 ),
         );
 
-        // const sessionModel: ISessionModel = await toast.promise(
-        //     start_session(),
-        //     {
-        //         loading: <b>Creating new Jupyter kernel now...</b>,
-        //         success: () => {
-        //             return (
-        //                 <b>{`Successfully launched new Jupyter kernel in ${RoundToThreeDecimalPlaces((performance.now() - startTime) / 1000.0)} seconds.`}</b>
-        //             );
-        //         },
-        //         error: (reason: Error) =>
-        //             GetToastContentWithHeaderAndBody(
-        //                 'Failed to start new Jupyter Session and Jupyter Kernel.',
-        //                 reason.message,
-        //                 'danger',
-        //                 () => {},
-        //             ),
-        //     },
-        //     { style: { maxWidth: 650 } },
-        // );
-
         if (!sessionModel) {
             return;
         }
 
         await refreshNodes(false);
 
-        const session: ISessionConnection = sessionManager.current.connectTo({
+        const session: ISessionConnection = sessionManager.connectTo({
             model: sessionModel,
             kernelConnectionOptions: {
                 handleComms: true,
@@ -558,7 +312,9 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
         });
 
         if (session === null) {
-
+            console.error(`Failed to connect to Jupyter session ${sessionId}.`);
+            toast.error(`Failed to connect to Jupyter session ${sessionId}.`);
+            return;
         }
 
         console.log(
@@ -588,6 +344,10 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
             console.log(`New Kernel Status Update: ${status}`);
         });
 
+        kernel.iopubMessage.connect((_, message) => {
+            console.log(`New Kernel Status Update: ${JSON.stringify(message)}`);
+        });
+
         await fetch(GetPathForFetch('api/metrics'), {
             method: 'PATCH',
             headers: {
@@ -607,62 +367,52 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
         await refreshKernels().catch((err: Error) => console.log(`Kernel refresh failed: ${err}`));
     }
 
-    const onConfirmDeleteKernelsClicked = (kernelIds: string[]) => {
+    const onConfirmDeleteKernelsClicked = async (kernelIds: string[]) => {
         // Close the confirmation dialogue.
         setIsConfirmDeleteKernelsModalOpen(false);
         setIsConfirmDeleteKernelModalOpen(false);
 
         // Create a new kernel.
-        if (!kernelManager.current) {
+        if (!kernelManager || kernelManagerIsInitializing) {
             console.error('Kernel Manager is not available. Will try to connect...');
-            initializeKernelManagers().then(() => {});
+            toast.custom(() =>
+                GetToastContentWithHeaderAndBody(
+                    `Cannot Stop Specified Kernels`,
+                    'Kernel Manager is initializing. Please try again in a few seconds.',
+                    'warning',
+                    DefaultDismiss,
+                ),
+            );
             return;
-        }
-
-        /**
-         * Delete the specified kernel.
-         *
-         * @param id The ID of the kernel to be deleted.
-         */
-        async function delete_kernel(id: string) {
-            console.log('Deleting Kernel ' + id + ' now.');
-            const startTime: number = performance.now();
-
-            await kernelManager.current?.shutdown(id).then(() => {
-                console.log('Successfully deleted Kernel ' + id + ' now.');
-                refreshKernels().catch((err: Error) => console.log(`Kernel refresh failed: ${err}`));
-            });
-
-            await fetch(GetPathForFetch('api/metrics'), {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: 'Bearer ' + localStorage.getItem('token'),
-                    // 'Cache-Control': 'no-cache, no-transform, no-store',
-                },
-                body: JSON.stringify({
-                    name: 'distributed_cluster_jupyter_session_termination_latency_seconds',
-                    value: performance.now() - startTime,
-                    metadata: {
-                        kernel_id: id,
-                    },
-                }),
-            });
         }
 
         for (let i: number = 0; i < kernelIds.length; i++) {
             const kernelId: string = kernelIds[i];
-            toast
-                .promise(delete_kernel(kernelId), {
-                    loading: <b>Deleting kernel {kernelId}</b>,
-                    success: <b>Successfully deleted kernel {kernelId}</b>,
-                    error: <b>Failed to delete kernel {kernelId}</b>,
-                })
-                .then(() => {});
+            const toastId: string = toast.custom(
+                GetToastContentWithHeaderAndBody(
+                    'Deleting Kernel',
+                    `Deleting kernel ${kernelId}`,
+                    'info',
+                    DefaultDismiss,
+                    undefined,
+                    <SpinnerIcon className={'loading-icon-spin-pulse'} />,
+                ),
+            );
+            await DeleteKernel(kernelId, toastId);
         }
 
         setSelectedKernels([]);
         setKernelToDelete('');
+    };
+
+    const onSelectKernel = (kernelId: string) => {
+        const item = kernelId as string;
+
+        if (selectedKernels.includes(item)) {
+            setSelectedKernels(selectedKernels.filter((id) => id !== item));
+        } else {
+            setSelectedKernels([...selectedKernels, item]);
+        }
     };
 
     const onConfirmCreateKernelClicked = (
@@ -677,23 +427,39 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
         setIsConfirmCreateModalOpen(false);
 
         // Create a new kernel.
-        if (!kernelManager.current) {
-            console.error('Kernel Manager is not available. Will try to connect...');
-            initializeKernelManagers().then(() => {});
-            return;
-        } else if (!kernelManager.current.isReady) {
-            console.warn("Kernel Manager isn't ready yet!");
-            toast.error("Kernel Manager isn't ready yet.");
+        if (!kernelManager || kernelManagerIsInitializing) {
+            toast.custom(() =>
+                GetToastContentWithHeaderAndBody(
+                    `Cannot Start New Kernel(s)`,
+                    'Kernel Manager is initializing. Please try again in a few seconds.',
+                    'warning',
+                    DefaultDismiss,
+                ),
+            );
             return;
         }
 
-        if (!sessionManager.current) {
-            console.error('Session Manager is not available. Will try to connect...');
-            initializeKernelManagers().then(() => {});
+        if (!sessionManager || sessionManagerIsInitializing) {
+            toast.custom(() =>
+                GetToastContentWithHeaderAndBody(
+                    `Cannot Start New Kernel(s)`,
+                    'Session Manager is initializing. Please try again in a few seconds.',
+                    'warning',
+                    DefaultDismiss,
+                ),
+            );
             return;
-        } else if (!sessionManager.current.isReady) {
-            console.warn("Session Manager isn't ready yet!");
-            toast.error("Cannot create kernel: Session Manager isn't ready yet. Please try again in a few seconds.", { style: { maxWidth: 750}});
+        }
+
+        if (!authenticated) {
+            toast.custom(() =>
+                GetToastContentWithHeaderAndBody(
+                    `Cannot Start New Kernel(s)`,
+                    'You are not authenticated. Please reload the page and login again to authenticate.',
+                    'warning',
+                    DefaultDismiss,
+                ),
+            );
             return;
         }
 
@@ -852,6 +618,7 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
                 <KernelDataList
                     openMigrationModal={props.openMigrationModal}
                     kernelsPerPage={props.kernelsPerPage}
+                    perPageOption={props.perPageOption}
                     searchValue={searchValue}
                     statusSelections={statusSelections}
                     onExecuteCodeClicked={onExecuteCodeClicked}
@@ -859,6 +626,9 @@ export const KernelListCard: React.FunctionComponent<KernelListProps> = (props: 
                     onInterruptKernelClicked={onInterruptKernelClicked}
                     onTerminateKernelClicked={onTerminateKernelClicked}
                     onStopTrainingClicked={onStopTrainingClicked}
+                    onSelectKernel={onSelectKernel}
+                    selectedKernels={selectedKernels}
+                    kernelsNotClickable={props.kernelsNotClickable}
                 />
                 {kernels.length == 0 && pendingKernelArr.length == 0 && (
                     <Text component={TextVariants.h2}>There are no active kernels.</Text>

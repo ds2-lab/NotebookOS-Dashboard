@@ -1,3 +1,16 @@
+import { ClampValue } from '@Components/Modals';
+import {
+    DefaultTrainingEventField,
+    NumberOfGpusDefault,
+    SessionStartTickDefault,
+    SessionStopTickDefault,
+    TrainingCpuUsageDefault,
+    TrainingDurationInTicksDefault,
+    TrainingGpuPercentUtilDefault,
+    TrainingMemUsageGbDefault,
+    TrainingStartTickDefault,
+    TrainingVRamUsageGbDefault,
+} from '@Components/Workloads/Constants';
 import {
     Button,
     Card,
@@ -17,21 +30,11 @@ import {
     TextInput,
 } from '@patternfly/react-core';
 import { DiceD20Icon } from '@patternfly/react-icons';
+
+import { RoundToThreeDecimalPlaces } from '@src/Utils/utils';
 import React from 'react';
 
 import { Controller, useFieldArray, useFormContext, useWatch } from 'react-hook-form';
-import {
-    DefaultTrainingEventField,
-    NumberOfGpusDefault,
-    RoundToThreeDecimalPlaces,
-    SessionStartTickDefault,
-    SessionStopTickDefault,
-    TrainingCpuUsageDefault,
-    TrainingDurationInTicksDefault,
-    TrainingGpuPercentUtilDefault,
-    TrainingMemUsageGbDefault,
-    TrainingStartTickDefault,
-} from './Constants';
 
 export interface SessionConfigurationFormTabContentProps {
     children?: React.ReactNode;
@@ -69,9 +72,10 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
     );
     const trainingStartTickFieldId: string = `sessions.${sessionIndex}.trainings.${selectedTrainingEventIndex}.start_tick`;
     const trainingDurationTicksFieldId: string = `sessions.${sessionIndex}.trainings.${selectedTrainingEventIndex}.duration_in_ticks`;
-    const trainingCpuUsageFieldId: string = `sessions.${sessionIndex}.trainings.${selectedTrainingEventIndex}.millicpus`;
-    const trainingMemUsageMbFieldId: string = `sessions.${sessionIndex}.trainings.${selectedTrainingEventIndex}.mem_usage_mb`;
-    const numGpusFieldId: string = `sessions.${sessionIndex}.trainings.${selectedTrainingEventIndex}.num_gpus`;
+    const trainingCpuUsageFieldId: string = `sessions.${sessionIndex}.trainings.${selectedTrainingEventIndex}.cpus`;
+    const trainingMemUsageMbFieldId: string = `sessions.${sessionIndex}.trainings.${selectedTrainingEventIndex}.memory`;
+    const trainingVramUsageGbFieldId: string = `sessions.${sessionIndex}.trainings.${selectedTrainingEventIndex}.vram`;
+    const numGpusFieldId: string = `sessions.${sessionIndex}.trainings.${selectedTrainingEventIndex}.gpus`;
 
     // const defaultSessionId = React.useRef<string>(props.defaultSessionId);
     // console.log(`Default session ID for tab ${props.sessionIndex} is "${defaultSessionId.current}"`);
@@ -119,6 +123,17 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
         return sessionId.length >= 1 && sessionId.length <= 36;
     };
 
+    const isVramValidated = () => {
+        const numGPUs: number = (getValues(numGpusFieldId) as number) || 1;
+        const vram: number = getValues(trainingVramUsageGbFieldId) as number;
+
+        if (vram < 0 || vram > numGPUs * 4) {
+            return 'error';
+        }
+
+        return 'success';
+    };
+
     const validateTrainingStartTick = (value: string | number) => {
         if (
             (value as number) < 0 ||
@@ -142,6 +157,27 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
         for (let i: number = 0; i < newNumGPUs; i++) {
             setValue(getGpuInputFieldId(i), RoundToThreeDecimalPlaces(getRandomArbitrary(0, 100)));
         }
+    };
+
+    const getGpusFieldValidated = () => {
+        if (getFieldState(numGpusFieldId).invalid) {
+            return 'error';
+        }
+
+        const gpus: number = getValues(numGpusFieldId) as number;
+        if (gpus < 0) {
+            return 'error';
+        }
+
+        if (gpus <= 8) {
+            return 'success';
+        }
+
+        if (gpus > 8 && gpus <= 16) {
+            return 'warning';
+        }
+
+        return 'error';
     };
 
     return (
@@ -212,9 +248,9 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                     render={({ field }) => (
                                         <NumberInput
                                             value={field.value}
-                                            onChange={(event) =>
-                                                field.onChange(+(event.target as HTMLInputElement).value)
-                                            }
+                                            onChange={(event: React.FormEvent<HTMLInputElement>) => {
+                                                field.onChange(parseInt((event.target as HTMLInputElement).value));
+                                            }}
                                             onBlur={field.onBlur}
                                             name={field.name}
                                             onMinus={() => {
@@ -252,9 +288,9 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                     render={({ field }) => (
                                         <NumberInput
                                             value={field.value}
-                                            onChange={(event) =>
-                                                field.onChange(+(event.target as HTMLInputElement).value)
-                                            }
+                                            onChange={(event: React.FormEvent<HTMLInputElement>) => {
+                                                field.onChange(parseInt((event.target as HTMLInputElement).value));
+                                            }}
                                             onBlur={field.onBlur}
                                             onMinus={() => {
                                                 const id: string = sessionStopTickFieldId;
@@ -289,7 +325,7 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                 <Controller
                                     control={control}
                                     name={numTrainingEventsFieldId}
-                                    defaultValue={1}
+                                    defaultValue={(getValues(numTrainingEventsFieldId) as number) || 1}
                                     rules={{ min: 0 }}
                                     render={({ field }) => (
                                         <TextInput
@@ -408,9 +444,9 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                         render={({ field }) => (
                                             <NumberInput
                                                 value={field.value}
-                                                onChange={(event) =>
-                                                    field.onChange(+(event.target as HTMLInputElement).value)
-                                                }
+                                                onChange={(event: React.FormEvent<HTMLInputElement>) => {
+                                                    field.onChange(parseInt((event.target as HTMLInputElement).value));
+                                                }}
                                                 onBlur={field.onBlur}
                                                 onMinus={() => {
                                                     const id: string = trainingStartTickFieldId;
@@ -460,9 +496,9 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                         render={({ field }) => (
                                             <NumberInput
                                                 value={field.value}
-                                                onChange={(event) =>
-                                                    field.onChange(+(event.target as HTMLInputElement).value)
-                                                }
+                                                onChange={(event: React.FormEvent<HTMLInputElement>) => {
+                                                    field.onChange(parseInt((event.target as HTMLInputElement).value));
+                                                }}
                                                 onBlur={field.onBlur}
                                                 onMinus={() => {
                                                     const id: string = trainingDurationTicksFieldId;
@@ -508,105 +544,20 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                 />
                             }
                         >
-                            <Grid hasGutter>
+                            <Grid hasGutter span={6} colSpan={6} rowSpan={1}>
                                 <GridItem
                                     span={3}
-                                    key={`session-${sessionIndex}-training${selectedTrainingEventIndex}-cpu-usage-grid-item`}
+                                    key={`session-${sessionIndex}-training${selectedTrainingEventIndex}-randomize-resources-grid-item`}
                                 >
-                                    <FormGroup label="CPU Usage (in millicpus)">
-                                        <Controller
-                                            control={control}
-                                            name={trainingCpuUsageFieldId}
-                                            defaultValue={TrainingCpuUsageDefault}
-                                            rules={{ min: 0, max: 128e3 /* 128 vCPU */, required: true }}
-                                            render={({ field }) => (
-                                                <NumberInput
-                                                    required
-                                                    widthChars={ResourceNumberInputWidthChars}
-                                                    onChange={(event) =>
-                                                        field.onChange(+(event.target as HTMLInputElement).value)
-                                                    }
-                                                    onBlur={field.onBlur}
-                                                    value={field.value}
-                                                    onMinus={() => {
-                                                        const id: string = trainingCpuUsageFieldId;
-                                                        const curr: number = getValues(id) as number;
-                                                        const next: number = curr - 1;
-
-                                                        setValue(id, next);
-                                                    }}
-                                                    onPlus={() => {
-                                                        const id: string = trainingCpuUsageFieldId;
-                                                        const curr: number = getValues(id) as number;
-                                                        const next: number = curr + 1;
-
-                                                        setValue(id, next);
-                                                    }}
-                                                    name={field.name}
-                                                    id={`session-${sessionIndex}-training${selectedTrainingEventIndex}-cpu-percent-util-input`}
-                                                    inputName={`session-${sessionIndex}-training${selectedTrainingEventIndex}-cpu-percent-util-input`}
-                                                    inputAriaLabel={`session-${sessionIndex}-training${selectedTrainingEventIndex}-cpu-percent-util-input`}
-                                                    minusBtnAriaLabel="minus"
-                                                    plusBtnAriaLabel="plus"
-                                                    validated={
-                                                        getFieldState(trainingCpuUsageFieldId).invalid
-                                                            ? 'error'
-                                                            : 'success'
-                                                    }
-                                                    min={0}
-                                                    max={100}
-                                                />
-                                            )}
-                                        />
-                                    </FormGroup>
-                                </GridItem>
-                                <GridItem
-                                    span={3}
-                                    key={`session-${sessionIndex}-training${selectedTrainingEventIndex}-ram-usage-grid-item`}
-                                >
-                                    <FormGroup label="RAM Usage (MB)">
-                                        <Controller
-                                            control={control}
-                                            name={trainingMemUsageMbFieldId}
-                                            rules={{ min: 0, max: 128_000, required: true }}
-                                            defaultValue={TrainingMemUsageGbDefault}
-                                            render={({ field }) => (
-                                                <NumberInput
-                                                    widthChars={ResourceNumberInputWidthChars}
-                                                    value={field.value}
-                                                    onChange={(event) =>
-                                                        field.onChange(+(event.target as HTMLInputElement).value)
-                                                    }
-                                                    onBlur={field.onBlur}
-                                                    onMinus={() => {
-                                                        const id: string = trainingMemUsageMbFieldId;
-                                                        const curr: number = getValues(id) as number;
-                                                        const next: number = curr - 0.25;
-
-                                                        setValue(id, next);
-                                                    }}
-                                                    onPlus={() => {
-                                                        const id: string = trainingMemUsageMbFieldId;
-                                                        const curr: number = getValues(id) as number;
-                                                        const next: number = curr + 0.25;
-
-                                                        setValue(id, next);
-                                                    }}
-                                                    name={field.name}
-                                                    id={`session-${sessionIndex}-training${selectedTrainingEventIndex}-mem-usage-gb-input`}
-                                                    inputName={`session-${sessionIndex}-training${selectedTrainingEventIndex}-mem-usage-gb-input`}
-                                                    inputAriaLabel={`session-${sessionIndex}-training${selectedTrainingEventIndex}-mem-usage-gb-input`}
-                                                    minusBtnAriaLabel="minus"
-                                                    plusBtnAriaLabel="plus"
-                                                    validated={
-                                                        getFieldState(trainingMemUsageMbFieldId).invalid
-                                                            ? 'error'
-                                                            : 'success'
-                                                    }
-                                                    min={0}
-                                                />
-                                            )}
-                                        />
+                                    <FormGroup label={`Randomize Resources`}>
+                                        <Button
+                                            id={`session-${sessionIndex}-training${selectedTrainingEventIndex}-randomize-resources-button`}
+                                            name={`session-${sessionIndex}-training${selectedTrainingEventIndex}-randomize-resources-button`}
+                                            icon={<DiceD20Icon />}
+                                            onClick={onRandomizeResourceConfigurationClicked}
+                                        >
+                                            Randomize
+                                        </Button>
                                     </FormGroup>
                                 </GridItem>
                                 <GridItem
@@ -617,7 +568,7 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                         <Controller
                                             control={control}
                                             name={numGpusFieldId}
-                                            rules={{ min: 0, max: 8, required: true }}
+                                            rules={{ min: 0, max: 16, required: true }}
                                             defaultValue={NumberOfGpusDefault}
                                             render={({ field }) => (
                                                 <NumberInput
@@ -670,8 +621,8 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                                         const curr: number = getValues(numGpusFieldId) as number;
                                                         let next: number = curr + 1;
 
-                                                        if (next > 8) {
-                                                            next = 8;
+                                                        if (next > 16) {
+                                                            next = 16;
                                                         }
 
                                                         setValue(numGpusFieldId, next);
@@ -686,11 +637,62 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                                     inputAriaLabel={`session-${sessionIndex}-num-gpus-input`}
                                                     minusBtnAriaLabel="minus"
                                                     plusBtnAriaLabel="plus"
+                                                    validated={getGpusFieldValidated()}
+                                                    min={0}
+                                                    max={16}
+                                                />
+                                            )}
+                                        />
+                                    </FormGroup>
+                                </GridItem>
+                            </Grid>
+                            <Grid hasGutter span={6} colSpan={6} rowSpan={1}>
+                                <GridItem
+                                    span={3}
+                                    key={`session-${sessionIndex}-training${selectedTrainingEventIndex}-cpu-usage-grid-item`}
+                                >
+                                    <FormGroup label="CPU Usage (in millicpus)">
+                                        <Controller
+                                            control={control}
+                                            name={trainingCpuUsageFieldId}
+                                            defaultValue={TrainingCpuUsageDefault}
+                                            rules={{ min: 0, max: 128e3 /* 128 vCPU */, required: true }}
+                                            render={({ field }) => (
+                                                <NumberInput
+                                                    required
+                                                    widthChars={ResourceNumberInputWidthChars}
+                                                    onChange={(event: React.FormEvent<HTMLInputElement>) => {
+                                                        field.onChange(
+                                                            parseFloat((event.target as HTMLInputElement).value),
+                                                        );
+                                                    }}
+                                                    onBlur={field.onBlur}
+                                                    value={field.value}
+                                                    onMinus={() => {
+                                                        const id: string = trainingCpuUsageFieldId;
+                                                        const curr: number = getValues(id) as number;
+
+                                                        setValue(id, curr - 1);
+                                                    }}
+                                                    onPlus={() => {
+                                                        const id: string = trainingCpuUsageFieldId;
+                                                        const curr: number = getValues(id) as number;
+
+                                                        setValue(id, curr + 1);
+                                                    }}
+                                                    name={field.name}
+                                                    id={`session-${sessionIndex}-training${selectedTrainingEventIndex}-cpu-percent-util-input`}
+                                                    inputName={`session-${sessionIndex}-training${selectedTrainingEventIndex}-cpu-percent-util-input`}
+                                                    inputAriaLabel={`session-${sessionIndex}-training${selectedTrainingEventIndex}-cpu-percent-util-input`}
+                                                    minusBtnAriaLabel="minus"
+                                                    plusBtnAriaLabel="plus"
                                                     validated={
-                                                        getFieldState(numGpusFieldId).invalid ? 'error' : 'success'
+                                                        getFieldState(trainingCpuUsageFieldId).invalid
+                                                            ? 'error'
+                                                            : 'success'
                                                     }
                                                     min={0}
-                                                    max={8}
+                                                    max={128e3}
                                                 />
                                             )}
                                         />
@@ -698,19 +700,122 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                 </GridItem>
                                 <GridItem
                                     span={3}
-                                    key={`session-${sessionIndex}-training${selectedTrainingEventIndex}-randomize-resources-grid-item`}
+                                    key={`session-${sessionIndex}-training${selectedTrainingEventIndex}-ram-usage-grid-item`}
                                 >
-                                    <FormGroup label={`Randomize Resources`}>
-                                        <Button
-                                            id={`session-${sessionIndex}-training${selectedTrainingEventIndex}-randomize-resources-button`}
-                                            name={`session-${sessionIndex}-training${selectedTrainingEventIndex}-randomize-resources-button`}
-                                            icon={<DiceD20Icon />}
-                                            onClick={onRandomizeResourceConfigurationClicked}
-                                        >
-                                            Randomize
-                                        </Button>
+                                    <FormGroup label="RAM Usage (MB)">
+                                        <Controller
+                                            control={control}
+                                            name={trainingMemUsageMbFieldId}
+                                            rules={{ min: 0, max: 128_000, required: true }}
+                                            defaultValue={TrainingMemUsageGbDefault}
+                                            render={({ field }) => (
+                                                <NumberInput
+                                                    widthChars={ResourceNumberInputWidthChars}
+                                                    value={field.value}
+                                                    onChange={(event: React.FormEvent<HTMLInputElement>) => {
+                                                        field.onChange(
+                                                            parseFloat((event.target as HTMLInputElement).value),
+                                                        );
+                                                    }}
+                                                    onBlur={field.onBlur}
+                                                    onMinus={() => {
+                                                        const id: string = trainingMemUsageMbFieldId;
+                                                        const curr: number = getValues(id) as number;
+                                                        const next: number = curr - 0.25;
+
+                                                        setValue(id, next);
+                                                    }}
+                                                    onPlus={() => {
+                                                        const id: string = trainingMemUsageMbFieldId;
+                                                        const curr: number = getValues(id) as number;
+                                                        const next: number = curr + 0.25;
+
+                                                        setValue(id, next);
+                                                    }}
+                                                    name={field.name}
+                                                    id={`session-${sessionIndex}-training${selectedTrainingEventIndex}-mem-usage-mb-input`}
+                                                    inputName={`session-${sessionIndex}-training${selectedTrainingEventIndex}-mem-usage-mb-input`}
+                                                    inputAriaLabel={`session-${sessionIndex}-training${selectedTrainingEventIndex}-mem-usage-mb-input`}
+                                                    minusBtnAriaLabel="minus"
+                                                    plusBtnAriaLabel="plus"
+                                                    validated={
+                                                        getFieldState(trainingMemUsageMbFieldId).invalid
+                                                            ? 'error'
+                                                            : 'success'
+                                                    }
+                                                    min={0}
+                                                />
+                                            )}
+                                        />
                                     </FormGroup>
                                 </GridItem>
+                                <GridItem
+                                    span={3}
+                                    key={`session-${sessionIndex}-training${selectedTrainingEventIndex}-vram-usage-grid-item`}
+                                >
+                                    <FormGroup label="VRAM Usage (GB)">
+                                        <Controller
+                                            control={control}
+                                            name={trainingVramUsageGbFieldId}
+                                            rules={{
+                                                min: 0,
+                                                max: ((getValues(numGpusFieldId) as number) || 1) * 4,
+                                                required: true,
+                                            }}
+                                            defaultValue={TrainingVRamUsageGbDefault}
+                                            render={({ field }) => (
+                                                <NumberInput
+                                                    widthChars={ResourceNumberInputWidthChars}
+                                                    value={field.value}
+                                                    onChange={(event: React.FormEvent<HTMLInputElement>) => {
+                                                        field.onChange(
+                                                            parseFloat((event.target as HTMLInputElement).value),
+                                                        );
+                                                    }}
+                                                    onBlur={field.onBlur}
+                                                    onMinus={() => {
+                                                        const curr: number = getValues(
+                                                            trainingVramUsageGbFieldId,
+                                                        ) as number;
+                                                        setValue(
+                                                            trainingVramUsageGbFieldId,
+                                                            ClampValue(
+                                                                curr - 0.125,
+                                                                0,
+                                                                ((getValues(numGpusFieldId) as number) || 1) * 4,
+                                                            ),
+                                                        );
+                                                    }}
+                                                    onPlus={() => {
+                                                        const curr: number = getValues(
+                                                            trainingVramUsageGbFieldId,
+                                                        ) as number;
+
+                                                        setValue(
+                                                            trainingVramUsageGbFieldId,
+                                                            ClampValue(
+                                                                curr + 0.125,
+                                                                0,
+                                                                ((getValues(numGpusFieldId) as number) || 1) * 4,
+                                                            ),
+                                                        );
+                                                    }}
+                                                    name={field.name}
+                                                    id={`session-${sessionIndex}-training${selectedTrainingEventIndex}-vram-usage-gb-input`}
+                                                    inputName={`session-${sessionIndex}-training${selectedTrainingEventIndex}-vram-usage-gb-input`}
+                                                    inputAriaLabel={`session-${sessionIndex}-training${selectedTrainingEventIndex}-vram-usage-gb-input`}
+                                                    minusBtnAriaLabel="minus"
+                                                    plusBtnAriaLabel="plus"
+                                                    validated={isVramValidated()}
+                                                    min={0}
+                                                    max={((getValues(numGpusFieldId) as number) || 1) * 4}
+                                                />
+                                            )}
+                                        />
+                                    </FormGroup>
+                                </GridItem>
+                            </Grid>
+                            <Grid hasGutter span={12} colSpan={12} rowSpan={2}>
                                 {Array.from({ length: watch(numGpusFieldId) as number }).map((_, idx: number) => {
                                     return (
                                         <GridItem
@@ -729,11 +834,13 @@ export const SessionConfigurationFormTabContent: React.FunctionComponent<Session
                                                         <NumberInput
                                                             widthChars={ResourceNumberInputWidthChars}
                                                             value={field.value}
-                                                            onChange={(event) =>
+                                                            onChange={(event: React.FormEvent<HTMLInputElement>) => {
                                                                 field.onChange(
-                                                                    +(event.target as HTMLInputElement).value,
-                                                                )
-                                                            }
+                                                                    parseFloat(
+                                                                        (event.target as HTMLInputElement).value,
+                                                                    ),
+                                                                );
+                                                            }}
                                                             onBlur={field.onBlur}
                                                             onMinus={() => {
                                                                 const id: string = getGpuInputFieldId(idx);

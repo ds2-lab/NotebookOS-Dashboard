@@ -4,9 +4,11 @@ import { ExternalLinkAltIcon, GithubIcon } from '@patternfly/react-icons';
 import ExclamationCircleIcon from '@patternfly/react-icons/dist/esm/icons/exclamation-circle-icon';
 import { css } from '@patternfly/react-styles';
 import { AuthorizationContext } from '@Providers/AuthProvider';
+import useNavigation from '@Providers/NavigationProvider';
 import logo_greyscale from '@src/app/bgimages/icon_greyscale.svg';
 import logo from '@src/app/bgimages/WorkloadDriver-Logo.svg';
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 
 export const DashboardLoginPage: React.FunctionComponent = () => {
     const [showHelperText, setShowHelperText] = React.useState<boolean>(false);
@@ -17,6 +19,23 @@ export const DashboardLoginPage: React.FunctionComponent = () => {
 
     // username, setUsername, password, setPassword,
     const { mutateToken, error } = React.useContext(AuthorizationContext);
+
+    const { navigate } = useNavigation();
+    const location = useLocation();
+
+    const { authenticated } = React.useContext(AuthorizationContext);
+
+    React.useEffect(() => {
+        if (authenticated) {
+            let nextPath: string | null = '';
+
+            if (location !== null && location.state !== null) {
+                nextPath = location.state.nextPath;
+            }
+
+            navigate(nextPath || '');
+        }
+    }, [authenticated, location, location.state, navigate]);
 
     React.useEffect(() => {
         if (error) {

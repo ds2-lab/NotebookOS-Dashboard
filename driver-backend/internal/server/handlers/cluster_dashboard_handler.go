@@ -103,6 +103,7 @@ type ClusterDashboardHandler struct {
 func NewClusterDashboardHandler(
 	opts *domain.Configuration,
 	shouldConnect bool,
+	connectInBackground bool,
 	notificationCallback notificationCallback,
 	postRegistrationCallback RegistrationCompleteCallback) *ClusterDashboardHandler {
 
@@ -136,13 +137,21 @@ func NewClusterDashboardHandler(
 	handler.sugaredLogger = handler.logger.Sugar()
 
 	if shouldConnect {
-		go func() {
+		if connectInBackground {
+			go func() {
+				err = handler.setupRpcResources(opts.GatewayAddress)
+				if err != nil {
+					handler.logger.Error("Failed to dial gRPC Cluster Gateway.", zap.Error(err))
+					panic(err)
+				}
+			}()
+		} else {
 			err = handler.setupRpcResources(opts.GatewayAddress)
 			if err != nil {
 				handler.logger.Error("Failed to dial gRPC Cluster Gateway.", zap.Error(err))
 				panic(err)
 			}
-		}()
+		}
 	}
 
 	return handler
@@ -178,6 +187,7 @@ func (h *ClusterDashboardHandler) HandleConnectionError() {
 	go func() {
 		gid := goid.Get()
 		h.sugaredLogger.Debug("Handling connection error: attempting to reconnect to Cluster Gateway.", zap.Int64("gid", gid))
+
 		st := time.Now()
 		err := h.setupRpcResources(h.gatewayAddress)
 		if err != nil {
@@ -188,13 +198,17 @@ func (h *ClusterDashboardHandler) HandleConnectionError() {
 	}()
 }
 
-// SendNotification is called by the Cluster Gateway targeting us. It is used to publish notifications that should
-// ultimately be pushed to the frontend to be displayed to the user.
+// SendNotification is an RPC handler that is called by the Cluster Scheduler to send notifications to the frontend.
+// We also call it directly to send our own notifications to the frontend.
 func (h *ClusterDashboardHandler) SendNotification(_ context.Context, notification *gateway.Notification) (*gateway.Void, error) {
 	if notification.NotificationType == int32(domain.ErrorNotification) {
-		h.logger.Warn("Notified of error that occurred within Cluster.", zap.String("error-name", notification.Title), zap.String("error-message", notification.Message))
+		h.logger.Debug("Notified of error that occurred within Cluster.",
+			zap.String("error-name", notification.Title),
+			zap.String("error-message", notification.Message))
 	} else {
-		h.logger.Debug("Received notification from Cluster.", zap.String("notification-name", notification.Title), zap.String("notification-message", notification.Message))
+		h.logger.Debug("Received notification from Cluster.",
+			zap.String("notification-name", notification.Title),
+			zap.String("notification-message", notification.Message))
 	}
 
 	go h.notificationCallback(notification)
@@ -273,7 +287,7 @@ func (h *ClusterDashboardHandler) setupRpcResources(gatewayAddress string) error
 
 	start := time.Now()
 	connectionTimeout := time.Second * 30 // How long each individual connection attempt should last before timing-out.
-	totalTimeout := time.Minute * 5       // How long to keep trying to connect over-and-over before completely giving up and panicking.
+	totalTimeout := time.Minute * 30      // How long to keep trying to connect over-and-over before completely giving up and panicking.
 	var connectedToGateway = false
 	var numAttempts = 1
 	var gatewayConn net.Conn

@@ -1,14 +1,25 @@
-import { Dashboard } from '@App/Dashboard';
-import { DashboardLoginPage } from '@App/DashboardLoginPage';
+import { IAppRoute, IAppRouteGroup, routes } from '@App/routes';
 import { DashboardNotificationDrawer } from '@Components/DashboardNotificationDrawer';
-import { AlertGroup, Page, SkipToContent } from '@patternfly/react-core';
+import {
+    AlertGroup,
+    Nav,
+    NavExpandable,
+    NavItem,
+    NavList,
+    Page,
+    PageSidebar,
+    PageSidebarBody,
+    SkipToContent,
+} from '@patternfly/react-core';
 import { AuthorizationContext } from '@Providers/AuthProvider';
 
 import { Notification, WebSocketMessage } from '@src/Data/';
 import { DarkModeContext, NotificationContext, useNodes } from '@src/Providers';
 import { JoinPaths } from '@src/Utils/path_utils';
+import { UnixDurationToString } from '@src/Utils/utils';
 import * as React from 'react';
-import { ToastBar, Toaster } from 'react-hot-toast';
+import { toast, ToastBar, Toaster } from 'react-hot-toast';
+import { NavLink, useLocation } from 'react-router-dom';
 
 import useWebSocket from 'react-use-websocket';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,10 +28,96 @@ import { AppHeader } from './AppHeader';
 
 const maxDisplayedAlerts: number = 3;
 
-const AppLayout: React.FunctionComponent = () => {
+interface IAppLayout {
+    children: React.ReactNode;
+}
+
+const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
     const pageId = 'primary-app-container';
 
-    const { authenticated } = React.useContext(AuthorizationContext);
+    const [sidebarOpen, setSidebarOpen] = React.useState<boolean>(false);
+
+    const firstRender = React.useRef<boolean>(true);
+
+    const { authenticated, setAuthenticated } = React.useContext(AuthorizationContext);
+
+    const location = useLocation();
+
+    React.useEffect(() => {
+        if (!firstRender) {
+            console.log('Not first render.');
+            return;
+        }
+
+        firstRender.current = true;
+
+        // If the user is already authenticated, then don't bother with this.
+        if (authenticated) {
+            console.log("We're already authenticated.");
+            return;
+        }
+
+        const authToken: string = localStorage.getItem('token') || '';
+        const expiresAtStr: string = localStorage.getItem('token-expiration') || '';
+
+        if (authToken === '') {
+            console.debug('Could not recover valid auth token. User will have to log in.');
+            return;
+        }
+
+        const testAuth: RequestInit = {
+            method: 'GET',
+            headers: {
+                Authorization: 'Bearer ' + authToken,
+            },
+        };
+
+        fetch('api/config', testAuth)
+            .then((resp: Response) => {
+                if (resp.status === 200) {
+                    // Just make sure the token is not JUST about to expire.
+                    // If that's the case, then we'll just make the user log in again.
+                    if (!expiresAtStr || expiresAtStr === '') {
+                        console.warn(
+                            `Recovered valid auth token "${authToken}", but could not recover token's expiration (got string "${expiresAtStr}")... discarding.`,
+                        );
+                        return; // Not authenticated.
+                    }
+
+                    const expiresAt: number = Date.parse(expiresAtStr);
+                    const expiresIn: number = expiresAt - Date.now();
+
+                    if (expiresIn <= 60000) {
+                        console.warn('Recovered valid auth token, but it expires within 1 minute. Discarding.');
+
+                        // Clear the token and its expiration time from the local storage before returning.
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('token-expiration');
+                        return;
+                    }
+
+                    console.log(
+                        `We're already authenticated. Token doesn't expire for another ${UnixDurationToString(expiresIn)} seconds at ${expiresAtStr}.`,
+                    );
+                    setAuthenticated(true);
+
+                    toast.success('Restored existing authenticated user session.', { style: { maxWidth: '500px' } });
+                } else if (resp.status == 401) {
+                    console.log(
+                        `Got response while testing auth: ${resp.status} ${resp.statusText}. User will have to log in.`,
+                    );
+                } else {
+                    console.error(
+                        `Unexpected response while testing authentication: ${resp.status} ${resp.statusText} - ${JSON.stringify(resp)}`,
+                    );
+                    // Assume we're not authenticated.
+                }
+            })
+            .catch((err: Error) => {
+                console.error(`Error while testing auth: ${err}`);
+                // Assume we're not authenticated.
+            });
+    }, [firstRender, authenticated, setAuthenticated]);
 
     const websocketUrl: string = JoinPaths(process.env.PUBLIC_PATH || '/', 'websocket', 'general');
     const { sendJsonMessage, lastJsonMessage } = useWebSocket(
@@ -57,7 +154,9 @@ const AppLayout: React.FunctionComponent = () => {
             onClick={(event) => {
                 event.preventDefault();
                 const primaryContentContainer = document.getElementById(pageId);
-                primaryContentContainer && primaryContentContainer.focus();
+                if (primaryContentContainer) {
+                    primaryContentContainer.focus();
+                }
             }}
             href={`#${pageId}`}
         >
@@ -128,6 +227,49 @@ const AppLayout: React.FunctionComponent = () => {
         }
     };
 
+    const renderNavItem = (route: IAppRoute, index: number) => (
+        <NavItem
+            key={`${route.label}-${index}`}
+            id={`${route.label}-${index}`}
+            isActive={route.path === location.pathname}
+        >
+            <NavLink to={route.path}>{route.label}</NavLink>
+        </NavItem>
+    );
+
+    const renderNavGroup = (group: IAppRouteGroup, groupIndex: number) => (
+        <NavExpandable
+            key={`${group.label}-${groupIndex}`}
+            id={`${group.label}-${groupIndex}`}
+            title={group.label}
+            isActive={group.routes.some((route) => route.path === location.pathname)}
+        >
+            {group.routes.map((route, idx) => route.label && renderNavItem(route, idx))}
+        </NavExpandable>
+    );
+
+    const Navigation = (
+        <Nav id="nav-primary-simple">
+            <NavList id="nav-list-simple">
+                {routes.map(
+                    (route, idx) =>
+                        route.label && (!route.routes ? renderNavItem(route, idx) : renderNavGroup(route, idx)),
+                )}
+            </NavList>
+        </Nav>
+    );
+
+    const Sidebar = (
+        <PageSidebar>
+            <PageSidebarBody>{Navigation}</PageSidebarBody>
+        </PageSidebar>
+    );
+
+    const onMastheadToggleClicked = () => {
+        console.log('onMastheadToggleClicked called');
+        setSidebarOpen((curr) => !curr);
+    };
+
     return (
         <React.Fragment>
             <Toaster
@@ -152,24 +294,30 @@ const AppLayout: React.FunctionComponent = () => {
             </Toaster>
             <Page
                 mainContainerId={pageId}
-                header={<AppHeader isLoggedIn={authenticated} />}
+                header={
+                    <AppHeader isLoggedIn={authenticated} onMastheadToggleClicked={() => onMastheadToggleClicked()} />
+                }
                 skipToContent={PageSkipToContent}
+                sidebar={sidebarOpen && Sidebar}
                 isNotificationDrawerExpanded={expanded}
                 notificationDrawer={authenticated && <DashboardNotificationDrawer />}
             >
-                {!authenticated && <DashboardLoginPage/>}
-                {authenticated && <Dashboard />}
-                <AlertGroup
-                    isToast
-                    isLiveRegion
-                    onOverflowClick={() => {
-                        setAlerts([]);
-                        toggleExpansion(true);
-                    }}
-                    overflowMessage={overflowMessage}
-                >
-                    {alerts.slice(0, maxDisplayedAlerts)}
-                </AlertGroup>
+                {/*{!authenticated && <DashboardLoginPage />}*/}
+                {/*{authenticated && <Dashboard />}*/}
+                {authenticated && (
+                    <AlertGroup
+                        isToast
+                        isLiveRegion
+                        onOverflowClick={() => {
+                            setAlerts([]);
+                            toggleExpansion(true);
+                        }}
+                        overflowMessage={overflowMessage}
+                    >
+                        {alerts.slice(0, maxDisplayedAlerts)}
+                    </AlertGroup>
+                )}
+                {children}
             </Page>
         </React.Fragment>
     );

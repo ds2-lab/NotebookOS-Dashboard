@@ -20,7 +20,7 @@ interface KernelReplicaTableRowProps {
     kernel: DistributedJupyterKernel;
     openMigrationModal: (kernel: DistributedJupyterKernel, replica: JupyterKernelReplica) => void;
     openReplicaDropdownMenu: string;
-    onExecuteCodeClicked: (kernel: DistributedJupyterKernel | null, replicaIdx?: number | undefined) => void;
+    onExecuteCodeClicked: (kernel?: DistributedJupyterKernel, replicaIdx?: number | undefined) => void;
     setOpenReplicaDropdownMenu: (replicaId: string) => void;
     setOpenKernelDropdownMenu: (kernelId: string) => void;
     replica: JupyterKernelReplica;
@@ -49,6 +49,12 @@ export const KernelReplicaTableRow: React.FunctionComponent<KernelReplicaTableRo
             <Td dataLabel="Node" width={25} modifier="truncate">
                 {props.replica.nodeId}
             </Td>
+            <Td dataLabel="Executions" width={25} modifier="truncate">
+                {props.replica.numExecutions || 0}
+            </Td>
+            <Td dataLabel="Prev. Primary Replica" width={25} modifier="truncate">
+                {props.replica.wasLastPrimaryReplica ? '✓' : '✗'}
+            </Td>
             <Td width={45}>
                 <OverflowMenu breakpoint="xl">
                     <OverflowMenuContent>
@@ -59,7 +65,8 @@ export const KernelReplicaTableRow: React.FunctionComponent<KernelReplicaTableRo
                                 position={'left'}
                                 content={
                                     <div>
-                                        Execute Python code on replica {props.kernel.replicas[props.replicaIdx].replicaId}.
+                                        Execute Python code on replica{' '}
+                                        {props.kernel.replicas[props.replicaIdx].replicaId}.
                                     </div>
                                 }
                             >
@@ -100,7 +107,9 @@ export const KernelReplicaTableRow: React.FunctionComponent<KernelReplicaTableRo
                             onSelect={() => {
                                 onToggleOrSelectReplicaDropdown(props.replica);
                             }}
-                            isOpen={props.openReplicaDropdownMenu === `${props.replica.kernelId}-${props.replica.replicaId}`}
+                            isOpen={
+                                props.openReplicaDropdownMenu === `${props.replica.kernelId}-${props.replica.replicaId}`
+                            }
                             toggle={(toggleRef) => (
                                 <MenuToggle
                                     ref={toggleRef}
@@ -110,7 +119,8 @@ export const KernelReplicaTableRow: React.FunctionComponent<KernelReplicaTableRo
                                         onToggleOrSelectReplicaDropdown(props.replica);
                                     }}
                                     isExpanded={
-                                        props.openReplicaDropdownMenu === `${props.replica.kernelId}-${props.replica.replicaId}`
+                                        props.openReplicaDropdownMenu ===
+                                        `${props.replica.kernelId}-${props.replica.replicaId}`
                                     }
                                 >
                                     <EllipsisVIcon />

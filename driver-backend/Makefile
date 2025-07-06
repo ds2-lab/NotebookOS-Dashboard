@@ -20,7 +20,7 @@ build-all: build-grpc build-server
 # Alias for build-server.
 build-backend: build-server
 
-build-server-linux: build-grpc
+build-server-linux:
 	@echo "Building backend server for Linux now."
 	GOOS=linux GOARCH=amd64 go build -o server-linux-amd64 ./cmd/server/main.go
 
@@ -28,7 +28,7 @@ build-server:
 	@echo Building backend server now.
 	go build -o server ./cmd/server/main.go
 
-build-servers: build-server build-server-linux
+build-servers: build-grpc build-server build-server-linux
 
 # Build first, then create Docker image.
 build-docker-image: build-grpc build-server-linux

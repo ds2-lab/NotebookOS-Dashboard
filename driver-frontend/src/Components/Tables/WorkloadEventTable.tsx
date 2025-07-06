@@ -1,16 +1,103 @@
-import React from 'react';
-import { Card, CardBody, Label, Pagination, Tooltip } from '@patternfly/react-core';
-import { Table, Tbody, Td, Th, Thead, ThProps, Tr } from '@patternfly/react-table';
-import { CheckCircleIcon, CheckIcon, ErrorCircleOIcon, ExclamationCircleIcon, MigrationIcon, MonitoringIcon, OffIcon, PendingIcon, StarIcon } from '@patternfly/react-icons';
-
+import { Workload, WorkloadEvent } from '@Data/Workload';
 import {
-    Workload,
-    WorkloadEvent,
-} from '@Data/Workload';
+    Card,
+    CardBody,
+    DescriptionList,
+    DescriptionListDescription,
+    DescriptionListGroup,
+    DescriptionListTerm,
+    Flex,
+    FlexItem,
+    Label,
+    Pagination,
+    Popover,
+    Tooltip,
+} from '@patternfly/react-core';
+import {
+    CheckCircleIcon,
+    CheckIcon,
+    DataProcessorIcon,
+    ErrorCircleOIcon,
+    ExclamationCircleIcon,
+    MigrationIcon,
+    MonitoringIcon,
+    OffIcon,
+    PendingIcon,
+    QuestionCircleIcon,
+    StarIcon,
+} from '@patternfly/react-icons';
+import { Table, Tbody, Td, Th, ThProps, Thead, Tr } from '@patternfly/react-table';
+import React, { ReactElement } from 'react';
 
 export interface WorkloadEventTableProps {
     children?: React.ReactNode;
     workload: Workload | null;
+    showDiscardedEvents?: boolean;
+}
+
+export function GetEventIcon(event_name: string): ReactElement {
+    switch (event_name) {
+        case 'workload-started':
+            return <StarIcon />;
+        case 'workload-complete':
+            return <CheckCircleIcon />;
+        case 'session-started':
+            return <MigrationIcon />;
+        case 'session-ready':
+            return <PendingIcon />;
+        case 'training':
+            return <MonitoringIcon />;
+        case 'training-submitted':
+            return <DataProcessorIcon />;
+        case 'training-started':
+            return <MonitoringIcon />;
+        case 'training-ended':
+            return <CheckIcon />;
+        case 'session-stopped':
+            return <OffIcon />;
+        case 'workload-terminated':
+            return <ExclamationCircleIcon />;
+        case null:
+            return <QuestionCircleIcon />;
+        default:
+            // console.error(`Unexpected event name: "${event_name}"`);
+            return <QuestionCircleIcon />;
+    }
+}
+
+export function GetEventColor(
+    event_name: string,
+): 'blue' | 'cyan' | 'green' | 'orange' | 'purple' | 'red' | 'grey' | 'gold' {
+    switch (event_name) {
+        case 'workload-started':
+            return 'gold';
+        case 'workload-complete':
+            return 'gold';
+        case 'session-started':
+            return 'cyan';
+        case 'session-ready':
+            return 'grey';
+        case 'training-submitted':
+            return 'purple';
+        case 'training-started':
+            return 'green';
+        case 'training-ended':
+            return 'blue';
+        case 'session-stopped':
+            return 'orange';
+        case 'workload-terminated':
+            return 'orange';
+        default:
+            return 'red';
+    }
+}
+
+export function GetEventLabel(eventName: string, isCompact: boolean = false): ReactElement {
+    return (
+        <Label color={GetEventColor(eventName)} icon={GetEventIcon(eventName)} isCompact={isCompact}>
+            {eventName}
+        </Label>
+    );
 }
 
 export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps> = (props) => {
@@ -27,24 +114,33 @@ export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps
     // This example is trivial since our data objects just contain strings, but if the data was more complex
     // this would be a place to return simplified string or number versions of each column to sort by.
     const getSortableRowValues = (event: WorkloadEvent): (string | number | Date)[] => {
-        const { idx, id, name, session, timestamp, processed_at, processed_successfully, error_message } = event;
+        const { idx, name, session, timestamp, processed_at, processed_successfully } = event;
         const timestamp_adjusted: string = timestamp.substring(0, timestamp.length - 10);
         const processed_at_adjusted: string = processed_at.substring(0, 27);
 
-        console.log(`Timestamp Adjusted: ${timestamp_adjusted}, Processed-At Adjusted: ${processed_at_adjusted}`)
+        // console.log(`Timestamp Adjusted: ${timestamp_adjusted}, Processed-At Adjusted: ${processed_at_adjusted}`)
 
         // Note: We're omitting the event's "id" and "error_message" fields here.
-        return [idx, name, session, Date.parse(timestamp_adjusted), Date.parse(processed_at_adjusted), processed_successfully ? 1 : 0];
+        return [
+            idx,
+            name,
+            session,
+            Date.parse(timestamp_adjusted),
+            Date.parse(processed_at_adjusted),
+            processed_successfully ? 1 : 0,
+        ];
     };
 
     // Note that we perform the sort as part of the component's render logic and not in onSort.
     // We shouldn't store the list of data in state because we don't want to have to sync that with props.
-    let sortedEvents = props.workload?.events_processed;
+    let sortedEvents = props.workload?.statistics.events_processed;
     if (activeSortIndex !== null) {
-        sortedEvents = props.workload?.events_processed.sort((a, b) => {
+        sortedEvents = props.workload?.statistics.events_processed.sort((a, b) => {
             const aValue = getSortableRowValues(a)[activeSortIndex];
             const bValue = getSortableRowValues(b)[activeSortIndex];
-            console.log(`Sorting ${aValue} and ${bValue} (activeSortIndex = ${activeSortIndex}, activeSortDirection = '${activeSortDirection}')`);
+            // console.log(
+            //     `Sorting ${aValue} and ${bValue} (activeSortIndex = ${activeSortIndex}, activeSortDirection = '${activeSortDirection}')`,
+            // );
             if (typeof aValue === 'number') {
                 // Numeric sort
                 if (activeSortDirection === 'asc') {
@@ -72,13 +168,13 @@ export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps
         sortBy: {
             index: activeSortIndex!,
             direction: activeSortDirection!,
-            defaultDirection: 'asc' // starting sort direction when first sorting a column. Defaults to 'asc'
+            defaultDirection: 'asc', // starting sort direction when first sorting a column. Defaults to 'asc'
         },
         onSort: (_event, index, direction) => {
             setActiveSortIndex(index);
             setActiveSortDirection(direction);
         },
-        columnIndex
+        columnIndex,
     });
 
     const onSetPage = (_event: React.MouseEvent | React.KeyboardEvent | MouseEvent, newPage: number) => {
@@ -88,49 +184,110 @@ export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps
     const onPerPageSelect = (
         _event: React.MouseEvent | React.KeyboardEvent | MouseEvent,
         newPerPage: number,
-        newPage: number
+        newPage: number,
     ) => {
         setPerPage(newPerPage);
         setPage(newPage);
     };
 
-    const events_table_columns: string[] = ["Index", "Name", "Target Session", "Event Timestamp", "IRL Timestamp", "Status"];
-
-    const getEventLabel = (event_name: string) => {
-        switch (event_name) {
-            case "workload-started":
-                return (<Label color='gold' icon={<StarIcon />}>{event_name}</Label>)
-            case "workload-complete":
-                return (<Label color='purple' icon={<CheckCircleIcon />}>{event_name}</Label>)
-            case "session-started":
-                return (<Label color='cyan' icon={<MigrationIcon />}>{event_name}</Label>)
-            case "session-ready":
-                return (<Label color='grey' icon={<PendingIcon />}>{event_name}</Label>)
-            case "training-started":
-                return (<Label color='green' icon={<MonitoringIcon />}>{event_name}</Label>)
-            case "training-ended":
-                return (<Label color='blue' icon={<CheckIcon />}>{event_name}</Label>)
-            case "session-stopped":
-                return (<Label color='orange' icon={<OffIcon />}>{event_name}</Label>)
-            case "update-gpu-util":
-                return (<Label color='grey'>{event_name}</Label>)
-            case "workload-terminated":
-                return (<Label color='orange' icon={<ExclamationCircleIcon />}>{event_name}</Label>)
-            default:
-                console.error(`Unexpected event name: "${event_name}"`);
-                return (<Label color='red' icon={<ErrorCircleOIcon />}>{event_name}</Label>)
-        }
-    }
+    const events_table_columns: string[] = [
+        'Index',
+        'Name',
+        'Target Session',
+        'Event Timestamp',
+        'IRL Timestamp',
+        'Status',
+    ];
 
     const getStatusLabel = (evt: WorkloadEvent) => {
         if (evt.processed_successfully) {
-            return (<Tooltip position='left-start' content={"The event was processed successfully."}><Label color="green" icon={<CheckCircleIcon />}>Processed</Label></Tooltip>)
+            return (
+                <Tooltip position="left-start" content={'The event was processed successfully.'}>
+                    <Label color="green" icon={<CheckCircleIcon />}>
+                        Processed
+                    </Label>
+                </Tooltip>
+            );
         } else {
-            return (<Tooltip position='left-start' content={`The event was NOT processed successfully. Reason: ${evt.error_message !== undefined ? evt.error_message : "N/A"}`}><Label color="red" icon={<ErrorCircleOIcon />}>Error</Label></Tooltip>)
+            return (
+                <Tooltip
+                    position="left-start"
+                    content={`The event was NOT processed successfully. Reason: ${evt.error_message !== undefined ? evt.error_message : 'N/A'}`}
+                >
+                    <Label color="red" icon={<ErrorCircleOIcon />}>
+                        {evt.status || 'Error'}
+                    </Label>
+                </Tooltip>
+            );
         }
+    };
+
+    let filteredEvents: WorkloadEvent[] | undefined = sortedEvents?.slice(
+        perPage * (page - 1),
+        perPage * (page - 1) + perPage,
+    );
+
+    if (!props.showDiscardedEvents) {
+        filteredEvents = filteredEvents?.filter((event: WorkloadEvent) => event.status != 'Discarded');
     }
 
-    const filteredEvents: WorkloadEvent[] | undefined = sortedEvents?.slice(perPage * (page - 1), perPage * (page - 1) + perPage);
+    const getEventPopoverHeader = (evt: WorkloadEvent) => {
+        return (
+            <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                <FlexItem>{`Event ${evt.id}`}</FlexItem>
+                <FlexItem>{GetEventLabel(evt.name)}</FlexItem>
+            </Flex>
+        );
+    };
+
+    const getEventPopoverBody = (evt: WorkloadEvent) => {
+        // const getMetadata = () => {
+        //     if (evt.metadata !== null && evt.metadata !== undefined) {
+        //         return Array.from(evt.metadata).map((key: string, value: string | number) => {
+        //             console.log(`key: ${key}, value: ${value}`);
+        //             return (
+        //                 <DescriptionListGroup key={`evt-${evt.id}-metadata-${key}`}>
+        //                     <DescriptionListTerm>key</DescriptionListTerm>
+        //                     <DescriptionListDescription>{value}</DescriptionListDescription>
+        //                 </DescriptionListGroup>
+        //             );
+        //         });
+        //     }
+        //
+        //     return <React.Fragment />;
+        // };
+
+        return (
+            <React.Fragment>
+                <DescriptionList columnModifier={{ lg: '3Col' }} displaySize={'lg'}>
+                    <DescriptionListGroup>
+                        <DescriptionListTerm>Timestamp</DescriptionListTerm>
+                        <DescriptionListDescription>{evt.timestamp}</DescriptionListDescription>
+                    </DescriptionListGroup>
+                    <DescriptionListGroup>
+                        <DescriptionListTerm>Processed At</DescriptionListTerm>
+                        <DescriptionListDescription>{evt.processed_at}</DescriptionListDescription>
+                    </DescriptionListGroup>
+                    {/*{getMetadata()}*/}
+                </DescriptionList>
+            </React.Fragment>
+        );
+    };
+
+    const getEventNameElement = (evt: WorkloadEvent) => {
+        return (
+            <Popover
+                alertSeverityVariant="info"
+                headerComponent="h1"
+                position={'right'}
+                hasAutoWidth={true}
+                headerContent={getEventPopoverHeader(evt)}
+                bodyContent={getEventPopoverBody(evt)}
+            >
+                {GetEventLabel(evt?.name)}
+            </Popover>
+        );
+    };
 
     return (
         <Card isCompact isRounded isFlat>
@@ -139,7 +296,13 @@ export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps
                     <Thead noWrap>
                         <Tr>
                             {events_table_columns.map((column, columnIndex) => (
-                                <Th key={`workload-${props.workload?.id}-column-${columnIndex}`} sort={getSortParams(columnIndex)} aria-label={`${column}-column`}>{column}</Th>
+                                <Th
+                                    key={`workload-${props.workload?.id}-column-${columnIndex}`}
+                                    sort={getSortParams(columnIndex)}
+                                    aria-label={`${column}-column`}
+                                >
+                                    {column}
+                                </Th>
                             ))}
                         </Tr>
                     </Thead>
@@ -148,13 +311,15 @@ export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps
                             return (
                                 <Tr key={`workload-${props.workload?.id}-event-${evt?.idx}`}>
                                     <Td dataLabel={events_table_columns[0]}>{evt?.idx}</Td>
-                                    <Td dataLabel={events_table_columns[1]}>{getEventLabel(evt?.name)}</Td>
+                                    <Td dataLabel={events_table_columns[1]}>{getEventNameElement(evt)}</Td>
                                     <Td dataLabel={events_table_columns[2]}>{evt?.session}</Td>
-                                    <Td dataLabel={events_table_columns[3]}>{evt?.timestamp.substring(0, evt?.timestamp.length - 10)}</Td>
+                                    <Td dataLabel={events_table_columns[3]}>
+                                        {evt?.timestamp.substring(0, evt?.timestamp.length - 10)}
+                                    </Td>
                                     <Td dataLabel={events_table_columns[4]}>{evt?.processed_at.substring(0, 27)}</Td>
                                     <Td dataLabel={events_table_columns[5]}>{getStatusLabel(evt)}</Td>
                                 </Tr>
-                            )
+                            );
                         })}
                     </Tbody>
                 </Table>
@@ -163,7 +328,17 @@ export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps
                     isDisabled={sortedEvents?.length == 0}
                     perPage={perPage}
                     page={page}
-                    perPageOptions={[{ title: "1 event", value: 1 }, { title: "2 events", value: 2 }, { title: "3 events", value: 3 }, { title: "4 events", value: 4 }, { title: "5 events", value: 5 }, { title: "10 events", value: 10 }, { title: "25 events", value: 25 }, { title: "50 events", value: 50 }, { title: "100 events", value: 100 }]}
+                    perPageOptions={[
+                        { title: '1 event', value: 1 },
+                        { title: '2 events', value: 2 },
+                        { title: '3 events', value: 3 },
+                        { title: '4 events', value: 4 },
+                        { title: '5 events', value: 5 },
+                        { title: '10 events', value: 10 },
+                        { title: '25 events', value: 25 },
+                        { title: '50 events', value: 50 },
+                        { title: '100 events', value: 100 },
+                    ]}
                     onSetPage={onSetPage}
                     onPerPageSelect={onPerPageSelect}
                     ouiaId="WorkloadEventsPagination"
@@ -171,4 +346,4 @@ export const WorkloadEventTable: React.FunctionComponent<WorkloadEventTableProps
             </CardBody>
         </Card>
     );
-}
+};

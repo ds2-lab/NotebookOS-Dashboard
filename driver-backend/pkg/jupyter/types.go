@@ -48,14 +48,23 @@ type KernelConnection interface {
 	// The future will resolve when this message is received and the `idle` IOPub status is received.
 	//
 	// Arguments:
+	//
 	// - code (string): The code to execute.
+	//
 	// - silent (bool): Whether to execute the code as quietly as possible. The default is `false`.
-	// - storeHistory (bool): Whether to store history of the execution. The default `true` if silent is False. It is forced to  `false ` if silent is `true`.
+	//
+	// - storeHistory (bool): Whether to store history of the execution. The default true if silent is false. It is forced to  false if silent is true.
+	//
 	// - userExpressions (map[string]interface{}): A mapping of names to expressions to be evaluated in the kernel's interactive namespace.
+	//
 	// - allowStdin (bool): Whether to allow stdin requests. The default is `true`.
+	//
 	// - stopOnError (bool): Whether to the abort execution queue on an error. The default is `false`.
-	// - waitForResponse (bool): Whether to wait for a response from the kernel, or just return immediately.
-	RequestExecute(code string, silent bool, storeHistory bool, userExpressions map[string]interface{}, allowStdin bool, stopOnError bool, waitForResponse bool) error
+	//
+	// - waitForResponse (bool): Wait for response before returning.
+	//
+	// Returns the response, the ID of the execute_request, and an error.
+	RequestExecute(args *RequestExecuteArgs) (KernelMessage, string, error)
 
 	// InterruptKernel interrupts a kernel.
 	//
@@ -76,6 +85,8 @@ type KernelConnection interface {
 	// Close the connection to the kernel.
 	Close() error
 
+	SetOnError(func(err error))
+
 	// RegisterIoPubHandler registers a handler/consumer of IOPub messages under a specific ID.
 	RegisterIoPubHandler(id string, handler IOPubMessageHandler) error
 
@@ -84,12 +95,14 @@ type KernelConnection interface {
 
 	// AddMetadata attaches some metadata to the KernelConnection.
 	// This metadata is primarily used for attaching labels to Prometheus kernelMetricsManager.
-	AddMetadata(key, value string)
+	AddMetadata(key string, value interface{}) error
 
 	// GetMetadata retrieves a piece of metadata that may be attached to the KernelConnection.
 	// This metadata is primarily used for attaching labels to Prometheus kernelMetricsManager.
-	GetMetadata(key string) (string, bool)
+	GetMetadata(key string) (interface{}, bool)
 }
+
+type ErrorHandler func(sessionId string, kernelId string, err error)
 
 type KernelSessionManager interface {
 	// CreateSession creates a new session.
@@ -135,7 +148,7 @@ type KernelSessionManager interface {
 	// creates. Metadata added to the KernelSessionManager after a SessionConnection or
 	// KernelConnection is created will not be added to any existing SessionConnection or
 	// KernelConnection instances.
-	AddMetadata(key, value string)
+	AddMetadata(key string, value interface{})
 
 	// GetMetadata retrieves a piece of metadata that may be attached to the KernelSessionManager.
 	//
@@ -144,7 +157,12 @@ type KernelSessionManager interface {
 	//
 	// If there is no metadata attached to the KernelSessionManager at the given key, then the empty
 	// string is returned, along with a boolean equal to false.
-	GetMetadata(key string) (string, bool)
+	GetMetadata(key string) (interface{}, bool)
+
+	// RegisterOnErrorHandler registers an error handler to be called if the kernel manager encounters an error.
+	//
+	// If there is already an existing error handler, then it is overwritten.
+	RegisterOnErrorHandler(handler ErrorHandler)
 }
 
 type KernelManagerMetrics interface {

@@ -1,12 +1,4 @@
 import {
-  ClusterNode,
-  GetNodeAllocatedResource, GetNodeId,
-  GetNodeIdleResource,
-  GetNodePendingResource,
-  GetNodeSpecResource
-} from '@src/Data';
-import { DarkModeContext, useNodes } from '@src/Providers';
-import {
     ChartDonutThreshold,
     ChartDonutUtilization,
     ChartLabel,
@@ -14,6 +6,15 @@ import {
     ChartThemeDefinitionInterface,
     getCustomTheme,
 } from '@patternfly/react-charts';
+import {
+    ClusterNode,
+    GetNodeAllocatedResource,
+    GetNodeId,
+    GetNodeIdleResource,
+    GetNodePendingResource,
+    GetNodeSpecResource,
+} from '@src/Data';
+import { DarkModeContext, useNodes } from '@src/Providers';
 import React from 'react';
 
 export interface UtilizationDonutChart {
@@ -88,6 +89,15 @@ export const UtilizationDonutChart: React.FunctionComponent<UtilizationDonutChar
         let percentUtilization: number = roundTo2Decimals((sumAllocated * 100.0) / sumCapacity);
         if (Number.isNaN(percentUtilization)) {
             percentUtilization = 0.0;
+        }
+
+        // Adjust units for vCPU and RAM.
+        if (props.resourceDisplayName === 'CPU' && props.resourceUnit === 'vCPU') {
+            sumCapacity = sumCapacity / 1.0e3;
+            sumAllocated = sumAllocated / 1.0e3;
+        } else if (props.resourceDisplayName === 'Memory' && props.resourceUnit === 'GB') {
+            sumCapacity = sumCapacity / 1.0e3;
+            sumAllocated = sumAllocated / 1.0e3;
         }
 
         setResource({
@@ -208,13 +218,6 @@ export const UtilizationDonutChart: React.FunctionComponent<UtilizationDonutChar
             ];
         }
     };
-
-    // const possiblyConvertToExponent = (val: number) => {
-    //     if (val.toString().length > 6) {
-    //         return val.toExponential(2);
-    //     }
-    //     return val;
-    // };
 
     return (
         <ChartDonutThreshold

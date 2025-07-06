@@ -1,6 +1,6 @@
-import { RoundToThreeDecimalPlaces } from '@Components/Modals';
 import { Alert, AlertActionCloseButton, Flex, FlexItem } from '@patternfly/react-core';
 import { SpinnerIcon } from '@patternfly/react-icons';
+import { RoundToThreeDecimalPlaces } from '@Utils/utils';
 import React, { ReactElement, ReactNode } from 'react';
 import { Toast, toast } from 'react-hot-toast';
 import { DefaultToastOptions, Renderable } from 'react-hot-toast/src/core/types';
@@ -35,6 +35,10 @@ export function GetToastContentWithHeaderAndBody(
             return <p>{body}</p>;
         }
 
+        if (React.isValidElement(body)) {
+            return body as ReactElement;
+        }
+
         if (Array.isArray(body)) {
             return (
                 <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXs' }}>
@@ -53,7 +57,7 @@ export function GetToastContentWithHeaderAndBody(
             );
         }
 
-        throw new Error(`Unexpected type for body parameter: ${body}`);
+        throw new Error(`Unexpected type for body parameter (${typeof body}): ${body}`);
     };
 
     return (
@@ -206,7 +210,16 @@ export async function ToastFetch(
     endpoint: string,
     requestOptions: RequestInit | undefined,
 ) {
-    const toastId: string = toast.loading(loadingMessage);
+    const toastId: string = toast.custom((t: Toast) => (
+        <Alert
+            isInline
+            variant={'info'}
+            title={loadingMessage}
+            onTimeout={() => toast.dismiss(t.id)}
+            customIcon={<SpinnerIcon className={'loading-icon-spin-pulse'} />}
+            actionClose={<AlertActionCloseButton onClose={() => toast.dismiss(t.id)} />}
+        />
+    ));
     await fetch(endpoint, requestOptions).then((res) => {
         if (!res.ok || res.status >= 300) {
             res.json().then((reason) => {

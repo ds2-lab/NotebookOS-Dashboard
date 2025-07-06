@@ -1,68 +1,26 @@
-import { RoundToThreeDecimalPlaces } from '@Components/Modals/NewWorkloadFromTemplateModal';
-import { WorkloadEventTable, WorkloadSessionTable } from '@Components/Tables';
-import {
-    Button,
-    DescriptionList,
-    DescriptionListDescription,
-    DescriptionListGroup,
-    DescriptionListTerm,
-    Flex,
-    FlexItem,
-    Label,
-    Modal,
-    ModalVariant,
-    Title,
-    TitleSizes,
-} from '@patternfly/react-core';
-import {
-    BlueprintIcon,
-    CheckCircleIcon,
-    ClipboardCheckIcon,
-    ClockIcon,
-    CloseIcon,
-    CodeIcon,
-    DiceIcon,
-    ExclamationTriangleIcon,
-    HourglassStartIcon,
-    MonitoringIcon,
-    PlayIcon,
-    SpinnerIcon,
-    StopIcon,
-    Stopwatch20Icon,
-    StopwatchIcon,
-    TimesCircleIcon,
-    UserClockIcon,
-} from '@patternfly/react-icons';
-import text from '@patternfly/react-styles/css/utilities/Text/text';
+import { WorkloadInspectionView } from '@Components/Workloads/WorkloadInspectionView';
+import { Button, Flex, FlexItem, Modal, ModalVariant, Title, TitleSizes, Tooltip } from '@patternfly/react-core';
+import { ArrowRightIcon, CloseIcon, CopyIcon, ExportIcon, PlayIcon, StopIcon } from '@patternfly/react-icons';
 import { AuthorizationContext } from '@Providers/AuthProvider';
-import {
-    Workload,
-    WORKLOAD_STATE_ERRED,
-    WORKLOAD_STATE_FINISHED,
-    WORKLOAD_STATE_READY,
-    WORKLOAD_STATE_RUNNING,
-    WORKLOAD_STATE_TERMINATED,
-} from '@src/Data/Workload';
-import { GetToastContentWithHeaderAndBody } from '@src/Utils/toast_utils';
+import useNavigation from '@Providers/NavigationProvider';
+import { GetWorkloadStatusLabel, IsInProgress, IsReadyAndWaiting, Workload } from '@src/Data/Workload';
+import { WorkloadContext } from '@src/Providers';
 import React from 'react';
-import toast from 'react-hot-toast';
 
 export interface InspectWorkloadModalProps {
     children?: React.ReactNode;
     isOpen: boolean;
     onClose: () => void;
-    onStartClicked: () => void;
-    onStopClicked: () => void;
-    workload: Workload | null;
+    workload: Workload;
 }
 
 export const InspectWorkloadModal: React.FunctionComponent<InspectWorkloadModalProps> = (props) => {
-    const [currentTick, setCurrentTick] = React.useState<number>(0);
-
-    const tickStartTime = React.useRef<number>(0);
-    const tickDurations = React.useRef<number[]>([]);
-
     const { authenticated } = React.useContext(AuthorizationContext);
+
+    const { exportWorkload, startWorkload, stopWorkload } = React.useContext(WorkloadContext);
+    const [showCopySuccessContent, setShowCopySuccessContent] = React.useState<boolean>(false);
+
+    const { navigate } = useNavigation();
 
     React.useEffect(() => {
         // Automatically close the modal of we are logged out.
@@ -71,94 +29,43 @@ export const InspectWorkloadModal: React.FunctionComponent<InspectWorkloadModalP
         }
     }, [props, authenticated]);
 
-    React.useEffect(() => {
-        if (props.workload && props.workload?.current_tick > currentTick) {
-            const tickDuration: number = performance.now() - tickStartTime.current;
-            tickDurations.current.push(tickDuration);
-            tickStartTime.current = performance.now();
-            setCurrentTick(props.workload?.current_tick);
-            toast.custom(
-                (t) =>
-                    GetToastContentWithHeaderAndBody(
-                        'Tick Incremented',
-                        `Workload ${props.workload?.name} has progressed to Tick #${props.workload?.current_tick}.`,
-                        'info',
-                        () => {
-                            toast.dismiss(t.id);
-                        },
-                    ),
-                { icon: '⏱️', style: { maxWidth: 700 } },
-            );
-        }
-    }, [props.workload?.current_tick]);
-
-    const workloadStatus = (
-        <React.Fragment>
-            {props.workload?.workload_state == WORKLOAD_STATE_READY && (
-                <Label icon={<HourglassStartIcon className={text.infoColor_100} />} color="blue">
-                    Ready
-                </Label>
-            )}
-            {props.workload?.workload_state == WORKLOAD_STATE_RUNNING && (
-                <Label icon={<SpinnerIcon className={'loading-icon-spin ' + text.successColor_100} />} color="green">
-                    Running
-                </Label>
-            )}
-            {props.workload?.workload_state == WORKLOAD_STATE_FINISHED && (
-                <Label icon={<CheckCircleIcon className={text.successColor_100} />} color="green">
-                    Complete
-                </Label>
-            )}
-            {props.workload?.workload_state == WORKLOAD_STATE_ERRED && (
-                <Label icon={<TimesCircleIcon className={text.dangerColor_100} />} color="red">
-                    Erred
-                </Label>
-            )}
-            {props.workload?.workload_state == WORKLOAD_STATE_TERMINATED && (
-                <Label icon={<ExclamationTriangleIcon className={text.warningColor_100} />} color="orange">
-                    Terminated
-                </Label>
-            )}
-        </React.Fragment>
-    );
-
     const header = (
         <React.Fragment>
             <Title headingLevel="h1" size={TitleSizes['2xl']}>
                 {`Workload ${props.workload?.name} `}
 
-                {workloadStatus}
+                {GetWorkloadStatusLabel(props.workload)}
             </Title>
+            <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                <FlexItem>
+                    <Title headingLevel="h3">{props.workload?.id}</Title>
+                </FlexItem>
+                <FlexItem>
+                    <Tooltip
+                        content={
+                            showCopySuccessContent ? 'Copied successfully workload ID' : 'Copy workload ID to clipboard'
+                        }
+                        position={'right'}
+                        entryDelay={75}
+                        exitDelay={200}
+                        onTooltipHidden={() => setShowCopySuccessContent(false)}
+                    >
+                        <Button
+                            variant={'link'}
+                            isInline
+                            icon={<CopyIcon />}
+                            onClick={async (event) => {
+                                event.preventDefault();
+                                await navigator.clipboard.writeText(props.workload?.id);
+
+                                setShowCopySuccessContent(true);
+                            }}
+                        />
+                    </Tooltip>
+                </FlexItem>
+            </Flex>
         </React.Fragment>
     );
-
-    const getTimeElapsedString = () => {
-        if (props.workload?.workload_state === undefined || props.workload?.workload_state === '') {
-            return 'N/A';
-        }
-
-        return props.workload?.time_elapsed_str;
-    };
-
-    const getLastTickDuration = () => {
-        if (tickDurations && tickDurations.current && tickDurations.current.length > 0) {
-            return RoundToThreeDecimalPlaces(tickDurations.current[tickDurations.current.length - 1]);
-        } else {
-            return 'N/A';
-        }
-    };
-
-    const getAverageTickDuration = () => {
-        if (tickDurations && tickDurations.current && tickDurations.current.length > 0) {
-            let sum: number = 0.0;
-            tickDurations.current.forEach((val: number) => {
-                sum = sum + val;
-            });
-            return RoundToThreeDecimalPlaces(sum / tickDurations.current.length);
-        } else {
-            return 'N/A';
-        }
-    };
 
     return (
         <Modal
@@ -174,124 +81,69 @@ export const InspectWorkloadModal: React.FunctionComponent<InspectWorkloadModalP
                 <Button
                     key="start-workload-button"
                     variant="primary"
+                    aria-label={'Start workload'}
                     icon={<PlayIcon />}
-                    onClick={props.onStartClicked}
-                    isDisabled={props.workload?.workload_state != WORKLOAD_STATE_READY || !authenticated}
+                    onClick={() => {
+                        if (props.workload) {
+                            startWorkload(props.workload);
+                        }
+                    }}
+                    isDisabled={!IsReadyAndWaiting(props.workload) || !authenticated}
                 >
                     Start Workload
                 </Button>,
                 <Button
                     key="stop-workload-button"
                     variant="danger"
+                    aria-label={'Stop workload'}
                     icon={<StopIcon />}
-                    onClick={props.onStopClicked}
-                    isDisabled={props.workload?.workload_state != WORKLOAD_STATE_RUNNING || !authenticated}
+                    onClick={() => {
+                        if (props.workload) {
+                            stopWorkload(props.workload);
+                        }
+                    }}
+                    isDisabled={!IsInProgress(props.workload) || !authenticated}
                 >
                     Stop Workload
                 </Button>,
-                <Button key="close-inspect-workload-modal-button" variant="secondary" icon={<CloseIcon />} onClick={props.onClose}>
+                <Button
+                    key="export_workload_state_button"
+                    aria-label={'Export workload state'}
+                    variant="secondary"
+                    icon={<ExportIcon />}
+                    onClick={() => {
+                        if (props.workload) {
+                            exportWorkload(props.workload);
+                        }
+                    }}
+                >
+                    Export
+                </Button>,
+                <Button
+                    key="goto-inspect-workload-page-button"
+                    variant="secondary"
+                    aria-label={'Go to workload page'}
+                    icon={<ArrowRightIcon />}
+                    onClick={() => {
+                        props.onClose();
+                        navigate('/workload/' + props.workload?.id);
+                        // navigate('/workloads', { state: { workload: props.workload } });
+                    }}
+                >
+                    Go to Workload Page
+                </Button>,
+                <Button
+                    key="close-inspect-workload-modal-button"
+                    variant="secondary"
+                    aria-label={'Inspect workload'}
+                    icon={<CloseIcon />}
+                    onClick={props.onClose}
+                >
                     Close Window
                 </Button>,
             ]}
         >
-            <Flex direction={{ default: 'column' }}>
-                <FlexItem>
-                    <DescriptionList columnModifier={{ lg: '3Col' }}>
-                        {props.workload?.workload_preset && (
-                            <DescriptionListGroup>
-                                <DescriptionListTerm>
-                                    Workload Preset <BlueprintIcon />{' '}
-                                </DescriptionListTerm>
-                                <DescriptionListDescription>
-                                    &quot;{props.workload?.workload_preset_name}&quot;
-                                </DescriptionListDescription>
-                            </DescriptionListGroup>
-                        )}
-                        {/* {props.workload?.workload_template && <DescriptionListGroup>
-                            <DescriptionListTerm>Workload Template <BlueprintIcon /></DescriptionListTerm>
-                            <DescriptionListDescription>&quot;{props.workload?.workload_template.name}&quot;</DescriptionListDescription>
-                        </DescriptionListGroup>} */}
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Seed <DiceIcon />{' '}
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>{props.workload?.seed}</DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Time Adjustment Factor <ClockIcon />{' '}
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>
-                                {props.workload?.timescale_adjustment_factor}
-                            </DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Events Processed <MonitoringIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>
-                                {props.workload?.num_events_processed}
-                            </DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Training Events Completed <CodeIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>
-                                {props.workload?.num_tasks_executed}
-                            </DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Time Elapsed <StopwatchIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>{getTimeElapsedString()}</DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Workload Clock Time <UserClockIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>
-                                {props.workload?.simulation_clock_time == ''
-                                    ? 'N/A'
-                                    : props.workload?.simulation_clock_time}
-                            </DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Current Tick <Stopwatch20Icon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>{props.workload?.current_tick}</DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Last Tick Duration (ms) <ClockIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>{getLastTickDuration()}</DescriptionListDescription>
-                        </DescriptionListGroup>
-                        <DescriptionListGroup>
-                            <DescriptionListTerm>
-                                Average Tick Duration (ms) <ClockIcon />
-                            </DescriptionListTerm>
-                            <DescriptionListDescription>{getAverageTickDuration()}</DescriptionListDescription>
-                        </DescriptionListGroup>
-                    </DescriptionList>
-                </FlexItem>
-                <FlexItem>
-                    <ClipboardCheckIcon /> {<strong>Events Processed:</strong>} {props.workload?.num_events_processed}
-                </FlexItem>
-                <FlexItem>
-                    <WorkloadEventTable workload={props.workload} />
-                </FlexItem>
-                <FlexItem>
-                    <ClipboardCheckIcon /> {<strong>Sessions:</strong>} {props.workload?.num_sessions_created} /{' '}
-                    {props.workload?.sessions.length} created, {props.workload?.num_active_trainings} actively training
-                </FlexItem>
-                <FlexItem>
-                    <WorkloadSessionTable workload={props.workload} />
-                </FlexItem>
-            </Flex>
-            <React.Fragment />
+            <WorkloadInspectionView workload={props.workload} showTickDurationChart={false} />
         </Modal>
     );
 };

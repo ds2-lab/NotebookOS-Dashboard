@@ -31,13 +31,13 @@ type DockerSwarmNodeHttpHandler struct {
 }
 
 // NewDockerSwarmNodeHttpHandler creates a new DockerSwarmNodeHttpHandler struct and return a pointer to it.
-func NewDockerSwarmNodeHttpHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler) *DockerSwarmNodeHttpHandler {
+func NewDockerSwarmNodeHttpHandler(opts *domain.Configuration, grpcClient *ClusterDashboardHandler, atom *zap.AtomicLevel) *DockerSwarmNodeHttpHandler {
 	if grpcClient == nil {
 		panic("gRPC Client cannot be nil.")
 	}
 
 	handler := &DockerSwarmNodeHttpHandler{
-		BaseHandler:        newBaseHandler(opts),
+		BaseHandler:        newBaseHandler(opts, atom),
 		grpcClient:         grpcClient,
 		nodeTypeRegistered: false,
 	}
@@ -79,7 +79,7 @@ func (h *DockerSwarmNodeHttpHandler) HandleRequest(c *gin.Context) {
 		nodes = append(nodes, virtualDockerNode)
 	}
 
-	h.sugaredLogger.Debugf("Returning %d virtual Docker node(s): %v", len(protoNodes), protoNodes)
+	// h.sugaredLogger.Debugf("Returning %d virtual Docker node(s): %v", len(protoNodes), nodes)
 
 	c.JSON(http.StatusOK, nodes)
 }

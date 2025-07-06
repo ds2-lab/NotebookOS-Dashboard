@@ -121,16 +121,16 @@ func validateSession(session *domain.WorkloadTemplateSession) error {
 		panic("Session's `Trainings` field should not be nil.")
 	}
 
-	if session.GetResourceRequest().Cpus < 0 {
-		return fmt.Errorf("%w: invalid maximum number of CPUs specified (%f). Quantity must be greater than or equal to 0", ErrInvalidConfiguration, session.GetResourceRequest().Cpus)
+	if session.GetMaxResourceRequest().Cpus < 0 {
+		return fmt.Errorf("%w: invalid maximum number of CPUs specified (%f). Quantity must be greater than or equal to 0", ErrInvalidConfiguration, session.GetMaxResourceRequest().Cpus)
 	}
 
-	if session.GetResourceRequest().Gpus < 0 {
-		return fmt.Errorf("%w: invalid maximum number of GPUs specified (%d). Quantity must be greater than or equal to 0", ErrInvalidConfiguration, session.GetResourceRequest().Gpus)
+	if session.GetMaxResourceRequest().Gpus < 0 {
+		return fmt.Errorf("%w: invalid maximum number of GPUs specified (%d). Quantity must be greater than or equal to 0", ErrInvalidConfiguration, session.GetMaxResourceRequest().Gpus)
 	}
 
-	if session.GetResourceRequest().MemoryMB < 0 {
-		return fmt.Errorf("%w: invalid maximum memory usage (in MB) specified (%f). Quantity must be greater than or equal to 0", ErrInvalidConfiguration, session.GetResourceRequest().MemoryMB)
+	if session.GetMaxResourceRequest().MemoryMB < 0 {
+		return fmt.Errorf("%w: invalid maximum memory usage (in MB) specified (%f). Quantity must be greater than or equal to 0", ErrInvalidConfiguration, session.GetMaxResourceRequest().MemoryMB)
 	}
 
 	// Validate `session.GetStartTick()`
@@ -198,74 +198,25 @@ func validateSessionArgumentsAgainstTrainingArguments(session *domain.WorkloadTe
 	}
 
 	for _, trainingEvent := range session.GetTrainings() {
-		if session.GetResourceRequest().Cpus < trainingEvent.Millicpus {
-			return fmt.Errorf("%w: incompatible max CPUs (%f) and training CPU utilization (%f) specified. Training CPU utilization cannot exceed maximum session CPUs", ErrInvalidConfiguration, session.GetResourceRequest().Cpus, trainingEvent.Millicpus)
+		if session.GetMaxResourceRequest().Cpus < trainingEvent.Millicpus {
+			return fmt.Errorf("%w: incompatible max CPUs (%f) and training CPU utilization (%f) specified. Training CPU utilization cannot exceed maximum session CPUs", ErrInvalidConfiguration, session.GetMaxResourceRequest().Cpus, trainingEvent.Millicpus)
 		}
 
-		if session.GetResourceRequest().Gpus < trainingEvent.NumGPUs() {
-			return fmt.Errorf("%w: incompatible max GPUs (%d) and training GPU utilization (%d) specified. Training GPU utilization cannot exceed maximum session GPUs", ErrInvalidConfiguration, session.GetResourceRequest().Gpus, trainingEvent.NumGPUs())
+		if session.GetMaxResourceRequest().Gpus < trainingEvent.NumGPUs() {
+			return fmt.Errorf("%w: incompatible max GPUs (%d) and training GPU utilization (%d) specified. Training GPU utilization cannot exceed maximum session GPUs", ErrInvalidConfiguration, session.GetMaxResourceRequest().Gpus, trainingEvent.NumGPUs())
 		}
 
-		if session.GetResourceRequest().MemoryMB < trainingEvent.MemUsageMB {
-			return fmt.Errorf("%w: incompatible max memory usage (%f MB) and training memory usage (%f GB) specified. Training memory usage cannot exceed maximum session memory usage", ErrInvalidConfiguration, session.GetResourceRequest().MemoryMB, trainingEvent.MemUsageMB)
+		if session.GetMaxResourceRequest().MemoryMB < trainingEvent.MemUsageMB {
+			return fmt.Errorf("%w: incompatible max memory usage (%f MB) and training memory usage (%f GB) specified. Training memory usage cannot exceed maximum session memory usage", ErrInvalidConfiguration, session.GetMaxResourceRequest().MemoryMB, trainingEvent.MemUsageMB)
 		}
 	}
 
 	return nil
 }
 
-// SingleSessionSingleTraining creates a training sequence involving a single Session that trains just once.
-//
-// The following quantities are configurable and are to be passed as arguments to this function (in this order):
-// - session start time (>= 0)
-// - training start time (> 'session start time')
-// - training duration (> 0)
-// - session terminate time (> 'training start time' + 'training duration')
-// - the number of GPUs to use while training (> 0)
-//
-// This will return nil and an ErrInvalidConfiguration error if the arguments are invalid.
-func SingleSessionSingleTraining(sessions []*domain.WorkloadTemplateSession) (SequencerFunction, error) {
-	if sessions == nil {
-		panic("Session arguments cannot be nil.")
-	}
-
-	if len(sessions) != 1 {
-		panic(fmt.Sprintf("Sessions has unexpected length: %d", len(sessions)))
-	}
-
-	var session = sessions[0]
-	if err := validateSession(session); err != nil {
-		return nil, err
-	}
-
-	if err := validateSessionArgumentsAgainstTrainingArguments(session); err != nil {
-		return nil, err
-	}
-
-	if len(session.GetTrainings()) != 1 {
-		return nil, fmt.Errorf("%w: session has illegal number of training events for this particular template (%d, expected 1)", ErrInvalidConfiguration, len(session.GetTrainings()))
-	}
-
-	trainingEvent := session.GetTrainings()[0]
-	if trainingEvent.DurationInTicks <= 0 {
-		return nil, fmt.Errorf("%w: invalid training duration specified: %d ticks. Must be strictly greater than 0", ErrInvalidConfiguration, trainingEvent.DurationInTicks)
-	}
-
-	return func(sequencer *CustomEventSequencer, log *zap.Logger) error {
-		sequencer.RegisterSession(session.GetId(), session.GetResourceRequest().Cpus, session.GetResourceRequest().MemoryMB, session.GetResourceRequest().Gpus, session.GetResourceRequest().VRAM, 0)
-
-		trainingEvent := session.GetTrainings()[0]
-
-		sequencer.AddSessionStartedEvent(session.GetId(), session.GetStartTick(), 0, 0, 0, 1)
-		sequencer.AddTrainingEvent(session.GetId(), trainingEvent.StartTick, trainingEvent.DurationInTicks, trainingEvent.Millicpus, trainingEvent.MemUsageMB, trainingEvent.GpuUtil) // TODO: Fix GPU util/num GPU specified here.
-		sequencer.AddSessionTerminatedEvent(session.GetId(), session.GetStopTick())
-
-		sequencer.SubmitEvents(sequencer.eventConsumer.WorkloadEventGeneratorCompleteChan())
-
-		return nil
-	}, nil
-}
-
+// ManySessionsManyTrainingEvents is the default "generator function" to produce a workload from a template.
+// There used to be a SingleSessionSingleTraining function, but it was removed as its use was eclipsed by
+// the ManySessionsManyTrainingEvents function.
 func ManySessionsManyTrainingEvents(sessions []*domain.WorkloadTemplateSession) (SequencerFunction, error) {
 	if sessions == nil {
 		panic("Session arguments cannot be nil.")
@@ -275,6 +226,7 @@ func ManySessionsManyTrainingEvents(sessions []*domain.WorkloadTemplateSession) 
 		panic(fmt.Sprintf("Sessions has unexpected length: %d", len(sessions)))
 	}
 
+	var approximateFinalTick int64 = 0
 	for _, session := range sessions {
 		if err := validateSession(session); err != nil {
 			return nil, err
@@ -284,9 +236,22 @@ func ManySessionsManyTrainingEvents(sessions []*domain.WorkloadTemplateSession) 
 			return nil, err
 		}
 
+		if int64(session.StopTick) > approximateFinalTick {
+			approximateFinalTick = int64(session.StopTick)
+		}
+
+		if len(session.GetTrainings()) == 0 {
+			continue
+		}
+
 		trainingEvent := session.GetTrainings()[0]
 		if trainingEvent.DurationInTicks <= 0 {
 			return nil, fmt.Errorf("%w: invalid training duration specified: %d ticks. Must be strictly greater than 0", ErrInvalidConfiguration, trainingEvent.DurationInTicks)
+		}
+
+		finalTrainingEvent := session.GetTrainings()[len(session.GetTrainings())-1]
+		if int64(finalTrainingEvent.StartTick+finalTrainingEvent.DurationInTicks) > approximateFinalTick {
+			approximateFinalTick = int64(finalTrainingEvent.StartTick + finalTrainingEvent.DurationInTicks)
 		}
 	}
 
@@ -294,22 +259,23 @@ func ManySessionsManyTrainingEvents(sessions []*domain.WorkloadTemplateSession) 
 		seenSessions := make(map[string]struct{})
 
 		for _, session := range sessions {
-			log.Debug("Adding events for Session.", zap.String("session_id", session.Id))
 			if _, ok := seenSessions[session.GetId()]; ok {
 				log.Error("We've already added events for Session.", zap.String("session_id", session.Id))
 				panic("Duplicate Session.")
 			}
 			seenSessions[session.GetId()] = struct{}{}
 
-			sequencer.RegisterSession(session.GetId(), session.GetResourceRequest().Cpus, session.GetResourceRequest().MemoryMB, session.GetResourceRequest().Gpus, session.GetResourceRequest().VRAM, 0)
+			sequencer.RegisterSession(session.GetId(), session.GetMaxResourceRequest().Cpus, session.GetMaxResourceRequest().MemoryMB, session.GetMaxResourceRequest().Gpus, session.GetMaxResourceRequest().VRAM, 0)
 			sequencer.AddSessionStartedEvent(session.GetId(), session.GetStartTick(), 0, 0, 0, 1)
 
 			for _, trainingEvent := range session.GetTrainings() {
-				sequencer.AddTrainingEvent(session.GetId(), trainingEvent.StartTick, trainingEvent.DurationInTicks, trainingEvent.Millicpus, trainingEvent.MemUsageMB, trainingEvent.GpuUtil) // TODO: Fix GPU util/num GPU specified here.
+				sequencer.AddTrainingEvent(session.GetId(), trainingEvent.StartTick, trainingEvent.DurationInTicks, trainingEvent.Millicpus, trainingEvent.MemUsageMB, trainingEvent.GpuUtil, trainingEvent.VRamUsageGB)
 			}
 
 			sequencer.AddSessionTerminatedEvent(session.GetId(), session.GetStopTick())
 		}
+
+		sequencer.eventConsumer.RegisterApproximateFinalTick(approximateFinalTick)
 
 		sequencer.SubmitEvents(sequencer.eventConsumer.WorkloadEventGeneratorCompleteChan())
 		return nil

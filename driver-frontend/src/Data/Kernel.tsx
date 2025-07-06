@@ -16,6 +16,8 @@ interface JupyterKernelReplica {
     podId: string;
     nodeId: string;
     isMigrating: boolean;
+    wasLastPrimaryReplica: boolean;
+    numExecutions: number;
 }
 
 // The KernelSpec used within the Distributed Notebook cluster.
@@ -32,7 +34,7 @@ interface ResourceSpec {
     cpu: number; // in Millicpus (1/1000th of vCPU)
     memory: number; // in Megabytes (MB)
     gpu: number;
-    vram: number;  // in Gigabytes (GB)
+    vram: number; // in Gigabytes (GB)
 }
 
 // The KernelSpec used within JupyterServer when provisioning kernels.

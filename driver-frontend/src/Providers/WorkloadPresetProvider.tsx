@@ -2,7 +2,7 @@ import { WorkloadPreset } from '@Data/Workload';
 import { GetPathForFetch } from '@src/Utils/path_utils';
 import useSWR, { mutate } from 'swr';
 
-const fetcher = (input: RequestInfo | URL) => {
+const fetcher = async (input: RequestInfo | URL) => {
     const randNumber: number = Math.floor(Math.random() * 1e9);
     input += `?randNumber=${randNumber}`;
 
@@ -13,7 +13,15 @@ const fetcher = (input: RequestInfo | URL) => {
         },
     };
 
-    return fetch(input, init).then((response: Response) => response.json());
+    const response: Response = await fetch(input, init); // .then((response: Response) => response.json());
+
+    if (!response.ok || response.status != 200) {
+        const respError = await response.json();
+
+        throw new Error(`HTTP ${response.status} ${response.statusText}: ${respError['error']}`);
+    }
+
+    return await response.json();
 };
 
 const api_endpoint: string = GetPathForFetch('api/workload-presets');
@@ -26,8 +34,8 @@ export function useWorkloadPresets() {
     return {
         workloadPresets: workloadPresets,
         workloadPresetsAreLoading: isLoading,
-        refreshWorkloadPresets: () => {
-            mutate(api_endpoint);
+        refreshWorkloadPresets: async () => {
+            await mutate(api_endpoint);
         },
         isError: error,
     };

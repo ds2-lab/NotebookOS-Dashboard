@@ -3,7 +3,8 @@ package generator
 import (
 	"container/heap"
 	"fmt"
-	"log"
+	"github.com/mattn/go-colorable"
+	"go.uber.org/zap/zapcore"
 	"sync/atomic"
 	"time"
 
@@ -26,19 +27,23 @@ type sessionMetaWrapper struct {
 
 type CustomEventSequencer struct {
 	sessions      map[string]*sessionMetaWrapper
-	eventHeap     internalEventHeap
+	eventHeap     domain.EventHeap
 	eventConsumer domain.EventConsumer
 
 	log      *zap.Logger
 	sugarLog *zap.SugaredLogger
 
-	tickDurationSeconds int64                 // The number of seconds in a tick.
-	startingSeconds     int64                 // The start time for the event sequence as the number of seconds.
-	podMap              map[string]int        // Map from SessionID to PodID
-	waitingEvents       map[string]*eventImpl // The event that will be submitted/enqueued once the next commit happens.
+	tickDurationSeconds int64                    // The number of seconds in a tick.
+	startingSeconds     int64                    // The start time for the event sequence as the number of seconds.
+	podMap              map[string]int           // Map from SessionID to PodID
+	waitingEvents       map[string]*domain.Event // The event that will be submitted/enqueued once the next commit happens.
+
+	// offset, in seconds, east of UTC of the current local timezone, multiplied by -1 so that we can add it
+	// to values passed to time.Unix such that time.Unix(offset) is equal to 12:00am, Jan 1, 1970.
+	offset int64
 
 	// sessionEventIndexes is a map from session ID to the current event localIndex for the session.
-	// See the localIndex field of eventImpl for a description of what the "event localIndex" is.
+	// See the localIndex field of domain.Event for a description of what the "event localIndex" is.
 	// The current entry for a particular session is the localIndex of the next event to be created.
 	// That is, when creating the next event, its localIndex field should be set to the current
 	// entry in the sessionEventIndexes map (using the associated session's ID as the key).
@@ -46,38 +51,40 @@ type CustomEventSequencer struct {
 }
 
 func NewCustomEventSequencer(eventConsumer domain.EventConsumer, startingSeconds int64, tickDurationSeconds int64, atom *zap.AtomicLevel) *CustomEventSequencer {
+
 	customEventSequencer := &CustomEventSequencer{
 		sessions:            make(map[string]*sessionMetaWrapper),
 		sessionEventIndexes: make(map[string]int),
-		waitingEvents:       make(map[string]*eventImpl),
-		eventHeap:           internalEventHeap(make([]*internalEventHeapElement, 0, 100)),
+		waitingEvents:       make(map[string]*domain.Event),
+		eventHeap:           make(domain.EventHeap, 0, 100),
 		podMap:              make(map[string]int),
 		eventConsumer:       eventConsumer,
 		startingSeconds:     startingSeconds,
 		tickDurationSeconds: tickDurationSeconds,
 	}
 
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
+	zapConfig := zap.NewDevelopmentEncoderConfig()
+	zapConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zapConfig), zapcore.AddSync(colorable.NewColorableStdout()), atom)
 
-	customEventSequencer.log = logger
-	customEventSequencer.sugarLog = logger.Sugar()
+	customEventSequencer.log = zap.New(core, zap.Development())
+	customEventSequencer.sugarLog = customEventSequencer.log.Sugar()
 
 	customEventSequencer.sugarLog.Debugf("Created new CustomEventSequencer with startingSeconds=%d and tickDurationSeconds=%d.", startingSeconds, tickDurationSeconds)
+
+	_, offset := time.Now().Zone()
+	customEventSequencer.offset = int64(offset * -1)
 
 	return customEventSequencer
 }
 
 func (s *CustomEventSequencer) SubmitEvents(workloadGenerationCompleteChan chan interface{}) {
-	s.sugarLog.Debugf("Submitting events (in a separate goroutine) now.")
 	go func() {
+		s.log.Debug("Submitting events for workload.",
+			zap.Int("num_events", s.eventHeap.Len()))
 		for s.eventHeap.Len() > 0 {
-			e := heap.Pop(&s.eventHeap).(*internalEventHeapElement)
-			s.eventConsumer.SubmitEvent(e.Event)
-			s.sugarLog.Debugf("Submitted event #%d '%s' targeting session '%s' [%v]. EventID=%s.",
-				e.Event.SessionSpecificEventIndex(), e.Event.Name(), e.Event.Data().(*SessionMeta).Pod, e.Event.Timestamp(), e.Event.Id())
+			e := heap.Pop(&s.eventHeap).(*domain.Event)
+			s.eventConsumer.SubmitEvent(e)
 		}
 
 		workloadGenerationCompleteChan <- struct{}{}
@@ -108,103 +115,17 @@ func (s *CustomEventSequencer) RegisterSession(sessionId string, maxCPUs float64
 	s.sugarLog.Debugf("Registered session \"%s\". MaxCPUs: %.2f, MaxMemory: %.2f, MaxGPUs: %d, MaxVRAM: %.2f", sessionId, maxCPUs, maxMem, maxGPUs, maxVRAM)
 }
 
-func (s *CustomEventSequencer) getSessionMeta(sessionId string) *SessionMeta {
-	var (
-		wrappedSession *sessionMetaWrapper
-		ok             bool
-	)
-
-	if wrappedSession, ok = s.sessions[sessionId]; !ok {
-		panic(fmt.Sprintf("Could not find session with specified ID: \"%s\". Has this session been registered yet?", sessionId))
-	}
-
-	return wrappedSession.session
-}
-
-func (s *CustomEventSequencer) getWrappedSession(sessionId string) *sessionMetaWrapper {
-	var (
-		wrappedSession *sessionMetaWrapper
-		ok             bool
-	)
-
-	if wrappedSession, ok = s.sessions[sessionId]; !ok {
-		panic(fmt.Sprintf("Could not find session wrapper with specified ID: \"%s\". Has this session been registered yet?", sessionId))
-	}
-
-	return wrappedSession
-}
-
-func (s *CustomEventSequencer) stepCpu(sessionId string, timestamp time.Time, cpuUtil float64) {
-	wrappedSession := s.getWrappedSession(sessionId)
-
-	cpu := wrappedSession.cpu
-	podIdx, ok := s.podMap[sessionId]
-	if !ok {
-		panic(fmt.Sprintf("Cannot find PodIDX for Session \"%s\"", sessionId))
-	}
-
-	record := &CPURecord{
-		Timestamp: UnixTime(timestamp),
-		Pod:       sessionId,
-		PodIdx:    podIdx,
-		Value:     cpuUtil,
-	}
-	committed := cpu.Debug_CommitAndInit(record)
-	wrappedSession.session.CPU = committed
-}
-
-func (s *CustomEventSequencer) stepGpu(sessionId string, timestamp time.Time, gpuUtil []domain.GpuUtilization) {
-	wrappedSession := s.getWrappedSession(sessionId)
-
-	gpu := wrappedSession.gpu
-	podIdx, ok := s.podMap[sessionId]
-	if !ok {
-		panic(fmt.Sprintf("Cannot find PodIDX for Session \"%s\"", sessionId))
-	}
-
-	var committed *GPUUtil
-	for gpuIdx, gpuUtil := range gpuUtil {
-		record := &GPURecord{
-			Timestamp: UnixTime(timestamp),
-			Pod:       sessionId,
-			PodIdx:    podIdx,
-			Value:     gpuUtil.Utilization,
-			GPUIdx:    fmt.Sprintf("%d", gpuIdx),
-		}
-
-		if gpuIdx == 0 {
-			committed = gpu.DebugCommitAndInit(record)
-		} else {
-			gpu.DebugUpdate(record)
-		}
-	}
-
-	wrappedSession.session.GPU = committed
-}
-
-func (s *CustomEventSequencer) stepMemory(sessionId string, timestamp time.Time, memUtil float64) {
-	wrappedSession := s.getWrappedSession(sessionId)
-
-	memBuffer := wrappedSession.memBuffer
-	podIdx, ok := s.podMap[sessionId]
-	if !ok {
-		panic(fmt.Sprintf("Cannot find PodIDX for Session \"%s\"", sessionId))
-	}
-
-	record := &Memory{
-		Timestamp: UnixTime(timestamp),
-		Pod:       sessionId,
-		PodIdx:    podIdx,
-		Value:     memUtil,
-	}
-	nextUtil := memBuffer.Debug_Init(record)
-	currentUtil := memBuffer.Debug_Commit(nextUtil)
-	wrappedSession.session.Memory = currentUtil
-}
-
 func (s *CustomEventSequencer) AddSessionStartedEvent(sessionId string, tickNumber int, cpuUtil float64, memUtil float64, gpuUtil float64, numGPUs int) {
 	sec := s.startingSeconds + (int64(tickNumber) * s.tickDurationSeconds)
-	timestamp := time.Unix(sec, 0)
+	timestamp := time.Unix(sec+s.offset, 0)
+
+	s.log.Debug("Creating 'session-started' event.",
+		zap.Int("tick_number", tickNumber),
+		zap.Int64("starting_seconds", s.startingSeconds),
+		zap.Int64("tick_duration_sec", s.tickDurationSeconds),
+		zap.Int64("sec", sec),
+		zap.Time("timestamp", timestamp))
+
 	session := s.getWrappedSession(sessionId)
 	podIdx, ok := s.podMap[sessionId]
 	if !ok {
@@ -259,93 +180,80 @@ func (s *CustomEventSequencer) AddSessionStartedEvent(sessionId string, tickNumb
 		Value:     memUtil,
 		PodIdx:    podIdx,
 	}
-	nextUtil := session.memBuffer.Debug_Init(memRecord)
-	session.memBuffer.Debug_Commit(nextUtil)
+	nextUtil := session.memBuffer.DebugInit(memRecord)
+	session.memBuffer.DebugCommit(nextUtil)
 
 	localIndex := s.sessionEventIndexes[sessionId]
 	s.sessionEventIndexes[sessionId] = localIndex + 1
-	evt := &eventImpl{
-		name:                domain.EventSessionReady,
-		eventSource:         nil,
-		originalEventSource: nil,
-		timestamp:           timestamp,
-		localIndex:          localIndex,
-		id:                  uuid.New().String(),
-		globalIndex:         globalCustomEventIndex.Add(1),
+	evt := &domain.Event{
+		Name:                domain.EventSessionReady,
+		EventSource:         nil,
+		OriginalEventSource: nil,
+		Timestamp:           timestamp,
+		OriginalTimestamp:   timestamp,
+		SessionId:           sessionId,
+		LocalIndex:          localIndex,
+		ID:                  uuid.New().String(),
+		GlobalIndex:         globalCustomEventIndex.Add(1),
+		HeapIndex:           -1,
 	}
 	s.waitingEvents[sessionId] = evt
 
-	s.log.Debug("Adding session event.",
-		zap.String("session_id", sessionId),
-		zap.String("event_name", domain.EventSessionReady.String()),
-		zap.Time("timestamp", timestamp),
-		zap.Int64("second", sec),
-		zap.Int("local_index", evt.localIndex),
-		zap.Uint64("global_index", evt.globalIndex),
-		zap.String("session_id", evt.id))
+	//s.log.Debug("Adding session event.",
+	//	zap.String("session_id", sessionId),
+	//	zap.String("event_name", domain.EventSessionReady.String()),
+	//	zap.Time("timestamp", timestamp),
+	//	zap.Int64("second", sec),
+	//	zap.Int("local_index", evt.LocalIndex),
+	//	zap.Uint64("global_index", evt.GlobalIndex),
+	//	zap.String("session_id", evt.ID))
 }
 
 func (s *CustomEventSequencer) AddSessionTerminatedEvent(sessionId string, tickNumber int) {
 	sec := s.startingSeconds + (int64(tickNumber) * s.tickDurationSeconds)
-	timestamp := time.Unix(sec, 0)
+	timestamp := time.Unix(sec+s.offset, 0)
 	sessionMeta := s.getSessionMeta(sessionId)
 
 	s.stepCpu(sessionId, timestamp, 0)
-	s.stepGpu(sessionId, timestamp, []domain.GpuUtilization{{Utilization: 0}})
+	s.stepGpu(sessionId, timestamp, []domain.GpuUtilization{{Utilization: 0}}, 0)
 	s.stepMemory(sessionId, timestamp, 0)
 
 	s.submitWaitingEvent(sessionMeta)
 
 	// Step again just to commit the 0 util entries that were initialized above.
 	s.stepCpu(sessionId, timestamp, 0)
-	s.stepGpu(sessionId, timestamp, []domain.GpuUtilization{{Utilization: 0}})
+	s.stepGpu(sessionId, timestamp, []domain.GpuUtilization{{Utilization: 0}}, 0)
 	s.stepMemory(sessionId, timestamp, 0)
 
 	metadata := sessionMeta.Snapshot()
 	eventIndex := s.sessionEventIndexes[sessionId]
 	s.sessionEventIndexes[sessionId] = eventIndex + 1
-	evt := &eventImpl{
-		name:                domain.EventSessionStopped,
-		eventSource:         nil,
-		originalEventSource: nil,
-		data:                metadata,
-		timestamp:           timestamp,
-		localIndex:          eventIndex,
-		id:                  uuid.New().String(),
-		globalIndex:         globalCustomEventIndex.Add(1),
+	evt := &domain.Event{
+		Name:                domain.EventSessionStopped,
+		EventSource:         nil,
+		OriginalEventSource: nil,
+		Data:                metadata,
+		Timestamp:           timestamp,
+		SessionId:           sessionId,
+		OriginalTimestamp:   timestamp,
+		LocalIndex:          eventIndex,
+		ID:                  uuid.New().String(),
+		GlobalIndex:         globalCustomEventIndex.Add(1),
+		HeapIndex:           -1,
 	}
 
-	heap.Push(&s.eventHeap, &internalEventHeapElement{evt, -1})
-	s.sugarLog.Debugf("Added 'stopped' event for Session %s with timestamp %v (sec=%d). EventID=%s.", sessionId, timestamp, sec, evt.id)
+	heap.Push(&s.eventHeap, evt)
+	//s.sugarLog.Debugf("Added 'stopped' event for Session %s with timestamp %v (sec=%d). EventID=%s.", sessionId, timestamp, sec, evt.ID)
 
-	s.log.Debug("Added session event.",
-		zap.String("session_id", sessionId),
-		zap.String("event_name", domain.EventSessionStopped.String()),
-		zap.Time("timestamp", timestamp),
-		zap.Int64("second", sec),
-		zap.Int("local_index", evt.localIndex),
-		zap.Uint64("global_index", evt.globalIndex),
-		zap.String("event_id", evt.id),
-		zap.String("metadata", metadata.String()))
-}
-
-func (s *CustomEventSequencer) submitWaitingEvent(sessionMeta *SessionMeta) {
-	sessionId := sessionMeta.Pod
-	dataForWaitingEvent := sessionMeta.Snapshot()
-	s.waitingEvents[sessionId].data = dataForWaitingEvent
-	evt := s.waitingEvents[sessionId]
-	heap.Push(&s.eventHeap, &internalEventHeapElement{evt, -1})
-
-	s.log.Debug("Adding session event.",
-		zap.String("session_id", sessionId),
-		zap.String("event_name", evt.name.String()),
-		zap.Time("timestamp", evt.timestamp),
-		zap.Int64("order_seq", evt.orderSeq),
-		zap.Int("local_index", evt.localIndex),
-		zap.Uint64("global_index", evt.globalIndex),
-		zap.String("session_id", evt.id))
-
-	delete(s.waitingEvents, sessionId)
+	//s.log.Debug("Added session event.",
+	//	zap.String("session_id", sessionId),
+	//	zap.String("event_name", domain.EventSessionStopped.String()),
+	//	zap.Time("timestamp", timestamp),
+	//	zap.Int64("second", sec),
+	//	zap.Int("local_index", evt.LocalIndex),
+	//	zap.Uint64("global_index", evt.GlobalIndex),
+	//	zap.String("event_id", evt.ID),
+	//	zap.String("metadata", metadata.String()))
 }
 
 // AddTrainingEvent registers a training event for a particular session.
@@ -353,141 +261,217 @@ func (s *CustomEventSequencer) submitWaitingEvent(sessionMeta *SessionMeta) {
 // Parameters:
 // - sessionId: The target Session's ID
 // - duration: The duration that the training should last.
-func (s *CustomEventSequencer) AddTrainingEvent(sessionId string, tickNumber int, durationInTicks int, cpuUtil float64, memUtil float64, gpuUtil []domain.GpuUtilization) {
+func (s *CustomEventSequencer) AddTrainingEvent(sessionId string, tickNumber int, durationInTicks int, cpuUtil float64, memUtil float64, gpuUtil []domain.GpuUtilization, vramUsageGB float64) {
 	startSec := s.startingSeconds + (int64(tickNumber) * s.tickDurationSeconds)
-	startTime := time.Unix(startSec, 0)
+	startTime := time.Unix(startSec+s.offset, 0)
 	sessionMeta := s.getSessionMeta(sessionId)
 
 	s.stepCpu(sessionId, startTime, cpuUtil)
-	s.stepGpu(sessionId, startTime, gpuUtil)
+	s.stepGpu(sessionId, startTime, gpuUtil, vramUsageGB)
 	s.stepMemory(sessionId, startTime, memUtil)
+
+	sessionMeta.CurrentTrainingMaxCPUs = cpuUtil
+	sessionMeta.CurrentTrainingMaxMemory = memUtil
+	sessionMeta.CurrentTrainingMaxGPUs = gpuUtilizationValuesAboveZero(gpuUtil)
+	sessionMeta.CurrentTrainingMaxVRAM = vramUsageGB
 
 	s.submitWaitingEvent(sessionMeta)
 
 	endSec := s.startingSeconds + (int64(tickNumber+durationInTicks) * s.tickDurationSeconds)
-	endTime := time.Unix(endSec, 0)
+	endTime := time.Unix(endSec+s.offset, 0)
 
 	s.stepCpu(sessionId, endTime, 0)
-	s.stepGpu(sessionId, endTime, gpuUtil)
+	s.stepGpu(sessionId, endTime, gpuUtil, vramUsageGB)
 	s.stepMemory(sessionId, endTime, 0)
 
 	eventIndex := s.sessionEventIndexes[sessionId]
 	metadata := sessionMeta.Snapshot()
-	trainingStartedEvent := &eventImpl{
-		name:                domain.EventSessionTrainingStarted,
-		eventSource:         nil,
-		originalEventSource: nil,
-		data:                metadata,
-		localIndex:          eventIndex,
-		timestamp:           startTime,
-		id:                  uuid.New().String(),
-		globalIndex:         globalCustomEventIndex.Add(1),
+	trainingEvent := &domain.Event{
+		Name:                domain.EventSessionTraining,
+		EventSource:         nil,
+		OriginalEventSource: nil,
+		Data:                metadata,
+		LocalIndex:          eventIndex + 1,
+		Timestamp:           startTime,
+		EndTime:             endTime,
+		SessionId:           sessionId,
+		OriginalTimestamp:   startTime,
+		Duration:            endTime.Sub(startTime),
+		ID:                  uuid.New().String(),
+		GlobalIndex:         globalCustomEventIndex.Add(1),
 	}
-	heap.Push(&s.eventHeap, &internalEventHeapElement{trainingStartedEvent, -1})
-	s.log.Debug("Added session event.",
-		zap.String("session_id", sessionId),
-		zap.String("event_name", domain.EventSessionTrainingStarted.String()),
-		zap.Time("timestamp", startTime),
-		zap.Int64("second", startSec),
-		zap.Int("local_index", trainingStartedEvent.localIndex),
-		zap.Uint64("global_index", trainingStartedEvent.globalIndex),
-		zap.String("event_id", trainingStartedEvent.id),
-		zap.String("metadata", metadata.String()))
+	s.waitingEvents[sessionId] = trainingEvent
+	s.sessionEventIndexes[sessionId] = eventIndex + 1
 
-	trainingEndedEvent := &eventImpl{
-		name:                domain.EventSessionTrainingEnded,
-		eventSource:         nil,
-		originalEventSource: nil,
-		data:                nil,
-		localIndex:          eventIndex + 1,
-		timestamp:           endTime,
-		id:                  uuid.New().String(),
-		globalIndex:         globalCustomEventIndex.Add(1),
+	//eventIndex := s.sessionEventIndexes[sessionId]
+	//metadata := sessionMeta.Snapshot()
+	//trainingStartedEvent := &domain.Event{
+	//	Name:                domain.EventSessionTrainingStarted,
+	//	EventSource:         nil,
+	//	OriginalEventSource: nil,
+	//	Data:                metadata,
+	//	SessionId:           sessionId,
+	//	LocalIndex:          eventIndex,
+	//	OriginalTimestamp:   startTime,
+	//	Timestamp:           startTime,
+	//	ID:                  uuid.New().String(),
+	//	GlobalIndex:         globalCustomEventIndex.Add(1),
+	//	HeapIndex:           -1,
+	//}
+	//heap.Push(&s.eventHeap, trainingStartedEvent)
+	////s.log.Debug("Added session event.",
+	////	zap.String("session_id", sessionId),
+	////	zap.String("event_name", domain.EventSessionTrainingStarted.String()),
+	////	zap.Time("timestamp", startTime),
+	////	zap.Int64("second", startSec),
+	////	zap.Int("local_index", trainingStartedEvent.LocalIndex),
+	////	zap.Uint64("global_index", trainingStartedEvent.GlobalIndex),
+	////	zap.String("event_id", trainingStartedEvent.ID),
+	////	zap.String("metadata", metadata.String()))
+	//
+	//trainingEndedEvent := &domain.Event{
+	//	Name:                domain.EventSessionTrainingEnded,
+	//	EventSource:         nil,
+	//	OriginalEventSource: nil,
+	//	Data:                nil,
+	//	LocalIndex:          eventIndex + 1,
+	//	Timestamp:           endTime,
+	//	SessionId:           sessionId,
+	//	OriginalTimestamp:   endTime,
+	//	ID:                  uuid.New().String(),
+	//	GlobalIndex:         globalCustomEventIndex.Add(1),
+	//}
+	//s.waitingEvents[sessionId] = trainingEndedEvent
+	//s.sessionEventIndexes[sessionId] = eventIndex + 1
+}
+
+func (s *CustomEventSequencer) getSessionMeta(sessionId string) *SessionMeta {
+	var (
+		wrappedSession *sessionMetaWrapper
+		ok             bool
+	)
+
+	if wrappedSession, ok = s.sessions[sessionId]; !ok {
+		panic(fmt.Sprintf("Could not find session with specified ID: \"%s\". Has this session been registered yet?", sessionId))
 	}
-	s.waitingEvents[sessionId] = trainingEndedEvent
-	s.sessionEventIndexes[sessionId] = eventIndex + 2
+
+	return wrappedSession.session
 }
 
-type internalEventHeap []*internalEventHeapElement
+func (s *CustomEventSequencer) getWrappedSession(sessionId string) *sessionMetaWrapper {
+	var (
+		wrappedSession *sessionMetaWrapper
+		ok             bool
+	)
 
-type internalEventHeapElement struct {
-	domain.Event
+	if wrappedSession, ok = s.sessions[sessionId]; !ok {
+		panic(fmt.Sprintf("Could not find session wrapper with specified ID: \"%s\". Has this session been registered yet?", sessionId))
+	}
 
-	// heapIndex is the index of the internalEventHeapElement within its containing internalEventHeap.
-	// heapIndex is distinct from the domain.Event's SessionSpecificEventIndex and GlobalEventIndex methods.
-	// heapIndex is dynamic and will change depending on what position the internalEventHeapElement is in
-	// within the containing internalEventHeap, whereas SessionSpecificEventIndex and GlobalEventIndex are/return
-	// static values that are set when the underlying domain.Event is first created.
-	heapIndex int
+	return wrappedSession
 }
 
-func (e *internalEventHeapElement) Idx() int {
-	return e.heapIndex
+func (s *CustomEventSequencer) stepCpu(sessionId string, timestamp time.Time, cpuUtil float64) {
+	wrappedSession := s.getWrappedSession(sessionId)
+
+	cpu := wrappedSession.cpu
+	podIdx, ok := s.podMap[sessionId]
+	if !ok {
+		panic(fmt.Sprintf("Cannot find PodIDX for Session \"%s\"", sessionId))
+	}
+
+	record := &CPURecord{
+		Timestamp: UnixTime(timestamp),
+		Pod:       sessionId,
+		PodIdx:    podIdx,
+		Value:     cpuUtil,
+	}
+	committed := cpu.DebugCommitAndInit(record)
+	wrappedSession.session.CPU = committed
 }
 
-func (e *internalEventHeapElement) SetIndex(idx int) {
-	e.heapIndex = idx
-}
+func (s *CustomEventSequencer) stepGpu(sessionId string, timestamp time.Time, gpuUtil []domain.GpuUtilization, vramGb float64) {
+	wrappedSession := s.getWrappedSession(sessionId)
 
-func (h internalEventHeap) Len() int {
-	return len(h)
-}
+	gpu := wrappedSession.gpu
+	podIdx, ok := s.podMap[sessionId]
+	if !ok {
+		panic(fmt.Sprintf("Cannot find PodIDX for Session \"%s\"", sessionId))
+	}
 
-func (h internalEventHeap) Less(i, j int) bool {
-	// We want to ensure that TrainingEnded events are processed before SessionStopped events.
-	// So, if the event at localIndex i is a TrainingEnded event while the event at localIndex j is a SessionStopped event,
-	// then the event at localIndex i should be processed first.
-	if h[i].Timestamp().Equal(h[j].Timestamp()) {
-		if h[i].Name() == domain.EventSessionTrainingEnded && h[j].Name() == domain.EventSessionStopped {
-			if h[i].SessionSpecificEventIndex() /* training-ended */ > h[j].SessionSpecificEventIndex() /* session-stopped */ {
-				// We expect the global localIndex of the training-ended event to be less than that of the session-stopped
-				// event, since the training-ended event should have been created prior to the session-stopped event.
-				log.Fatalf("Global event indices do not reflect correct ordering of events. "+
-					"TrainingEnded: %s. SessionStopped: %s.", h[i].String(), h[j].String())
-			}
-
-			return true
-		} else if h[j].Name() == domain.EventSessionTrainingEnded && h[i].Name() == domain.EventSessionStopped {
-			if h[j].SessionSpecificEventIndex() /* training-ended */ > h[i].SessionSpecificEventIndex() /* session-stopped */ {
-				// We expect the global localIndex of the training-ended event to be less than that of the session-stopped
-				// event, since the training-ended event should have been created prior to the session-stopped event.
-				log.Fatalf("Global event indices do not reflect correct ordering of events. "+
-					"TrainingEnded: %s. SessionStopped: %s.", h[j].String(), h[i].String())
-			}
-
-			return false
+	var committed *GPUUtil
+	for gpuIdx, gpuUtil := range gpuUtil {
+		record := &GPURecord{
+			Timestamp: UnixTime(timestamp),
+			Pod:       sessionId,
+			PodIdx:    podIdx,
+			Value:     gpuUtil.Utilization,
+			GPUIdx:    fmt.Sprintf("%d", gpuIdx),
+			VramGb:    vramGb,
 		}
 
-		return h[i].GlobalEventIndex() < h[j].GlobalEventIndex()
+		if gpuIdx == 0 {
+			committed = gpu.DebugCommitAndInit(record)
+		} else {
+			gpu.DebugUpdate(record)
+		}
 	}
 
-	return h[i].Timestamp().Before(h[j].Timestamp())
-}
+	wrappedSession.session.GPU = committed
 
-func (h internalEventHeap) Swap(i, j int) {
-	// log.Printf("Swap %d, %d (%v, %v) of %d", i, j, h[i], h[j], len(h))
-	h[i].SetIndex(j)
-	h[j].SetIndex(i)
-	h[i], h[j] = h[j], h[i]
-}
-
-func (h *internalEventHeap) Push(x interface{}) {
-	x.(*internalEventHeapElement).SetIndex(len(*h))
-	*h = append(*h, x.(*internalEventHeapElement))
-}
-
-func (h *internalEventHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	ret := old[n-1]
-	old[n-1] = nil // avoid memory leak
-	*h = old[0 : n-1]
-	return ret
-}
-
-func (h internalEventHeap) Peek() *internalEventHeapElement {
-	if len(h) == 0 {
-		return nil
+	if committed != nil {
+		wrappedSession.session.VRAM = committed.VRamGB
 	}
-	return h[0]
+}
+
+func (s *CustomEventSequencer) stepMemory(sessionId string, timestamp time.Time, memUtil float64) {
+	wrappedSession := s.getWrappedSession(sessionId)
+
+	memBuffer := wrappedSession.memBuffer
+	podIdx, ok := s.podMap[sessionId]
+	if !ok {
+		panic(fmt.Sprintf("Cannot find PodIDX for Session \"%s\"", sessionId))
+	}
+
+	record := &Memory{
+		Timestamp: UnixTime(timestamp),
+		Pod:       sessionId,
+		PodIdx:    podIdx,
+		Value:     memUtil,
+	}
+	nextUtil := memBuffer.DebugInit(record)
+	currentUtil := memBuffer.DebugCommit(nextUtil)
+	wrappedSession.session.Memory = currentUtil
+}
+
+func (s *CustomEventSequencer) submitWaitingEvent(sessionMeta *SessionMeta) {
+	sessionId := sessionMeta.Pod
+	dataForWaitingEvent := sessionMeta.Snapshot()
+	s.waitingEvents[sessionId].Data = dataForWaitingEvent
+	evt := s.waitingEvents[sessionId]
+	heap.Push(&s.eventHeap, evt)
+
+	//s.log.Debug("Adding session event.",
+	//	zap.String("session_id", sessionId),
+	//	zap.String("event_name", evt.Name.String()),
+	//	zap.Time("timestamp", evt.Timestamp),
+	//	zap.Int64("order_seq", evt.OrderSeq),
+	//	zap.Int("local_index", evt.LocalIndex),
+	//	zap.Uint64("global_index", evt.GlobalIndex),
+	//	zap.String("session_id", evt.ID))
+
+	delete(s.waitingEvents, sessionId)
+}
+
+// gpuUtilizationValuesAboveZero returns the number of entries in the slice of domain.GpuUtilization structs
+// such that the Utilization field of the domain.GpuUtilization is > 0.
+func gpuUtilizationValuesAboveZero(gpuUtil []domain.GpuUtilization) int {
+	num := 0
+	for _, util := range gpuUtil {
+		if util.Utilization > 0 {
+			num += 1
+		}
+	}
+
+	return num
 }

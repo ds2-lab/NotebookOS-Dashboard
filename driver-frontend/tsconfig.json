@@ -44,6 +44,12 @@
       ],
       "@Icons/*": [
         "src/Assets/Icons/*"
+      ],
+      "@Utils/*": [
+        "src/Utils/*"
+      ],
+      "@Workloads/*": [
+        "src/Components/Workloads/*"
       ]
     },
     "importHelpers": true,

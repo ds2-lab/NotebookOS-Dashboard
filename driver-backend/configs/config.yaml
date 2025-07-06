@@ -4,16 +4,23 @@ spoof-kernels: false
 spoof-specs: false
 server-port: 8000
 workload-presets-file: "configs/workload-presets-file.yaml"
+workload-templates-file: "configs/workload-templates-file.yaml"
+workload-job-config-file: "configs/workload-job-config.yaml"
 gateway-address: localhost:8079
 cluster-dashboard-handler-port: 8078
 websocket-proxy-port: 8077
 base-url: "/"
+workload-output-interval-seconds: 1
+workload-output-json-frequency: 5
+apply-time-compression-to-training-durations: true
+save_io_pub_messages: false
+drop_sessions_with_no_trainings: true
 
 # The address of the Jupyter Server.
-frontend-jupyter-server-address: localhost:8888
+frontend-jupyter-server-address: 127.0.0.1:8888
 
 # The address of the Jupyter Server to use internally.
-internal-jupyter-server-address: localhost:8888
+internal-jupyter-server-address: 127.0.0.1:8888
 
 # The base path that the Jupyter Server is listening on.
 jupyter-server-base-path: /
@@ -34,3 +41,6 @@ token_valid_duration_sec: 3600
 
 # How long users have to refresh their tokens
 token_refresh_interval_sec: 5400
+
+# Where the csv statistics are written for workloads
+workload_output_directory: "./workload-output"
