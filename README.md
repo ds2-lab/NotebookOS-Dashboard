@@ -4,6 +4,8 @@ This repository contains a "Workload Driver" for the Distributed Jupyter Noteboo
 
 The Workload Driver provides a web interface containing a dashboard for monitoring the Notebook Cluster. The Workload Driver will also allow users to execute large-scale workloads on the Jupyter Notebook cluster.
 
+The repository for NotebookOS, the system with which this dashboard is designed to work, is available [here](https://github.com/ds2-lab/NotebookOS/).
+
 ![demo image](demo.png?raw=true)
 
 ## Repository Overview
