@@ -129,3 +129,12 @@ ENV_2=http://2.myendpoint.com
 ```
 
 With that in place, you can use the values in your code like `console.log(process.env.ENV_1);`
+
+## Generating a Workload
+
+In order to facilitate development and experimentation with NotebookOS, we provide multiple ways to generate workloads that can be executed directly atop NotebookOS. One such way is to use the browser-based workload creator and editor, which is accessible from the dashboard. 
+
+Alternatively, we provide a Python script for generating a workload with several different parameters. This script is located in the `driver-backend/scripts/workload_generator` directory of this repository. Specifically, the `generate_workload.py` script can be used to generate workloads with a configurable maximum per session usage for CPU, RAM, GPU, and VRAM resources. You may also configure the Poisson process used to generate training events for each session. For a detailed description of the various possible configuration parameters, execute the `generate_workload.py` script with the `-h` or `--help` flag:
+``` shell
+$ python3 generate_workload.py --help
+```
